@@ -2,9 +2,13 @@ from django.contrib import admin
 
 from .models import (
     Cliente,
+    ClienteEndereco,
+    ClienteTelefone,
     Embalagem,
     Equipamento,
     Fornecedor,
+    FornecedorEndereco,
+    FornecedorTelefone,
     MateriaPrima,
     Produto,
     Setor,
@@ -21,6 +25,53 @@ class CadastroAdminBase(admin.ModelAdmin):
             obj.criado_por = request.user
         obj.atualizado_por = request.user
         super().save_model(request, obj, form, change)
+
+    def save_formset(self, request, form, formset, change):
+        instancias = formset.save(commit=False)
+        for objeto in formset.deleted_objects:
+            objeto.delete()
+        for objeto in instancias:
+            if objeto.pk is None:
+                objeto.criado_por = request.user
+            objeto.atualizado_por = request.user
+            objeto.save()
+        formset.save_m2m()
+
+
+class TelefoneInlineBase(admin.TabularInline):
+    extra = 1
+    fields = ("tipo", "telefone", "contato", "principal", "observacoes", "ativo")
+
+
+class EnderecoInlineBase(admin.TabularInline):
+    extra = 1
+    fields = (
+        "tipo",
+        "cep",
+        "logradouro",
+        "numero",
+        "bairro",
+        "cidade",
+        "uf",
+        "principal",
+        "ativo",
+    )
+
+
+class ClienteTelefoneInline(TelefoneInlineBase):
+    model = ClienteTelefone
+
+
+class ClienteEnderecoInline(EnderecoInlineBase):
+    model = ClienteEndereco
+
+
+class FornecedorTelefoneInline(TelefoneInlineBase):
+    model = FornecedorTelefone
+
+
+class FornecedorEnderecoInline(EnderecoInlineBase):
+    model = FornecedorEndereco
 
 
 @admin.register(Setor)
@@ -39,16 +90,32 @@ class EquipamentoAdmin(CadastroAdminBase):
 
 @admin.register(Cliente)
 class ClienteAdmin(CadastroAdminBase):
-    list_display = ("razao_social", "nome_fantasia", "documento", "cidade", "uf", "ativo")
-    list_filter = ("ativo", "uf")
+    list_display = (
+        "razao_social",
+        "nome_fantasia",
+        "documento",
+        "cidade_uf_principal",
+        "telefone_principal",
+        "ativo",
+    )
+    list_filter = ("ativo",)
     search_fields = ("razao_social", "nome_fantasia", "documento")
+    inlines = (ClienteTelefoneInline, ClienteEnderecoInline)
 
 
 @admin.register(Fornecedor)
 class FornecedorAdmin(CadastroAdminBase):
-    list_display = ("razao_social", "nome_fantasia", "documento", "cidade", "uf", "ativo")
-    list_filter = ("ativo", "uf")
+    list_display = (
+        "razao_social",
+        "nome_fantasia",
+        "documento",
+        "cidade_uf_principal",
+        "telefone_principal",
+        "ativo",
+    )
+    list_filter = ("ativo",)
     search_fields = ("razao_social", "nome_fantasia", "documento")
+    inlines = (FornecedorTelefoneInline, FornecedorEnderecoInline)
 
 
 @admin.register(Produto)

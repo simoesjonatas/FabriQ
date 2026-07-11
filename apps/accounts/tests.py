@@ -27,10 +27,17 @@ class UserModelTests(TestCase):
 
     def test_str_usa_username_quando_nao_ha_nome(self):
         usuario = User.objects.create_user(username="joao")
-        self.assertEqual(str(usuario), "joao")
+        self.assertEqual(str(usuario), "JOAO")
 
     def test_modelo_de_usuario_customizado_esta_ativo(self):
         self.assertEqual(User._meta.label, "accounts.User")
+
+    def test_usuario_e_email_sao_salvos_em_maiusculo(self):
+        usuario = User.objects.create_user(
+            username="maria.silva", email="maria@exemplo.com"
+        )
+        self.assertEqual(usuario.username, "MARIA.SILVA")
+        self.assertEqual(usuario.email, "MARIA@EXEMPLO.COM")
 
 
 class PerfisTests(TestCase):
@@ -62,7 +69,9 @@ class PerfisTests(TestCase):
 
 class LoginTests(TestCase):
     def setUp(self):
-        self.usuario = criar_usuario("maria", perfil=PRODUCAO)
+        self.usuario = criar_usuario(
+            "maria", perfil=PRODUCAO, email="maria@exemplo.com"
+        )
 
     def test_pagina_de_login_carrega(self):
         response = self.client.get(reverse("accounts:login"))
@@ -73,6 +82,20 @@ class LoginTests(TestCase):
         response = self.client.post(
             reverse("accounts:login"),
             {"username": "maria", "password": "senha-forte-123"},
+        )
+        self.assertRedirects(response, reverse("core:home"))
+
+    def test_login_por_email_redireciona_para_home(self):
+        response = self.client.post(
+            reverse("accounts:login"),
+            {"username": "maria@exemplo.com", "password": "senha-forte-123"},
+        )
+        self.assertRedirects(response, reverse("core:home"))
+
+    def test_login_normaliza_usuario_antes_de_validar(self):
+        response = self.client.post(
+            reverse("accounts:login"),
+            {"username": "MaRiA", "password": "senha-forte-123"},
         )
         self.assertRedirects(response, reverse("core:home"))
 
@@ -120,7 +143,7 @@ class RecuperarSenhaTests(TestCase):
         )
         self.assertRedirects(response, reverse("accounts:password_reset_done"))
         self.assertEqual(len(mail.outbox), 1)
-        self.assertIn("maria", mail.outbox[0].body)
+        self.assertIn("MARIA", mail.outbox[0].body)
 
         # Extrai o link do e-mail e abre (redireciona para a URL com token em sessão)
         link = re.search(r"http://[^\s]+", mail.outbox[0].body).group()
@@ -169,12 +192,12 @@ class UsuarioCrudTests(TestCase):
         self.entrar_como_admin()
         response = self.client.get(reverse("accounts:usuario_lista"))
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "operador")
+        self.assertContains(response, "OPERADOR")
 
     def test_pesquisa_filtra_usuarios(self):
         self.entrar_como_admin()
         response = self.client.get(reverse("accounts:usuario_lista"), {"q": "operador"})
-        self.assertContains(response, "operador")
+        self.assertContains(response, "OPERADOR")
         self.assertNotContains(response, ">admin<")
 
     def test_filtro_de_inativos(self):
@@ -183,8 +206,8 @@ class UsuarioCrudTests(TestCase):
         response = self.client.get(
             reverse("accounts:usuario_lista"), {"status": "inativos"}
         )
-        self.assertContains(response, "desligado")
-        self.assertNotContains(response, "operador")
+        self.assertContains(response, "DESLIGADO")
+        self.assertNotContains(response, "OPERADOR")
 
     def test_cadastrar_usuario_com_perfil(self):
         self.entrar_como_admin()
@@ -202,7 +225,8 @@ class UsuarioCrudTests(TestCase):
             },
         )
         self.assertRedirects(response, reverse("accounts:usuario_lista"))
-        novo = User.objects.get(username="novo.usuario")
+        novo = User.objects.get(username="NOVO.USUARIO")
+        self.assertEqual(novo.email, "NOVO@EXEMPLO.COM")
         self.assertEqual(list(novo.groups.all()), [grupo_pcp])
 
     def test_inativar_usuario_em_vez_de_excluir(self):

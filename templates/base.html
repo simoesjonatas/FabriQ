@@ -1,28 +1,66 @@
 {% load static %}
 <!DOCTYPE html>
-<html lang="pt-br">
+<html lang="pt-br" data-bs-theme="light">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{% block title %}FabriQ{% endblock %} · FabriQ</title>
+    <link rel="icon" type="image/svg+xml" href="{% static 'image/favicon.svg' %}">
+    <link rel="shortcut icon" href="{% static 'image/js.ico' %}">
+    <script>
+        (() => {
+            const key = "fabriq-theme";
+            const stored = localStorage.getItem(key);
+            const preferred = window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+            document.documentElement.setAttribute("data-bs-theme", stored || preferred);
+        })();
+    </script>
     <link rel="stylesheet" href="{% static 'vendor/bootstrap/bootstrap.min.css' %}">
     <link rel="stylesheet" href="{% static 'vendor/bootstrap-icons/bootstrap-icons.min.css' %}">
     <link rel="stylesheet" href="{% static 'css/fabriq.css' %}">
     {% block extra_css %}{% endblock %}
 </head>
-<body class="d-flex flex-column min-vh-100 bg-body-tertiary">
+<body class="d-flex flex-column min-vh-100 app-shell">
 
-    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
-        <div class="container-fluid">
-            <a class="navbar-brand fw-semibold" href="/">
-                <i class="bi bi-boxes me-1"></i>FabriQ
+    <div class="page-loading-overlay" data-page-loading hidden aria-live="polite" aria-busy="false">
+        <div class="page-loading-card" role="status">
+            <span class="page-loading-spinner" aria-hidden="true"></span>
+            <span>Carregando...</span>
+        </div>
+    </div>
+
+    <nav class="navbar navbar-expand-lg app-navbar" data-app-navbar>
+        <div class="container-fluid app-container">
+            <a class="navbar-brand app-brand" href="/">
+                <span class="brand-mark" aria-hidden="true">FQ</span>
+                <span class="brand-copy">
+                    <span class="brand-name">FabriQ</span>
+                    <span class="brand-subtitle">ERP Industrial</span>
+                </span>
             </a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse"
-                    data-bs-target="#navbarPrincipal" aria-controls="navbarPrincipal"
-                    aria-expanded="false" aria-label="Alternar navegação">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-            <div class="collapse navbar-collapse" id="navbarPrincipal">
+            <div class="navbar-actions order-lg-3">
+                <button class="theme-toggle" type="button" data-theme-toggle
+                        aria-label="Ativar tema escuro" title="Ativar tema escuro">
+                    <i class="bi bi-sun" data-theme-icon aria-hidden="true"></i>
+                </button>
+                {% if user.is_authenticated or modulos_menu %}
+                    <button class="navbar-toggler" type="button" data-bs-toggle="collapse"
+                            data-bs-target="#navbarPrincipal" aria-controls="navbarPrincipal"
+                            aria-expanded="false" aria-label="Alternar navegação">
+                        <span class="navbar-toggler-icon"></span>
+                    </button>
+                {% endif %}
+            </div>
+            <div class="collapse navbar-collapse order-lg-2" id="navbarPrincipal">
+                <div class="mobile-menu-client d-md-none" aria-label="Cliente Corpo & Cheiro">
+                    <span class="client-logo-wrap">
+                        <img src="{% static 'image/logocc.png' %}" alt="Corpo & Cheiro">
+                    </span>
+                    <span class="client-copy">
+                        <span>Cliente</span>
+                        <strong>Corpo &amp; Cheiro</strong>
+                    </span>
+                </div>
                 <ul class="navbar-nav me-auto">
                     {% for modulo in modulos_menu %}
                         <li class="nav-item">
@@ -33,7 +71,16 @@
                         </li>
                     {% endfor %}
                 </ul>
-                <ul class="navbar-nav">
+                <div class="client-lockup d-none d-md-flex" aria-label="Cliente Corpo & Cheiro">
+                    <span class="client-logo-wrap">
+                        <img src="{% static 'image/logocc.png' %}" alt="Corpo & Cheiro">
+                    </span>
+                    <span class="client-copy">
+                        <span>Cliente</span>
+                        <strong>Corpo &amp; Cheiro</strong>
+                    </span>
+                </div>
+                <ul class="navbar-nav ms-lg-3">
                     {% if user.is_authenticated %}
                         <li class="nav-item dropdown">
                             <a class="nav-link dropdown-toggle" href="#" role="button"
@@ -63,10 +110,10 @@
         </div>
     </nav>
 
-    <main class="container-fluid py-4 flex-grow-1">
+    <main class="container-fluid app-container py-4 py-lg-5 flex-grow-1">
         {% if messages %}
             <div class="row justify-content-center">
-                <div class="col-12 col-xl-10">
+                <div class="col-12 col-xl-11">
                     {% for message in messages %}
                         <div class="alert alert-{{ message.tags|default:'info' }} alert-dismissible fade show" role="alert">
                             {{ message }}
@@ -80,14 +127,350 @@
         {% block content %}{% endblock %}
     </main>
 
-    <footer class="py-3 border-top bg-body">
-        <div class="container-fluid d-flex justify-content-between small text-body-secondary">
-            <span>FabriQ · ERP Industrial</span>
-            <span>Corpo &amp; Cheiro</span>
+    <footer class="app-footer">
+        <div class="container-fluid app-container footer-inner">
+            <div class="footer-product">
+                <strong>FabriQ</strong>
+                <span>ERP Industrial para Corpo &amp; Cheiro</span>
+            </div>
+            <div class="footer-signature" aria-label="Simões Tecnologia">
+                <span>tecnologia</span>
+                <img src="{% static 'image/logo_preta.png' %}" alt="Simões Tecnologia">
+            </div>
         </div>
     </footer>
 
     <script src="{% static 'vendor/bootstrap/bootstrap.bundle.min.js' %}"></script>
+    <script>
+        const themeKey = "fabriq-theme";
+        const pageLoading = document.querySelector("[data-page-loading]");
+        let pageLoadingTimer;
+
+        function showPageLoading() {
+            if (!pageLoading) return;
+            pageLoading.hidden = false;
+            pageLoading.setAttribute("aria-busy", "true");
+            document.body.classList.add("is-page-loading");
+            requestAnimationFrame(() => pageLoading.classList.add("is-visible"));
+        }
+
+        function schedulePageLoading(delay = 450) {
+            clearTimeout(pageLoadingTimer);
+            pageLoadingTimer = setTimeout(showPageLoading, delay);
+        }
+
+        function hidePageLoading() {
+            clearTimeout(pageLoadingTimer);
+            if (!pageLoading) return;
+
+            pageLoading.classList.remove("is-visible");
+            pageLoading.setAttribute("aria-busy", "false");
+            document.body.classList.remove("is-page-loading");
+
+            setTimeout(() => {
+                if (!pageLoading.classList.contains("is-visible")) {
+                    pageLoading.hidden = true;
+                }
+            }, 180);
+        }
+
+        function shouldShowLoadingForLink(link, event) {
+            if (
+                event.defaultPrevented ||
+                event.button !== 0 ||
+                event.metaKey ||
+                event.ctrlKey ||
+                event.shiftKey ||
+                event.altKey
+            ) {
+                return false;
+            }
+
+            if (
+                link.target && link.target !== "_self" ||
+                link.hasAttribute("download") ||
+                link.dataset.bsToggle ||
+                link.dataset.noPageLoading !== undefined
+            ) {
+                return false;
+            }
+
+            const href = link.getAttribute("href") || "";
+            if (!href || href === "#" || href.startsWith("javascript:")) return false;
+            if (href.startsWith("mailto:") || href.startsWith("tel:")) return false;
+
+            const url = new URL(link.href, window.location.href);
+            return !(
+                url.pathname === window.location.pathname &&
+                url.search === window.location.search &&
+                url.hash
+            );
+        }
+
+        document.addEventListener("click", (event) => {
+            const clickTarget = event.target instanceof Element ? event.target : event.target.parentElement;
+            const link = clickTarget?.closest("a[href]");
+            if (!link || !shouldShowLoadingForLink(link, event)) return;
+            schedulePageLoading();
+        }, true);
+
+        document.addEventListener("submit", (event) => {
+            if (event.defaultPrevented) return;
+
+            const form = event.target;
+            const target = event.submitter?.getAttribute("formtarget") || form.getAttribute("target");
+            if (
+                form.dataset.noPageLoading !== undefined ||
+                form.getAttribute("method") === "dialog" ||
+                target && target !== "_self"
+            ) {
+                return;
+            }
+
+            schedulePageLoading();
+        }, true);
+
+        window.addEventListener("beforeunload", () => schedulePageLoading(600));
+        window.addEventListener("pageshow", hidePageLoading);
+        document.addEventListener("visibilitychange", () => {
+            if (document.visibilityState === "visible") hidePageLoading();
+        });
+
+        function applyTheme(theme) {
+            const nextTheme = theme === "dark" ? "dark" : "light";
+            document.documentElement.setAttribute("data-bs-theme", nextTheme);
+            localStorage.setItem(themeKey, nextTheme);
+
+            document.querySelectorAll("[data-theme-icon]").forEach((icon) => {
+                icon.className = nextTheme === "dark" ? "bi bi-moon-stars" : "bi bi-sun";
+            });
+
+            document.querySelectorAll("[data-theme-toggle]").forEach((button) => {
+                const label = nextTheme === "dark" ? "Ativar tema claro" : "Ativar tema escuro";
+                button.setAttribute("aria-label", label);
+                button.setAttribute("title", label);
+            });
+        }
+
+        applyTheme(document.documentElement.getAttribute("data-bs-theme") || "light");
+
+        document.querySelectorAll("[data-theme-toggle]").forEach((option) => {
+            option.addEventListener("click", () => {
+                const atual = document.documentElement.getAttribute("data-bs-theme");
+                applyTheme(atual === "dark" ? "light" : "dark");
+            });
+        });
+
+        document.querySelectorAll("[data-password-toggle]").forEach((button) => {
+            const input = document.getElementById(button.dataset.passwordTarget);
+            const icon = button.querySelector("i");
+            if (!input || !icon) return;
+
+            button.addEventListener("click", () => {
+                const mostrar = input.type === "password";
+                input.type = mostrar ? "text" : "password";
+                button.setAttribute("aria-pressed", mostrar ? "true" : "false");
+                button.setAttribute("aria-label", mostrar ? "Ocultar senha" : "Mostrar senha");
+                button.setAttribute("title", mostrar ? "Ocultar senha" : "Mostrar senha");
+                icon.className = mostrar ? "bi bi-eye-slash" : "bi bi-eye";
+                input.focus({ preventScroll: true });
+            });
+        });
+
+        function digitsOnly(value) {
+            return (value || "").replace(/\D/g, "");
+        }
+
+        function maskCpfCnpj(value) {
+            const digits = digitsOnly(value).slice(0, 14);
+            if (digits.length <= 11) {
+                return digits
+                    .replace(/(\d{3})(\d)/, "$1.$2")
+                    .replace(/(\d{3})(\d)/, "$1.$2")
+                    .replace(/(\d{3})(\d{1,2})$/, "$1-$2");
+            }
+            return digits
+                .replace(/^(\d{2})(\d)/, "$1.$2")
+                .replace(/^(\d{2})\.(\d{3})(\d)/, "$1.$2.$3")
+                .replace(/\.(\d{3})(\d)/, ".$1/$2")
+                .replace(/(\d{4})(\d{1,2})$/, "$1-$2");
+        }
+
+        function maskTelefone(value) {
+            const digits = digitsOnly(value).slice(0, 11);
+            if (digits.length <= 10) {
+                return digits
+                    .replace(/^(\d{2})(\d)/, "($1) $2")
+                    .replace(/(\d{4})(\d{1,4})$/, "$1-$2");
+            }
+            return digits
+                .replace(/^(\d{2})(\d)/, "($1) $2")
+                .replace(/(\d{5})(\d{1,4})$/, "$1-$2");
+        }
+
+        function maskCep(value) {
+            return digitsOnly(value).slice(0, 8).replace(/^(\d{5})(\d)/, "$1-$2");
+        }
+
+        function applyInputMask(input) {
+            const mask = input.dataset.mask;
+            if (mask === "cpf-cnpj") input.value = maskCpfCnpj(input.value);
+            if (mask === "telefone") input.value = maskTelefone(input.value);
+            if (mask === "cep") input.value = maskCep(input.value);
+        }
+
+        const cepLookupCache = new Map();
+
+        function setCepStatus(input, state, message) {
+            const item = input.closest("[data-formset-item]");
+            const status = item?.querySelector("[data-cep-status]");
+            if (!status) return;
+
+            status.textContent = message || "";
+            status.classList.remove("is-loading", "is-success", "is-error");
+            if (state) status.classList.add(`is-${state}`);
+        }
+
+        function getEnderecoInput(cepInput, fieldName) {
+            const item = cepInput.closest("[data-formset-item]");
+            return item?.querySelector(`[name$="-${fieldName}"]`);
+        }
+
+        function preencherEnderecoPorCep(cepInput, data) {
+            const campos = {
+                logradouro: data.logradouro,
+                bairro: data.bairro,
+                cidade: data.localidade,
+                uf: data.uf,
+            };
+
+            Object.entries(campos).forEach(([campo, valor]) => {
+                const input = getEnderecoInput(cepInput, campo);
+                if (input && valor) input.value = valor;
+            });
+
+            const complementoInput = getEnderecoInput(cepInput, "complemento");
+            if (complementoInput && data.complemento && !complementoInput.value) {
+                complementoInput.value = data.complemento;
+            }
+        }
+
+        async function consultarCep(input, cep) {
+            if (input.dataset.cepLookup === cep) return;
+            input.dataset.cepLookup = cep;
+            setCepStatus(input, "loading", "Buscando endereço pelo CEP...");
+
+            try {
+                let data = cepLookupCache.get(cep);
+                if (!data) {
+                    const response = await fetch(`https://viacep.com.br/ws/${cep}/json/`);
+                    if (!response.ok) throw new Error("cep_lookup_failed");
+                    data = await response.json();
+                    cepLookupCache.set(cep, data);
+                }
+
+                if (data.erro) {
+                    setCepStatus(input, "error", "CEP não encontrado.");
+                    return;
+                }
+
+                preencherEnderecoPorCep(input, data);
+                setCepStatus(input, "success", "Endereço preenchido. Revise se precisar.");
+            } catch {
+                input.dataset.cepLookup = "";
+                setCepStatus(input, "error", "Não foi possível consultar o CEP agora.");
+            }
+        }
+
+        function scheduleCepLookup(input) {
+            if (input.dataset.mask !== "cep") return;
+
+            const cep = digitsOnly(input.value);
+            clearTimeout(input.cepLookupTimer);
+
+            if (cep.length < 8) {
+                input.dataset.cepLookup = "";
+                setCepStatus(input, "", "");
+                return;
+            }
+
+            input.cepLookupTimer = setTimeout(() => consultarCep(input, cep), 350);
+        }
+
+        function setupInputMasks(root = document) {
+            const inputs = root.matches?.("[data-mask]")
+                ? [root]
+                : Array.from(root.querySelectorAll("[data-mask]"));
+
+            inputs.forEach((input) => {
+                applyInputMask(input);
+                if (input.dataset.maskReady) return;
+                input.dataset.maskReady = "true";
+                input.addEventListener("input", () => {
+                    applyInputMask(input);
+                    scheduleCepLookup(input);
+                });
+                input.addEventListener("blur", () => {
+                    applyInputMask(input);
+                    scheduleCepLookup(input);
+                });
+            });
+        }
+
+        setupInputMasks();
+
+        document.querySelectorAll("[data-formset]").forEach((section) => {
+            const prefix = section.dataset.formsetPrefix;
+            const list = section.querySelector(`[data-formset-list="${prefix}"]`);
+            const template = section.querySelector(`[data-formset-template="${prefix}"]`);
+            const addButton = section.querySelector(`[data-formset-add="${prefix}"]`);
+            const totalForms = document.getElementById(`id_${prefix}-TOTAL_FORMS`);
+            if (!list || !template || !addButton || !totalForms) return;
+
+            addButton.addEventListener("click", () => {
+                const index = Number(totalForms.value);
+                const html = template.innerHTML.replace(/__prefix__/g, String(index));
+                list.insertAdjacentHTML("beforeend", html);
+                totalForms.value = String(index + 1);
+                setupInputMasks(list.lastElementChild);
+            });
+        });
+
+        document.addEventListener("click", (event) => {
+            const button = event.target.closest("[data-formset-remove]");
+            if (!button) return;
+
+            const item = button.closest("[data-formset-item]");
+            if (!item) return;
+
+            const deleteInput = item.querySelector('input[name$="-DELETE"]');
+            if (deleteInput) deleteInput.value = "on";
+            item.hidden = true;
+        });
+
+        document.querySelectorAll("[data-app-navbar]").forEach((navbar) => {
+            const collapse = navbar.querySelector(".navbar-collapse");
+            if (!collapse) return;
+
+            collapse.addEventListener("show.bs.collapse", () => {
+                navbar.classList.add("menu-opening");
+            });
+
+            collapse.addEventListener("shown.bs.collapse", () => {
+                navbar.classList.add("menu-open");
+                navbar.classList.remove("menu-opening");
+            });
+
+            collapse.addEventListener("hide.bs.collapse", () => {
+                navbar.classList.add("menu-closing");
+                navbar.classList.remove("menu-open");
+            });
+
+            collapse.addEventListener("hidden.bs.collapse", () => {
+                navbar.classList.remove("menu-closing");
+            });
+        });
+    </script>
     {% block extra_js %}{% endblock %}
 </body>
 </html>

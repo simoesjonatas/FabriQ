@@ -4,20 +4,25 @@ from django.contrib.auth.models import Group
 
 from apps.core.forms import BootstrapFormMixin
 
-from .models import User
+from .models import User, normalizar_identificador
 
 
 class LoginForm(BootstrapFormMixin, auth_forms.AuthenticationForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.fields["username"].label = "Usuário ou e-mail"
         self.fields["username"].widget.attrs.update(
-            {"placeholder": "Usuário", "autofocus": True}
+            {"placeholder": "Usuário ou e-mail", "autofocus": True}
         )
         self.fields["password"].widget.attrs["placeholder"] = "Senha"
 
+    def clean_username(self):
+        return normalizar_identificador(self.cleaned_data["username"])
+
 
 class RecuperarSenhaForm(BootstrapFormMixin, auth_forms.PasswordResetForm):
-    pass
+    def clean_email(self):
+        return normalizar_identificador(self.cleaned_data["email"])
 
 
 class DefinirSenhaForm(BootstrapFormMixin, auth_forms.SetPasswordForm):
@@ -52,6 +57,15 @@ class UsuarioCriarForm(BootstrapFormMixin, auth_forms.UserCreationForm):
             "last_name": "Sobrenome",
             "email": "E-mail",
         }
+
+    def clean_username(self):
+        return normalizar_identificador(self.cleaned_data["username"])
+
+    def clean_email(self):
+        email = normalizar_identificador(self.cleaned_data.get("email"))
+        if email and User.objects.filter(email=email).exists():
+            raise forms.ValidationError("Já existe um usuário com este e-mail.")
+        return email
 
     def save(self, commit=True):
         usuario = super().save(commit=commit)
@@ -89,6 +103,16 @@ class UsuarioEditarForm(BootstrapFormMixin, forms.ModelForm):
                 "Você não pode inativar o seu próprio usuário."
             )
         return ativo
+
+    def clean_email(self):
+        email = normalizar_identificador(self.cleaned_data.get("email"))
+        if email:
+            queryset = User.objects.filter(email=email)
+            if self.instance.pk:
+                queryset = queryset.exclude(pk=self.instance.pk)
+            if queryset.exists():
+                raise forms.ValidationError("Já existe um usuário com este e-mail.")
+        return email
 
     def save(self, commit=True):
         usuario = super().save(commit=commit)

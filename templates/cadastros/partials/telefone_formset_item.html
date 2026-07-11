@@ -1,0 +1,35 @@
+<div class="repeatable-item" data-formset-item>
+    {% for hidden in subform.hidden_fields %}{{ hidden }}{% endfor %}
+
+    <div class="repeatable-item-bar">
+        <span><i class="bi bi-telephone me-1" aria-hidden="true"></i>Telefone</span>
+        <button type="button" class="btn btn-sm btn-outline-secondary"
+                data-formset-remove aria-label="Remover telefone" title="Remover telefone">
+            <i class="bi bi-trash" aria-hidden="true"></i>
+        </button>
+    </div>
+
+    {% if subform.non_field_errors %}
+        <div class="alert alert-danger py-2" role="alert">
+            {% for erro in subform.non_field_errors %}{{ erro }}{% endfor %}
+        </div>
+    {% endif %}
+
+    <div class="row g-3">
+        <div class="col-12 col-md-3">
+            {% include "includes/campo.html" with campo=subform.tipo %}
+        </div>
+        <div class="col-12 col-md-3">
+            {% include "includes/campo.html" with campo=subform.telefone %}
+        </div>
+        <div class="col-12 col-md-3">
+            {% include "includes/campo.html" with campo=subform.contato %}
+        </div>
+        <div class="col-12 col-md-3">
+            {% include "includes/campo.html" with campo=subform.observacoes %}
+        </div>
+        <div class="col-12">
+            {% include "includes/campo.html" with campo=subform.principal %}
+        </div>
+    </div>
+</div>

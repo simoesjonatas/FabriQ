@@ -28,7 +28,18 @@ Uso: {% include "includes/campo.html" with campo=form.nome %}
 {% else %}
     <div class="mb-3">
         <label class="form-label" for="{{ campo.id_for_label }}">{{ campo.label }}</label>
-        {{ campo }}
+        {% if campo.widget_type == "password" %}
+            <div class="input-group password-input-group">
+                {{ campo }}
+                <button class="btn password-toggle" type="button"
+                        data-password-toggle data-password-target="{{ campo.id_for_label }}"
+                        aria-label="Mostrar senha" aria-pressed="false" title="Mostrar senha">
+                    <i class="bi bi-eye" aria-hidden="true"></i>
+                </button>
+            </div>
+        {% else %}
+            {{ campo }}
+        {% endif %}
         {% if campo.help_text %}<div class="form-text">{{ campo.help_text }}</div>{% endif %}
         {% for erro in campo.errors %}<div class="invalid-feedback d-block">{{ erro }}</div>{% endfor %}
     </div>

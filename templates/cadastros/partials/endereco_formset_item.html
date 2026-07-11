@@ -1,0 +1,51 @@
+<div class="repeatable-item" data-formset-item>
+    {% for hidden in subform.hidden_fields %}{{ hidden }}{% endfor %}
+
+    <div class="repeatable-item-bar">
+        <span><i class="bi bi-geo-alt me-1" aria-hidden="true"></i>Endereço</span>
+        <button type="button" class="btn btn-sm btn-outline-secondary"
+                data-formset-remove aria-label="Remover endereço" title="Remover endereço">
+            <i class="bi bi-trash" aria-hidden="true"></i>
+        </button>
+    </div>
+
+    {% if subform.non_field_errors %}
+        <div class="alert alert-danger py-2" role="alert">
+            {% for erro in subform.non_field_errors %}{{ erro }}{% endfor %}
+        </div>
+    {% endif %}
+
+    <div class="row g-3">
+        <div class="col-12 col-md-3">
+            {% include "includes/campo.html" with campo=subform.tipo %}
+        </div>
+        <div class="col-12 col-md-3">
+            {% include "includes/campo.html" with campo=subform.cep %}
+            <div class="cep-lookup-status" data-cep-status aria-live="polite"></div>
+        </div>
+        <div class="col-12 col-md-4">
+            {% include "includes/campo.html" with campo=subform.logradouro %}
+        </div>
+        <div class="col-12 col-md-2">
+            {% include "includes/campo.html" with campo=subform.numero %}
+        </div>
+        <div class="col-12 col-md-4">
+            {% include "includes/campo.html" with campo=subform.complemento %}
+        </div>
+        <div class="col-12 col-md-3">
+            {% include "includes/campo.html" with campo=subform.bairro %}
+        </div>
+        <div class="col-12 col-md-3">
+            {% include "includes/campo.html" with campo=subform.cidade %}
+        </div>
+        <div class="col-12 col-md-2">
+            {% include "includes/campo.html" with campo=subform.uf %}
+        </div>
+        <div class="col-12 col-md-8">
+            {% include "includes/campo.html" with campo=subform.observacoes %}
+        </div>
+        <div class="col-12 col-md-4">
+            {% include "includes/campo.html" with campo=subform.principal %}
+        </div>
+    </div>
+</div>

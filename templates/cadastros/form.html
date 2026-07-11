@@ -8,18 +8,22 @@ A view (CadastroCreateView/CadastroUpdateView) fornece: titulo, url_lista.
 
 {% block content %}
 <div class="row justify-content-center">
-    <div class="col-12 col-md-9 col-lg-7">
+    <div class="col-12 {% if usa_contatos_multiplos %}col-xl-10{% else %}col-md-10 col-lg-8{% endif %}">
 
-        <nav aria-label="breadcrumb">
+        <nav class="app-breadcrumb" aria-label="breadcrumb">
             <ol class="breadcrumb">
-                <li class="breadcrumb-item"><a href="{% url url_lista %}">{{ titulo }}</a></li>
+                <li class="breadcrumb-item">
+                    <a href="{% url url_lista %}">
+                        <i class="bi bi-arrow-left-short" aria-hidden="true"></i>{{ titulo }}
+                    </a>
+                </li>
                 <li class="breadcrumb-item active" aria-current="page">
                     {% if form.instance.pk %}{{ form.instance }}{% else %}Novo{% endif %}
                 </li>
             </ol>
         </nav>
 
-        <div class="card shadow-sm">
+        <div class="card shadow-sm form-panel">
             <div class="card-body p-4">
                 <h1 class="h5 mb-3">
                     {% if form.instance.pk %}
@@ -38,10 +42,135 @@ A view (CadastroCreateView/CadastroUpdateView) fornece: titulo, url_lista.
 
                 <form method="post" novalidate>
                     {% csrf_token %}
-                    {% for campo in form %}
-                        {% include "includes/campo.html" with campo=campo %}
-                    {% endfor %}
-                    <div class="d-flex gap-2 justify-content-end">
+
+                    {% if usa_contatos_multiplos %}
+                        <div class="person-form-shell">
+                            <ul class="nav form-tabs" role="tablist">
+                                <li class="nav-item" role="presentation">
+                                    <button class="nav-link{% if aba_contato_ativa == 'dados' %} active{% endif %}"
+                                            id="tab-dados-tab" data-bs-toggle="tab"
+                                            data-bs-target="#tab-dados" type="button" role="tab"
+                                            aria-controls="tab-dados"
+                                            aria-selected="{% if aba_contato_ativa == 'dados' %}true{% else %}false{% endif %}">
+                                        <i class="bi bi-card-text" aria-hidden="true"></i>Dados
+                                        {% if form.errors %}<span class="tab-alert-dot" aria-hidden="true"></span>{% endif %}
+                                    </button>
+                                </li>
+                                <li class="nav-item" role="presentation">
+                                    <button class="nav-link{% if aba_contato_ativa == 'telefones' %} active{% endif %}"
+                                            id="tab-telefones-tab" data-bs-toggle="tab"
+                                            data-bs-target="#tab-telefones" type="button" role="tab"
+                                            aria-controls="tab-telefones"
+                                            aria-selected="{% if aba_contato_ativa == 'telefones' %}true{% else %}false{% endif %}">
+                                        <i class="bi bi-telephone" aria-hidden="true"></i>Telefones
+                                        {% if telefone_formset_tem_erros %}<span class="tab-alert-dot" aria-hidden="true"></span>{% endif %}
+                                    </button>
+                                </li>
+                                <li class="nav-item" role="presentation">
+                                    <button class="nav-link{% if aba_contato_ativa == 'enderecos' %} active{% endif %}"
+                                            id="tab-enderecos-tab" data-bs-toggle="tab"
+                                            data-bs-target="#tab-enderecos" type="button" role="tab"
+                                            aria-controls="tab-enderecos"
+                                            aria-selected="{% if aba_contato_ativa == 'enderecos' %}true{% else %}false{% endif %}">
+                                        <i class="bi bi-geo-alt" aria-hidden="true"></i>Endereços
+                                        {% if endereco_formset_tem_erros %}<span class="tab-alert-dot" aria-hidden="true"></span>{% endif %}
+                                    </button>
+                                </li>
+                            </ul>
+
+                            <div class="tab-content person-tab-content">
+                                <section class="tab-pane fade{% if aba_contato_ativa == 'dados' %} show active{% endif %}"
+                                         id="tab-dados" role="tabpanel" aria-labelledby="tab-dados-tab"
+                                         tabindex="0">
+                                    <div class="form-section-panel">
+                                        <div class="form-section-heading">
+                                            <div>
+                                                <h2><i class="bi bi-card-text me-1" aria-hidden="true"></i>Dados principais</h2>
+                                                <p>Identificação, e-mail, observações e situação.</p>
+                                            </div>
+                                        </div>
+                                        <div class="person-main-grid">
+                                            {% for campo in form %}
+                                                <div class="person-field{% if campo.name == 'observacoes' or campo.name == 'ativo' %} person-field-full{% endif %}">
+                                                    {% include "includes/campo.html" with campo=campo %}
+                                                </div>
+                                            {% endfor %}
+                                        </div>
+                                    </div>
+                                </section>
+
+                                <section class="tab-pane fade{% if aba_contato_ativa == 'telefones' %} show active{% endif %}"
+                                         id="tab-telefones" role="tabpanel"
+                                         aria-labelledby="tab-telefones-tab" tabindex="0">
+                                    <div class="repeatable-section" data-formset data-formset-prefix="telefones">
+                                        <div class="repeatable-section-header">
+                                            <div>
+                                                <h2><i class="bi bi-telephone me-1" aria-hidden="true"></i>Telefones</h2>
+                                                <p>Contatos comerciais, financeiros e celulares.</p>
+                                            </div>
+                                            <button type="button" class="btn btn-outline-primary"
+                                                    data-formset-add="telefones">
+                                                <i class="bi bi-plus-lg me-1" aria-hidden="true"></i>Adicionar telefone
+                                            </button>
+                                        </div>
+
+                                        {{ telefone_formset.management_form }}
+                                        {% if telefone_formset.non_form_errors %}
+                                            <div class="alert alert-danger" role="alert">
+                                                {% for erro in telefone_formset.non_form_errors %}{{ erro }}{% endfor %}
+                                            </div>
+                                        {% endif %}
+                                        <div class="repeatable-list" data-formset-list="telefones">
+                                            {% for subform in telefone_formset %}
+                                                {% include "cadastros/partials/telefone_formset_item.html" with subform=subform %}
+                                            {% endfor %}
+                                        </div>
+                                        <template data-formset-template="telefones">
+                                            {% include "cadastros/partials/telefone_formset_item.html" with subform=telefone_formset.empty_form %}
+                                        </template>
+                                    </div>
+                                </section>
+
+                                <section class="tab-pane fade{% if aba_contato_ativa == 'enderecos' %} show active{% endif %}"
+                                         id="tab-enderecos" role="tabpanel"
+                                         aria-labelledby="tab-enderecos-tab" tabindex="0">
+                                    <div class="repeatable-section" data-formset data-formset-prefix="enderecos">
+                                        <div class="repeatable-section-header">
+                                            <div>
+                                                <h2><i class="bi bi-geo-alt me-1" aria-hidden="true"></i>Endereços</h2>
+                                                <p>Entrega, cobrança, comercial e demais locais.</p>
+                                            </div>
+                                            <button type="button" class="btn btn-outline-primary"
+                                                    data-formset-add="enderecos">
+                                                <i class="bi bi-plus-lg me-1" aria-hidden="true"></i>Adicionar endereço
+                                            </button>
+                                        </div>
+
+                                        {{ endereco_formset.management_form }}
+                                        {% if endereco_formset.non_form_errors %}
+                                            <div class="alert alert-danger" role="alert">
+                                                {% for erro in endereco_formset.non_form_errors %}{{ erro }}{% endfor %}
+                                            </div>
+                                        {% endif %}
+                                        <div class="repeatable-list" data-formset-list="enderecos">
+                                            {% for subform in endereco_formset %}
+                                                {% include "cadastros/partials/endereco_formset_item.html" with subform=subform %}
+                                            {% endfor %}
+                                        </div>
+                                        <template data-formset-template="enderecos">
+                                            {% include "cadastros/partials/endereco_formset_item.html" with subform=endereco_formset.empty_form %}
+                                        </template>
+                                    </div>
+                                </section>
+                            </div>
+                        </div>
+                    {% else %}
+                        {% for campo in form %}
+                            {% include "includes/campo.html" with campo=campo %}
+                        {% endfor %}
+                    {% endif %}
+
+                    <div class="form-actions-bar">
                         <a href="{% url url_lista %}" class="btn btn-outline-secondary">Cancelar</a>
                         <button type="submit" class="btn btn-primary">
                             <i class="bi bi-check-lg me-1"></i>Salvar

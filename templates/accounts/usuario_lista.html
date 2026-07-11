@@ -4,16 +4,20 @@
 
 {% block content %}
 <div class="row justify-content-center">
-    <div class="col-12 col-xl-10">
+    <div class="col-12 col-xl-11">
 
-        <div class="d-flex justify-content-between align-items-center mb-3">
-            <h1 class="h4 mb-0"><i class="bi bi-people text-primary me-2"></i>Usuários</h1>
+        <div class="page-header page-header-actions mb-4">
+            <div>
+                <span class="eyebrow"><i class="bi bi-people me-1"></i>Acessos</span>
+                <h1>Usuários</h1>
+                <p>Gerencie logins, e-mails, perfis de acesso e situação dos usuários.</p>
+            </div>
             <a href="{% url 'accounts:usuario_criar' %}" class="btn btn-primary">
                 <i class="bi bi-person-plus me-1"></i>Novo usuário
             </a>
         </div>
 
-        <div class="card shadow-sm">
+        <div class="card shadow-sm data-panel users-panel">
             <div class="card-body">
                 <form method="get" class="row g-2 mb-3">
                     <div class="col-12 col-md-6">
@@ -35,7 +39,7 @@
                 </form>
 
                 <div class="table-responsive">
-                    <table class="table table-hover align-middle mb-0">
+                    <table class="table table-hover align-middle mb-0 users-table">
                         <thead>
                             <tr>
                                 <th>Nome</th>
@@ -51,19 +55,19 @@
                             {% for usuario in usuarios %}
                                 <tr {% if not usuario.is_active %}class="table-secondary text-body-secondary"{% endif %}>
                                     <td>{{ usuario.get_full_name|default:"—" }}</td>
-                                    <td>{{ usuario.username }}</td>
-                                    <td>{{ usuario.email|default:"—" }}</td>
-                                    <td>
+                                    <td class="identifier-cell">{{ usuario.username }}</td>
+                                    <td class="email-cell">{{ usuario.email|default:"—" }}</td>
+                                    <td class="profile-cell">
                                         {% for grupo in usuario.groups.all %}
-                                            <span class="badge text-bg-light border">{{ grupo.name }}</span>
+                                            <span class="badge badge-profile">{{ grupo.name }}</span>
                                         {% empty %}
                                             <span class="text-body-secondary small">—</span>
                                         {% endfor %}
                                         {% if usuario.is_superuser %}
-                                            <span class="badge text-bg-dark">Superusuário</span>
+                                            <span class="badge badge-profile badge-superuser">Superusuário</span>
                                         {% endif %}
                                     </td>
-                                    <td>
+                                    <td class="text-nowrap">
                                         {% if usuario.last_login %}
                                             {{ usuario.last_login|date:"d/m/Y H:i" }}
                                         {% else %}

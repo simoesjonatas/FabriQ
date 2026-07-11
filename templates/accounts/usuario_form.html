@@ -6,10 +6,12 @@
 <div class="row justify-content-center">
     <div class="col-12 col-md-8 col-lg-6">
 
-        <nav aria-label="breadcrumb">
+        <nav class="app-breadcrumb" aria-label="breadcrumb">
             <ol class="breadcrumb">
                 <li class="breadcrumb-item">
-                    <a href="{% url 'accounts:usuario_lista' %}">Usuários</a>
+                    <a href="{% url 'accounts:usuario_lista' %}">
+                        <i class="bi bi-arrow-left-short" aria-hidden="true"></i>Usuários
+                    </a>
                 </li>
                 <li class="breadcrumb-item active" aria-current="page">
                     {% if form.instance.pk %}{{ form.instance.username }}{% else %}Novo{% endif %}

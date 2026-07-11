@@ -9,18 +9,20 @@ O template filho define apenas o bloco "celulas" (células de dados da linha).
 
 {% block content %}
 <div class="row justify-content-center">
-    <div class="col-12 col-xl-10">
+    <div class="col-12 col-xl-11">
 
-        <div class="d-flex justify-content-between align-items-center mb-3">
-            <h1 class="h4 mb-0">
-                <i class="bi {% block icone %}bi-folder{% endblock %} text-primary me-2"></i>{{ titulo }}
-            </h1>
+        <div class="page-header page-header-actions mb-4">
+            <div>
+                <span class="eyebrow"><i class="bi {% block icone %}bi-folder{% endblock %} me-1"></i>Cadastro</span>
+                <h1>{{ titulo }}</h1>
+                <p>Consulte, filtre e mantenha os registros principais do módulo.</p>
+            </div>
             <a href="{% url url_criar %}" class="btn btn-primary">
                 <i class="bi bi-plus-lg me-1"></i>{% block rotulo_novo %}Novo registro{% endblock %}
             </a>
         </div>
 
-        <div class="card shadow-sm">
+        <div class="card shadow-sm data-panel">
             <div class="card-body">
                 {% include "includes/filtros_lista.html" %}
 

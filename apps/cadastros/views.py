@@ -1,3 +1,6 @@
+from django.contrib import messages
+from django.forms import inlineformset_factory
+from django.http import HttpResponseRedirect
 from django.urls import reverse_lazy
 from django.views.generic import TemplateView
 
@@ -5,19 +8,29 @@ from apps.accounts.mixins import AcessoModuloMixin
 from apps.core.views import CadastroCreateView, CadastroListView, CadastroUpdateView
 
 from .forms import (
+    ClienteEnderecoForm,
     ClienteForm,
+    ClienteTelefoneForm,
     EmbalagemForm,
+    EnderecoFormSet,
     EquipamentoForm,
+    FornecedorEnderecoForm,
     FornecedorForm,
+    FornecedorTelefoneForm,
     MateriaPrimaForm,
     ProdutoForm,
     SetorForm,
+    TelefoneFormSet,
 )
 from .models import (
     Cliente,
+    ClienteEndereco,
+    ClienteTelefone,
     Embalagem,
     Equipamento,
     Fornecedor,
+    FornecedorEndereco,
+    FornecedorTelefone,
     MateriaPrima,
     Produto,
     Setor,
@@ -94,6 +107,133 @@ class EditarBase(CadastroUpdateView):
     modulo = MODULO
 
 
+class PessoaComContatosMixin:
+    telefone_model = None
+    telefone_form_class = None
+    telefone_fk_name = None
+    endereco_model = None
+    endereco_form_class = None
+    endereco_fk_name = None
+
+    def get_telefone_formset_class(self):
+        return inlineformset_factory(
+            self.model,
+            self.telefone_model,
+            form=self.telefone_form_class,
+            formset=TelefoneFormSet,
+            fk_name=self.telefone_fk_name,
+            extra=1,
+            can_delete=True,
+        )
+
+    def get_endereco_formset_class(self):
+        return inlineformset_factory(
+            self.model,
+            self.endereco_model,
+            form=self.endereco_form_class,
+            formset=EnderecoFormSet,
+            fk_name=self.endereco_fk_name,
+            extra=1,
+            can_delete=True,
+        )
+
+    def get_telefone_formset(self, instance=None):
+        kwargs = {
+            "instance": instance if instance is not None else getattr(self, "object", None),
+            "prefix": "telefones",
+            "queryset": self.telefone_model.objects.filter(ativo=True),
+        }
+        if self.request.method in {"POST", "PUT"}:
+            kwargs["data"] = self.request.POST
+        return self.get_telefone_formset_class()(**kwargs)
+
+    def get_endereco_formset(self, instance=None):
+        kwargs = {
+            "instance": instance if instance is not None else getattr(self, "object", None),
+            "prefix": "enderecos",
+            "queryset": self.endereco_model.objects.filter(ativo=True),
+        }
+        if self.request.method in {"POST", "PUT"}:
+            kwargs["data"] = self.request.POST
+        return self.get_endereco_formset_class()(**kwargs)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        telefone_formset = kwargs.get("telefone_formset") or self.get_telefone_formset()
+        endereco_formset = kwargs.get("endereco_formset") or self.get_endereco_formset()
+        telefone_tem_erros = self._formset_tem_erros(telefone_formset)
+        endereco_tem_erros = self._formset_tem_erros(endereco_formset)
+
+        context["usa_contatos_multiplos"] = True
+        context["telefone_formset"] = telefone_formset
+        context["endereco_formset"] = endereco_formset
+        context["telefone_formset_tem_erros"] = telefone_tem_erros
+        context["endereco_formset_tem_erros"] = endereco_tem_erros
+        context["aba_contato_ativa"] = self._aba_contato_ativa(
+            context.get("form"), telefone_tem_erros, endereco_tem_erros
+        )
+        return context
+
+    def _formset_tem_erros(self, formset):
+        return formset.is_bound and (
+            formset.total_error_count() > 0 or bool(formset.non_form_errors())
+        )
+
+    def _aba_contato_ativa(self, form, telefone_tem_erros, endereco_tem_erros):
+        if form and form.errors:
+            return "dados"
+        if telefone_tem_erros:
+            return "telefones"
+        if endereco_tem_erros:
+            return "enderecos"
+        return "dados"
+
+    def form_valid(self, form):
+        self.object = form.save(commit=False)
+        if self.object.pk is None:
+            self.object.criado_por = self.request.user
+        self.object.atualizado_por = self.request.user
+
+        telefone_formset = self.get_telefone_formset(instance=self.object)
+        endereco_formset = self.get_endereco_formset(instance=self.object)
+
+        if not telefone_formset.is_valid() or not endereco_formset.is_valid():
+            return self.render_to_response(
+                self.get_context_data(
+                    form=form,
+                    telefone_formset=telefone_formset,
+                    endereco_formset=endereco_formset,
+                )
+            )
+
+        self.object.save()
+        form.save_m2m()
+        self._salvar_formset(telefone_formset)
+        self._salvar_formset(endereco_formset)
+
+        success_message = self.get_success_message(form.cleaned_data)
+        if success_message:
+            messages.success(self.request, success_message)
+        return HttpResponseRedirect(self.get_success_url())
+
+    def _salvar_formset(self, formset):
+        instancias = formset.save(commit=False)
+
+        for objeto in formset.deleted_objects:
+            objeto.ativo = False
+            objeto.atualizado_por = self.request.user
+            objeto.save()
+
+        for objeto in instancias:
+            if objeto.pk is None:
+                objeto.criado_por = self.request.user
+            objeto.atualizado_por = self.request.user
+            objeto.ativo = True
+            objeto.save()
+
+        formset.save_m2m()
+
+
 # Setores
 
 
@@ -157,6 +297,12 @@ class EquipamentoEditarView(EquipamentoConfig, EditarBase):
 class ClienteConfig:
     model = Cliente
     form_class = ClienteForm
+    telefone_model = ClienteTelefone
+    telefone_form_class = ClienteTelefoneForm
+    telefone_fk_name = "cliente"
+    endereco_model = ClienteEndereco
+    endereco_form_class = ClienteEnderecoForm
+    endereco_fk_name = "cliente"
     titulo = "Clientes"
     url_lista = "cadastros:cliente_lista"
     success_url = reverse_lazy("cadastros:cliente_lista")
@@ -164,17 +310,27 @@ class ClienteConfig:
 
 class ClienteListView(ClienteConfig, ListaBase):
     template_name = "cadastros/cliente_lista.html"
-    campos_pesquisa = ["razao_social", "nome_fantasia", "documento", "cidade"]
-    colunas = ["Razão social / Nome", "CNPJ/CPF", "Cidade/UF", "Telefone"]
+    campos_pesquisa = [
+        "razao_social",
+        "nome_fantasia",
+        "documento",
+        "enderecos__cidade",
+        "enderecos__uf",
+        "telefones__telefone",
+    ]
+    colunas = ["Razão social / Nome", "CNPJ/CPF", "Cidade/UF", "Telefone principal"]
     url_criar = "cadastros:cliente_criar"
     url_editar = "cadastros:cliente_editar"
 
+    def get_queryset(self):
+        return super().get_queryset().prefetch_related("telefones", "enderecos").distinct()
 
-class ClienteCriarView(ClienteConfig, CriarBase):
+
+class ClienteCriarView(ClienteConfig, PessoaComContatosMixin, CriarBase):
     pass
 
 
-class ClienteEditarView(ClienteConfig, EditarBase):
+class ClienteEditarView(ClienteConfig, PessoaComContatosMixin, EditarBase):
     pass
 
 
@@ -184,6 +340,12 @@ class ClienteEditarView(ClienteConfig, EditarBase):
 class FornecedorConfig:
     model = Fornecedor
     form_class = FornecedorForm
+    telefone_model = FornecedorTelefone
+    telefone_form_class = FornecedorTelefoneForm
+    telefone_fk_name = "fornecedor"
+    endereco_model = FornecedorEndereco
+    endereco_form_class = FornecedorEnderecoForm
+    endereco_fk_name = "fornecedor"
     titulo = "Fornecedores"
     url_lista = "cadastros:fornecedor_lista"
     success_url = reverse_lazy("cadastros:fornecedor_lista")
@@ -191,17 +353,27 @@ class FornecedorConfig:
 
 class FornecedorListView(FornecedorConfig, ListaBase):
     template_name = "cadastros/fornecedor_lista.html"
-    campos_pesquisa = ["razao_social", "nome_fantasia", "documento", "cidade"]
-    colunas = ["Razão social / Nome", "CNPJ/CPF", "Cidade/UF", "Telefone"]
+    campos_pesquisa = [
+        "razao_social",
+        "nome_fantasia",
+        "documento",
+        "enderecos__cidade",
+        "enderecos__uf",
+        "telefones__telefone",
+    ]
+    colunas = ["Razão social / Nome", "CNPJ/CPF", "Cidade/UF", "Telefone principal"]
     url_criar = "cadastros:fornecedor_criar"
     url_editar = "cadastros:fornecedor_editar"
 
+    def get_queryset(self):
+        return super().get_queryset().prefetch_related("telefones", "enderecos").distinct()
 
-class FornecedorCriarView(FornecedorConfig, CriarBase):
+
+class FornecedorCriarView(FornecedorConfig, PessoaComContatosMixin, CriarBase):
     pass
 
 
-class FornecedorEditarView(FornecedorConfig, EditarBase):
+class FornecedorEditarView(FornecedorConfig, PessoaComContatosMixin, EditarBase):
     pass
 
 

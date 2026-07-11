@@ -87,6 +87,7 @@ DATABASES = {
 # Autenticação
 
 AUTH_USER_MODEL = "accounts.User"
+AUTHENTICATION_BACKENDS = ["apps.accounts.backends.UsuarioOuEmailBackend"]
 
 LOGIN_URL = "accounts:login"
 LOGIN_REDIRECT_URL = "core:home"

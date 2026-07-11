@@ -89,11 +89,6 @@ class PessoaBase(ModeloBase):
         help_text="Somente números ou com máscara; usado em notas e relatórios.",
     )
     email = models.EmailField("e-mail", blank=True)
-    telefone = models.CharField("telefone", max_length=20, blank=True)
-    endereco = models.CharField("endereço", max_length=200, blank=True)
-    cidade = models.CharField("cidade", max_length=100, blank=True)
-    uf = models.CharField("UF", max_length=2, choices=UF_CHOICES, blank=True)
-    cep = models.CharField("CEP", max_length=9, blank=True)
     observacoes = models.TextField("observações", blank=True)
 
     class Meta:
@@ -102,6 +97,43 @@ class PessoaBase(ModeloBase):
 
     def __str__(self) -> str:
         return self.nome_fantasia or self.razao_social
+
+    @property
+    def documento_formatado(self) -> str:
+        if len(self.documento) == 11:
+            return (
+                f"{self.documento[:3]}.{self.documento[3:6]}."
+                f"{self.documento[6:9]}-{self.documento[9:]}"
+            )
+        if len(self.documento) == 14:
+            return (
+                f"{self.documento[:2]}.{self.documento[2:5]}."
+                f"{self.documento[5:8]}/{self.documento[8:12]}-"
+                f"{self.documento[12:]}"
+            )
+        return self.documento
+
+    @property
+    def telefone_principal(self) -> str:
+        if not self.pk:
+            return ""
+        telefone = self.telefones.filter(ativo=True).order_by("-principal", "id").first()
+        return telefone.telefone if telefone else ""
+
+    @property
+    def endereco_principal(self):
+        if not self.pk:
+            return None
+        return self.enderecos.filter(ativo=True).order_by("-principal", "id").first()
+
+    @property
+    def cidade_uf_principal(self) -> str:
+        endereco = self.endereco_principal
+        if not endereco:
+            return ""
+        if endereco.cidade and endereco.uf:
+            return f"{endereco.cidade}/{endereco.uf}"
+        return endereco.cidade or endereco.uf
 
 
 class Cliente(PessoaBase):
@@ -128,6 +160,163 @@ class Fornecedor(PessoaBase):
                 condition=~models.Q(documento=""),
                 name="fornecedor_documento_unico",
                 violation_error_message="Já existe um fornecedor com este CNPJ/CPF.",
+            ),
+        ]
+
+
+class TipoTelefone(models.TextChoices):
+    CELULAR = "CELULAR", "Celular"
+    COMERCIAL = "COMERCIAL", "Comercial"
+    FINANCEIRO = "FINANCEIRO", "Financeiro"
+    RESIDENCIAL = "RESIDENCIAL", "Residencial"
+    OUTRO = "OUTRO", "Outro"
+
+
+class TipoEndereco(models.TextChoices):
+    COMERCIAL = "COMERCIAL", "Comercial"
+    ENTREGA = "ENTREGA", "Entrega"
+    COBRANCA = "COBRANCA", "Cobrança"
+    RESIDENCIAL = "RESIDENCIAL", "Residencial"
+    OUTRO = "OUTRO", "Outro"
+
+
+class TelefoneBase(ModeloBase):
+    tipo = models.CharField(
+        "tipo", max_length=20, choices=TipoTelefone.choices, default=TipoTelefone.COMERCIAL
+    )
+    telefone = models.CharField("telefone", max_length=20)
+    contato = models.CharField("contato", max_length=100, blank=True)
+    principal = models.BooleanField("principal", default=False)
+    observacoes = models.CharField("observações", max_length=150, blank=True)
+
+    class Meta:
+        abstract = True
+        ordering = ["-principal", "tipo", "telefone"]
+
+    def __str__(self) -> str:
+        if self.contato:
+            return f"{self.telefone} · {self.contato}"
+        return self.telefone
+
+
+class EnderecoBase(ModeloBase):
+    tipo = models.CharField(
+        "tipo", max_length=20, choices=TipoEndereco.choices, default=TipoEndereco.COMERCIAL
+    )
+    cep = models.CharField("CEP", max_length=9, blank=True)
+    logradouro = models.CharField("logradouro", max_length=150)
+    numero = models.CharField("número", max_length=20, blank=True)
+    complemento = models.CharField("complemento", max_length=80, blank=True)
+    bairro = models.CharField("bairro", max_length=100, blank=True)
+    cidade = models.CharField("cidade", max_length=100, blank=True)
+    uf = models.CharField("UF", max_length=2, choices=UF_CHOICES, blank=True)
+    principal = models.BooleanField("principal", default=False)
+    observacoes = models.CharField("observações", max_length=150, blank=True)
+
+    class Meta:
+        abstract = True
+        ordering = ["-principal", "tipo", "logradouro"]
+
+    def __str__(self) -> str:
+        return self.resumo
+
+    @property
+    def resumo(self) -> str:
+        primeira_linha = self.logradouro
+        if self.numero:
+            primeira_linha = f"{primeira_linha}, {self.numero}"
+        if self.complemento:
+            primeira_linha = f"{primeira_linha} · {self.complemento}"
+
+        localidade = ""
+        if self.cidade and self.uf:
+            localidade = f"{self.cidade}/{self.uf}"
+        else:
+            localidade = self.cidade or self.uf
+
+        return " · ".join(parte for parte in [primeira_linha, localidade] if parte)
+
+
+class ClienteTelefone(TelefoneBase):
+    cliente = models.ForeignKey(
+        Cliente,
+        verbose_name="cliente",
+        on_delete=models.CASCADE,
+        related_name="telefones",
+    )
+
+    class Meta(TelefoneBase.Meta):
+        verbose_name = "telefone do cliente"
+        verbose_name_plural = "telefones do cliente"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["cliente"],
+                condition=models.Q(principal=True, ativo=True),
+                name="cliente_telefone_principal_unico",
+                violation_error_message="Marque apenas um telefone principal.",
+            ),
+        ]
+
+
+class FornecedorTelefone(TelefoneBase):
+    fornecedor = models.ForeignKey(
+        Fornecedor,
+        verbose_name="fornecedor",
+        on_delete=models.CASCADE,
+        related_name="telefones",
+    )
+
+    class Meta(TelefoneBase.Meta):
+        verbose_name = "telefone do fornecedor"
+        verbose_name_plural = "telefones do fornecedor"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["fornecedor"],
+                condition=models.Q(principal=True, ativo=True),
+                name="fornecedor_telefone_principal_unico",
+                violation_error_message="Marque apenas um telefone principal.",
+            ),
+        ]
+
+
+class ClienteEndereco(EnderecoBase):
+    cliente = models.ForeignKey(
+        Cliente,
+        verbose_name="cliente",
+        on_delete=models.CASCADE,
+        related_name="enderecos",
+    )
+
+    class Meta(EnderecoBase.Meta):
+        verbose_name = "endereço do cliente"
+        verbose_name_plural = "endereços do cliente"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["cliente"],
+                condition=models.Q(principal=True, ativo=True),
+                name="cliente_endereco_principal_unico",
+                violation_error_message="Marque apenas um endereço principal.",
+            ),
+        ]
+
+
+class FornecedorEndereco(EnderecoBase):
+    fornecedor = models.ForeignKey(
+        Fornecedor,
+        verbose_name="fornecedor",
+        on_delete=models.CASCADE,
+        related_name="enderecos",
+    )
+
+    class Meta(EnderecoBase.Meta):
+        verbose_name = "endereço do fornecedor"
+        verbose_name_plural = "endereços do fornecedor"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["fornecedor"],
+                condition=models.Q(principal=True, ativo=True),
+                name="fornecedor_endereco_principal_unico",
+                violation_error_message="Marque apenas um endereço principal.",
             ),
         ]
 

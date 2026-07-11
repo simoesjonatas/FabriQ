@@ -4,21 +4,26 @@
 
 {% block content %}
 <div class="row justify-content-center">
-    <div class="col-12 col-xl-10">
-        <h1 class="h4 mb-1"><i class="bi bi-folder2-open text-primary me-2"></i>Cadastros gerais</h1>
-        <p class="text-body-secondary mb-4">
-            Dados básicos usados por pedidos, estoque, qualidade e produção.
-        </p>
+    <div class="col-12 col-xl-11">
+        <section class="page-header mb-4">
+            <div>
+                <span class="eyebrow"><i class="bi bi-folder2-open me-1"></i>Base operacional</span>
+                <h1>Cadastros gerais</h1>
+                <p>Dados básicos usados por pedidos, estoque, qualidade e produção.</p>
+            </div>
+        </section>
 
-        <div class="row row-cols-1 row-cols-sm-2 row-cols-lg-3 g-3">
+        <div class="row row-cols-1 row-cols-sm-2 row-cols-lg-3 g-3 module-grid">
             {% for cadastro in cadastros %}
                 <div class="col">
                     <a href="{% url cadastro.url_name %}" class="card h-100 shadow-sm text-decoration-none card-modulo">
                         <div class="card-body">
-                            <h2 class="h6 mb-1">
-                                <i class="bi {{ cadastro.icone }} text-primary me-2"></i>{{ cadastro.titulo }}
-                            </h2>
-                            <p class="small text-body-secondary mb-0">{{ cadastro.descricao }}</p>
+                            <span class="module-icon"><i class="bi {{ cadastro.icone }}"></i></span>
+                            <div class="module-copy">
+                                <h2>{{ cadastro.titulo }}</h2>
+                                <p>{{ cadastro.descricao }}</p>
+                            </div>
+                            <span class="module-arrow" aria-hidden="true"><i class="bi bi-arrow-right"></i></span>
                         </div>
                     </a>
                 </div>
