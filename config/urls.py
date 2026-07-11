@@ -10,6 +10,7 @@ urlpatterns = [
     path("", include("apps.core.urls")),
     path("", include("apps.accounts.urls")),
     path("cadastros/", include("apps.cadastros.urls")),
+    path("pedidos/", include("apps.pedidos.urls")),
 ]
 
 if settings.DEBUG:

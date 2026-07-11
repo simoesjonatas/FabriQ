@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+
+{% block title %}Pedidos{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-12 col-xl-11">
+
+        <div class="page-header page-header-actions mb-4">
+            <div>
+                <span class="eyebrow"><i class="bi bi-receipt me-1"></i>Fluxo comercial</span>
+                <h1>Pedidos</h1>
+                <p>Acompanhe cada pedido do recebimento à expedição.</p>
+            </div>
+            <a href="{% url 'pedidos:criar' %}" class="btn btn-primary">
+                <i class="bi bi-plus-lg me-1"></i>Novo pedido
+            </a>
+        </div>
+
+        <div class="card shadow-sm data-panel">
+            <div class="card-body">
+                <form method="get" class="row g-2 mb-3">
+                    <div class="col-12 col-md-6">
+                        <input type="search" name="q" value="{{ termo }}" class="form-control"
+                               placeholder="Pesquisar por cliente ou número do pedido">
+                    </div>
+                    <div class="col-8 col-md-4">
+                        <select name="status" class="form-select">
+                            <option value="" {% if not status %}selected{% endif %}>Todos os status</option>
+                            {% for valor, rotulo in status_choices %}
+                                <option value="{{ valor }}" {% if status == valor %}selected{% endif %}>
+                                    {{ rotulo }}
+                                </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-4 col-md-2 d-grid">
+                        <button type="submit" class="btn btn-outline-secondary">
+                            <i class="bi bi-search me-1"></i>Filtrar
+                        </button>
+                    </div>
+                </form>
+
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead>
+                            <tr>
+                                <th>Nº</th>
+                                <th>Cliente</th>
+                                <th>Itens</th>
+                                <th>Prazo</th>
+                                <th>Status</th>
+                                <th>Atualizado</th>
+                                <th class="text-end">Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for pedido in pedidos %}
+                                <tr>
+                                    <td class="identifier-cell">
+                                        <a href="{% url 'pedidos:detalhe' pedido.pk %}" class="text-decoration-none">
+                                            {{ pedido.numero }}
+                                        </a>
+                                    </td>
+                                    <td>{{ pedido.cliente }}</td>
+                                    <td>{{ pedido.total_itens }}</td>
+                                    <td>
+                                        {% if pedido.atrasado %}
+                                            <span class="text-danger fw-semibold" title="Pedido atrasado">
+                                                <i class="bi bi-exclamation-triangle me-1"></i>{{ pedido.prazo|date:"d/m/Y" }}
+                                            </span>
+                                        {% else %}
+                                            {{ pedido.prazo|date:"d/m/Y" }}
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <span class="badge {{ pedido.badge_status }}">{{ pedido.get_status_display }}</span>
+                                    </td>
+                                    <td>{{ pedido.atualizado_em|date:"d/m/Y H:i" }}</td>
+                                    <td class="text-end">
+                                        <a href="{% url 'pedidos:detalhe' pedido.pk %}"
+                                           class="btn btn-sm btn-outline-primary">
+                                            <i class="bi bi-eye"></i> Ver
+                                        </a>
+                                    </td>
+                                </tr>
+                            {% empty %}
+                                <tr>
+                                    <td colspan="7" class="text-center text-body-secondary py-4">
+                                        Nenhum pedido encontrado.
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+
+                {% include "includes/paginacao.html" %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
