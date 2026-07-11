@@ -1,0 +1,18 @@
+{% extends "cadastros/base_lista.html" %}
+
+{% block icone %}bi-building{% endblock %}
+{% block rotulo_novo %}Novo cliente{% endblock %}
+
+{% block celulas %}
+    <td>
+        {{ objeto.razao_social }}
+        {% if objeto.nome_fantasia %}
+            <div class="small text-body-secondary">{{ objeto.nome_fantasia }}</div>
+        {% endif %}
+    </td>
+    <td>{{ objeto.documento|default:"—" }}</td>
+    <td>
+        {% if objeto.cidade %}{{ objeto.cidade }}{% if objeto.uf %}/{{ objeto.uf }}{% endif %}{% else %}—{% endif %}
+    </td>
+    <td>{{ objeto.telefone|default:"—" }}</td>
+{% endblock %}

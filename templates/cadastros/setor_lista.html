@@ -1,0 +1,9 @@
+{% extends "cadastros/base_lista.html" %}
+
+{% block icone %}bi-diagram-3{% endblock %}
+{% block rotulo_novo %}Novo setor{% endblock %}
+
+{% block celulas %}
+    <td>{{ objeto.nome }}</td>
+    <td>{{ objeto.descricao|truncatechars:60|default:"—" }}</td>
+{% endblock %}

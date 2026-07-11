@@ -1,0 +1,12 @@
+{% extends "cadastros/base_lista.html" %}
+
+{% block icone %}bi-bag{% endblock %}
+{% block rotulo_novo %}Nova embalagem{% endblock %}
+
+{% block celulas %}
+    <td>{{ objeto.codigo }}</td>
+    <td>{{ objeto.nome }}</td>
+    <td>{{ objeto.get_tipo_display }}</td>
+    <td>{{ objeto.get_unidade_display }}</td>
+    <td>{{ objeto.estoque_minimo|floatformat:"-3" }}</td>
+{% endblock %}

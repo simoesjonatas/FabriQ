@@ -1,0 +1,22 @@
+{% comment %}
+Barra de pesquisa + filtro de situação das listas.
+Espera no contexto: termo, status.
+{% endcomment %}
+<form method="get" class="row g-2 mb-3">
+    <div class="col-12 col-md-6">
+        <input type="search" name="q" value="{{ termo }}" class="form-control"
+               placeholder="{{ placeholder_pesquisa|default:'Pesquisar' }}">
+    </div>
+    <div class="col-8 col-md-4">
+        <select name="status" class="form-select">
+            <option value="" {% if not status %}selected{% endif %}>Todos</option>
+            <option value="ativos" {% if status == "ativos" %}selected{% endif %}>Somente ativos</option>
+            <option value="inativos" {% if status == "inativos" %}selected{% endif %}>Somente inativos</option>
+        </select>
+    </div>
+    <div class="col-4 col-md-2 d-grid">
+        <button type="submit" class="btn btn-outline-secondary">
+            <i class="bi bi-search me-1"></i>Filtrar
+        </button>
+    </div>
+</form>

@@ -1,0 +1,17 @@
+{% extends "cadastros/base_lista.html" %}
+
+{% block icone %}bi-gear-wide-connected{% endblock %}
+{% block rotulo_novo %}Novo equipamento{% endblock %}
+
+{% block celulas %}
+    <td>{{ objeto.codigo }}</td>
+    <td>{{ objeto.nome }}</td>
+    <td>{{ objeto.setor|default:"—" }}</td>
+    <td>
+        {% if objeto.capacidade %}
+            {{ objeto.capacidade|floatformat:"-3" }} {{ objeto.unidade_capacidade }}
+        {% else %}
+            —
+        {% endif %}
+    </td>
+{% endblock %}

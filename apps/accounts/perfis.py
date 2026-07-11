@@ -30,6 +30,16 @@ PERFIS = [
 # "perfis" lista quem enxerga o módulo (Administrador e superusuário
 # acessam todos, sempre).
 MODULOS = {
+    "cadastros": {
+        "titulo": "Cadastros",
+        "descricao": (
+            "Clientes, fornecedores, produtos, matérias-primas, "
+            "embalagens, equipamentos e setores"
+        ),
+        "icone": "bi-folder2-open",
+        "url_name": "cadastros:home",
+        "perfis": {DIRETORIA, QUALIDADE, ALMOXARIFADO, PCP, COMPRAS},
+    },
     "usuarios": {
         "titulo": "Usuários",
         "descricao": "Cadastro de usuários e perfis de acesso",
@@ -37,7 +47,7 @@ MODULOS = {
         "url_name": "accounts:usuario_lista",
         "perfis": set(),  # somente Administrador
     },
-    # Fases futuras acrescentam aqui: cadastros, pedidos, pcp, estoque,
+    # Fases futuras acrescentam aqui: pedidos, pcp, estoque,
     # recebimento, qualidade, ordens de produção, produção, dashboard...
 }
 

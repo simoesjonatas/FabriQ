@@ -1,0 +1,11 @@
+{% extends "cadastros/base_lista.html" %}
+
+{% block icone %}bi-box-seam{% endblock %}
+{% block rotulo_novo %}Novo produto{% endblock %}
+
+{% block celulas %}
+    <td>{{ objeto.codigo }}</td>
+    <td>{{ objeto.nome }}</td>
+    <td>{{ objeto.get_unidade_display }}</td>
+    <td>{{ objeto.estoque_minimo|floatformat:"-3" }}</td>
+{% endblock %}

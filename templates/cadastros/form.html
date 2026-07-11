@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% comment %}
+Formulário genérico de cadastro/edição.
+A view (CadastroCreateView/CadastroUpdateView) fornece: titulo, url_lista.
+{% endcomment %}
+
+{% block title %}{{ titulo }}{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-12 col-md-9 col-lg-7">
+
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{% url url_lista %}">{{ titulo }}</a></li>
+                <li class="breadcrumb-item active" aria-current="page">
+                    {% if form.instance.pk %}{{ form.instance }}{% else %}Novo{% endif %}
+                </li>
+            </ol>
+        </nav>
+
+        <div class="card shadow-sm">
+            <div class="card-body p-4">
+                <h1 class="h5 mb-3">
+                    {% if form.instance.pk %}
+                        <i class="bi bi-pencil-square text-primary me-2"></i>Editar
+                        <span class="text-body-secondary">· {{ form.instance }}</span>
+                    {% else %}
+                        <i class="bi bi-plus-circle text-primary me-2"></i>Novo registro
+                    {% endif %}
+                </h1>
+
+                {% if form.non_field_errors %}
+                    <div class="alert alert-danger" role="alert">
+                        {% for erro in form.non_field_errors %}{{ erro }}{% endfor %}
+                    </div>
+                {% endif %}
+
+                <form method="post" novalidate>
+                    {% csrf_token %}
+                    {% for campo in form %}
+                        {% include "includes/campo.html" with campo=campo %}
+                    {% endfor %}
+                    <div class="d-flex gap-2 justify-content-end">
+                        <a href="{% url url_lista %}" class="btn btn-outline-secondary">Cancelar</a>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-check-lg me-1"></i>Salvar
+                        </button>
+                    </div>
+                </form>
+            </div>
+
+            {% if form.instance.pk %}
+                <div class="card-footer small text-body-secondary">
+                    <i class="bi bi-clock-history me-1"></i>
+                    Criado em {{ form.instance.criado_em|date:"d/m/Y H:i" }}
+                    {% if form.instance.criado_por %}por {{ form.instance.criado_por }}{% endif %}
+                    · Última alteração em {{ form.instance.atualizado_em|date:"d/m/Y H:i" }}
+                    {% if form.instance.atualizado_por %}por {{ form.instance.atualizado_por }}{% endif %}
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

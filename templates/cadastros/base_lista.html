@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% comment %}
+Lista padrão dos cadastros. A view (CadastroListView) fornece:
+titulo, url_criar, url_editar, colunas, termo, status.
+O template filho define apenas o bloco "celulas" (células de dados da linha).
+{% endcomment %}
+
+{% block title %}{{ titulo }}{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-12 col-xl-10">
+
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h1 class="h4 mb-0">
+                <i class="bi {% block icone %}bi-folder{% endblock %} text-primary me-2"></i>{{ titulo }}
+            </h1>
+            <a href="{% url url_criar %}" class="btn btn-primary">
+                <i class="bi bi-plus-lg me-1"></i>{% block rotulo_novo %}Novo registro{% endblock %}
+            </a>
+        </div>
+
+        <div class="card shadow-sm">
+            <div class="card-body">
+                {% include "includes/filtros_lista.html" %}
+
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead>
+                            <tr>
+                                {% for coluna in colunas %}<th>{{ coluna }}</th>{% endfor %}
+                                <th>Situação</th>
+                                <th class="text-end">Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for objeto in object_list %}
+                                <tr {% if not objeto.ativo %}class="table-secondary text-body-secondary"{% endif %}>
+                                    {% block celulas %}{% endblock %}
+                                    <td>
+                                        {% if objeto.ativo %}
+                                            <span class="badge text-bg-success">Ativo</span>
+                                        {% else %}
+                                            <span class="badge text-bg-secondary">Inativo</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-end">
+                                        <a href="{% url url_editar objeto.pk %}"
+                                           class="btn btn-sm btn-outline-primary">
+                                            <i class="bi bi-pencil"></i> Editar
+                                        </a>
+                                    </td>
+                                </tr>
+                            {% empty %}
+                                <tr>
+                                    <td colspan="{{ colunas|length|add:2 }}" class="text-center text-body-secondary py-4">
+                                        Nenhum registro encontrado.
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+
+                {% include "includes/paginacao.html" %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
