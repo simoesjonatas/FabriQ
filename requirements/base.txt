@@ -1,0 +1,4 @@
+# Dependências comuns a todos os ambientes
+Django>=5.2,<5.3
+psycopg[binary]>=3.2
+django-environ>=0.12

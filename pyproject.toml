@@ -1,0 +1,17 @@
+[tool.ruff]
+line-length = 100
+target-version = "py314"
+extend-exclude = ["**/migrations/*"]
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle
+    "F",   # pyflakes
+    "I",   # isort (ordem dos imports)
+    "B",   # bugbear (erros comuns)
+    "DJ",  # regras específicas de Django
+    "UP",  # modernização de sintaxe
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["apps", "config"]

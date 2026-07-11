@@ -1,0 +1,24 @@
+# PostgreSQL para o ambiente local de desenvolvimento.
+# Uso: docker compose up -d
+services:
+  db:
+    image: postgres:16
+    container_name: fabriq_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: fabriq
+      POSTGRES_USER: fabriq
+      POSTGRES_PASSWORD: fabriq
+    ports:
+      # 5433 no host para não conflitar com outros PostgreSQL locais
+      - "5433:5432"
+    volumes:
+      - fabriq_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fabriq -d fabriq"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  fabriq_pgdata:

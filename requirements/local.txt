@@ -1,0 +1,4 @@
+# Dependências do ambiente local de desenvolvimento
+-r base.txt
+
+ruff>=0.9

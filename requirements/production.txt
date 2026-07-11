@@ -1,0 +1,4 @@
+# Dependências do ambiente de produção
+-r base.txt
+
+gunicorn>=23.0

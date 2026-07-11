@@ -1,0 +1,13 @@
+/* Ajustes visuais do FabriQ por cima do Bootstrap. */
+
+:root {
+    --fabriq-primary: #0d6efd;
+}
+
+/* Mensagens do Django -> classes de alerta do Bootstrap */
+.alert-error {
+    /* Django usa a tag "error"; Bootstrap usa "danger" */
+    color: var(--bs-danger-text-emphasis);
+    background-color: var(--bs-danger-bg-subtle);
+    border-color: var(--bs-danger-border-subtle);
+}
