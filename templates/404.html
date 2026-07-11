@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+
+{% block title %}Página não encontrada{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-12 col-md-6 text-center py-5">
+        <i class="bi bi-compass display-4 text-body-secondary"></i>
+        <h1 class="h4 mt-3">Página não encontrada</h1>
+        <p class="text-body-secondary">
+            O endereço acessado não existe ou foi movido.
+        </p>
+        <a href="{% url 'core:home' %}" class="btn btn-primary">
+            <i class="bi bi-house me-1"></i>Voltar ao início
+        </a>
+    </div>
+</div>
+{% endblock %}

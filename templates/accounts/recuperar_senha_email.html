@@ -1,0 +1,14 @@
+Olá{% if user.get_full_name %}, {{ user.get_full_name }}{% endif %}!
+
+Recebemos um pedido para redefinir a senha do seu usuário no FabriQ.
+
+Para definir uma nova senha, acesse o link abaixo:
+
+{{ protocol }}://{{ domain }}{% url 'accounts:password_reset_confirm' uidb64=uid token=token %}
+
+Seu usuário de acesso é: {{ user.get_username }}
+
+Se você não solicitou a troca de senha, ignore este e-mail.
+
+—
+FabriQ · ERP Industrial

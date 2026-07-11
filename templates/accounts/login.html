@@ -1,0 +1,32 @@
+{% extends "accounts/base_auth.html" %}
+
+{% block title %}Entrar{% endblock %}
+
+{% block auth_content %}
+    <h2 class="h5 mb-3">Acesse sua conta</h2>
+
+    {% if form.non_field_errors %}
+        <div class="alert alert-danger" role="alert">
+            {% for erro in form.non_field_errors %}{{ erro }}{% endfor %}
+        </div>
+    {% endif %}
+
+    <form method="post" novalidate>
+        {% csrf_token %}
+        {% include "includes/campo.html" with campo=form.username %}
+        {% include "includes/campo.html" with campo=form.password %}
+        <div class="d-grid">
+            <button type="submit" class="btn btn-primary">
+                <i class="bi bi-box-arrow-in-right me-1"></i>Entrar
+            </button>
+        </div>
+    </form>
+{% endblock %}
+
+{% block auth_rodape %}
+    <p class="text-center mt-3">
+        <a href="{% url 'accounts:password_reset' %}" class="link-secondary small">
+            Esqueci minha senha
+        </a>
+    </p>
+{% endblock %}

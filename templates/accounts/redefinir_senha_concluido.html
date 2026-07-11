@@ -1,0 +1,14 @@
+{% extends "accounts/base_auth.html" %}
+
+{% block title %}Senha redefinida{% endblock %}
+
+{% block auth_content %}
+    <div class="text-center">
+        <i class="bi bi-check-circle display-6 text-success"></i>
+        <h2 class="h5 mt-3">Senha redefinida</h2>
+        <p class="text-body-secondary small">Sua nova senha já pode ser usada.</p>
+        <a href="{% url 'accounts:login' %}" class="btn btn-primary">
+            <i class="bi bi-box-arrow-in-right me-1"></i>Ir para o login
+        </a>
+    </div>
+{% endblock %}

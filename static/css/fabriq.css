@@ -11,3 +11,13 @@
     background-color: var(--bs-danger-bg-subtle);
     border-color: var(--bs-danger-border-subtle);
 }
+
+/* Cards de módulo na home */
+.card-modulo {
+    transition: transform 0.1s ease-in-out, box-shadow 0.1s ease-in-out;
+}
+
+.card-modulo:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--bs-box-shadow) !important;
+}

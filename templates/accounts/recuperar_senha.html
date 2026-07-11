@@ -1,0 +1,26 @@
+{% extends "accounts/base_auth.html" %}
+
+{% block title %}Recuperar senha{% endblock %}
+
+{% block auth_content %}
+    <h2 class="h5 mb-3">Recuperar senha</h2>
+    <p class="text-body-secondary small">
+        Informe o e-mail cadastrado. Se ele existir no sistema, você receberá
+        um link para definir uma nova senha.
+    </p>
+    <form method="post" novalidate>
+        {% csrf_token %}
+        {% include "includes/campo.html" with campo=form.email %}
+        <div class="d-grid">
+            <button type="submit" class="btn btn-primary">
+                <i class="bi bi-envelope me-1"></i>Enviar link de recuperação
+            </button>
+        </div>
+    </form>
+{% endblock %}
+
+{% block auth_rodape %}
+    <p class="text-center mt-3">
+        <a href="{% url 'accounts:login' %}" class="link-secondary small">Voltar ao login</a>
+    </p>
+{% endblock %}

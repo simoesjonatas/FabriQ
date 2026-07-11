@@ -65,6 +65,7 @@ TEMPLATES = [
                 "django.template.context_processors.request",
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
+                "apps.accounts.context_processors.modulos_menu",
             ],
         },
     },
@@ -85,6 +86,15 @@ DATABASES = {
 # Autenticação
 
 AUTH_USER_MODEL = "accounts.User"
+
+LOGIN_URL = "accounts:login"
+LOGIN_REDIRECT_URL = "core:home"
+LOGOUT_REDIRECT_URL = "accounts:login"
+
+# Remetente dos e-mails do sistema (recuperação de senha etc.)
+DEFAULT_FROM_EMAIL = env(
+    "DJANGO_DEFAULT_FROM_EMAIL", default="FabriQ <nao-responda@fabriq.local>"
+)
 
 AUTH_PASSWORD_VALIDATORS = [
     {

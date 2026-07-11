@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+
+{% block title %}Usuários{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-12 col-xl-10">
+
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h1 class="h4 mb-0"><i class="bi bi-people text-primary me-2"></i>Usuários</h1>
+            <a href="{% url 'accounts:usuario_criar' %}" class="btn btn-primary">
+                <i class="bi bi-person-plus me-1"></i>Novo usuário
+            </a>
+        </div>
+
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <form method="get" class="row g-2 mb-3">
+                    <div class="col-12 col-md-6">
+                        <input type="search" name="q" value="{{ termo }}" class="form-control"
+                               placeholder="Pesquisar por nome, usuário ou e-mail">
+                    </div>
+                    <div class="col-8 col-md-4">
+                        <select name="status" class="form-select">
+                            <option value="" {% if not status %}selected{% endif %}>Todos</option>
+                            <option value="ativos" {% if status == "ativos" %}selected{% endif %}>Somente ativos</option>
+                            <option value="inativos" {% if status == "inativos" %}selected{% endif %}>Somente inativos</option>
+                        </select>
+                    </div>
+                    <div class="col-4 col-md-2 d-grid">
+                        <button type="submit" class="btn btn-outline-secondary">
+                            <i class="bi bi-search me-1"></i>Filtrar
+                        </button>
+                    </div>
+                </form>
+
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead>
+                            <tr>
+                                <th>Nome</th>
+                                <th>Usuário</th>
+                                <th>E-mail</th>
+                                <th>Perfis</th>
+                                <th>Último acesso</th>
+                                <th>Situação</th>
+                                <th class="text-end">Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for usuario in usuarios %}
+                                <tr {% if not usuario.is_active %}class="table-secondary text-body-secondary"{% endif %}>
+                                    <td>{{ usuario.get_full_name|default:"—" }}</td>
+                                    <td>{{ usuario.username }}</td>
+                                    <td>{{ usuario.email|default:"—" }}</td>
+                                    <td>
+                                        {% for grupo in usuario.groups.all %}
+                                            <span class="badge text-bg-light border">{{ grupo.name }}</span>
+                                        {% empty %}
+                                            <span class="text-body-secondary small">—</span>
+                                        {% endfor %}
+                                        {% if usuario.is_superuser %}
+                                            <span class="badge text-bg-dark">Superusuário</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if usuario.last_login %}
+                                            {{ usuario.last_login|date:"d/m/Y H:i" }}
+                                        {% else %}
+                                            <span class="text-body-secondary small">nunca acessou</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if usuario.is_active %}
+                                            <span class="badge text-bg-success">Ativo</span>
+                                        {% else %}
+                                            <span class="badge text-bg-secondary">Inativo</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-end">
+                                        <a href="{% url 'accounts:usuario_editar' usuario.pk %}"
+                                           class="btn btn-sm btn-outline-primary" title="Editar">
+                                            <i class="bi bi-pencil"></i> Editar
+                                        </a>
+                                    </td>
+                                </tr>
+                            {% empty %}
+                                <tr>
+                                    <td colspan="7" class="text-center text-body-secondary py-4">
+                                        Nenhum usuário encontrado.
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+
+                {% if is_paginated %}
+                    <nav class="mt-3" aria-label="Paginação">
+                        <ul class="pagination pagination-sm justify-content-center mb-0">
+                            {% if page_obj.has_previous %}
+                                <li class="page-item">
+                                    <a class="page-link" href="?q={{ termo }}&status={{ status }}&page={{ page_obj.previous_page_number }}">Anterior</a>
+                                </li>
+                            {% endif %}
+                            <li class="page-item disabled">
+                                <span class="page-link">
+                                    Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}
+                                </span>
+                            </li>
+                            {% if page_obj.has_next %}
+                                <li class="page-item">
+                                    <a class="page-link" href="?q={{ termo }}&status={{ status }}&page={{ page_obj.next_page_number }}">Próxima</a>
+                                </li>
+                            {% endif %}
+                        </ul>
+                    </nav>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -24,14 +24,38 @@
             </button>
             <div class="collapse navbar-collapse" id="navbarPrincipal">
                 <ul class="navbar-nav me-auto">
-                    {% block nav_items %}{% endblock %}
+                    {% for modulo in modulos_menu %}
+                        <li class="nav-item">
+                            <a class="nav-link{% if request.resolver_match.view_name == modulo.url_name %} active{% endif %}"
+                               href="{% url modulo.url_name %}">
+                                <i class="bi {{ modulo.icone }} me-1"></i>{{ modulo.titulo }}
+                            </a>
+                        </li>
+                    {% endfor %}
                 </ul>
                 <ul class="navbar-nav">
                     {% if user.is_authenticated %}
-                        <li class="nav-item">
-                            <span class="navbar-text me-3">
+                        <li class="nav-item dropdown">
+                            <a class="nav-link dropdown-toggle" href="#" role="button"
+                               data-bs-toggle="dropdown" aria-expanded="false">
                                 <i class="bi bi-person-circle me-1"></i>{{ user }}
-                            </span>
+                            </a>
+                            <ul class="dropdown-menu dropdown-menu-end">
+                                <li>
+                                    <a class="dropdown-item" href="{% url 'accounts:password_change' %}">
+                                        <i class="bi bi-key me-2"></i>Trocar senha
+                                    </a>
+                                </li>
+                                <li><hr class="dropdown-divider"></li>
+                                <li>
+                                    <form method="post" action="{% url 'accounts:logout' %}">
+                                        {% csrf_token %}
+                                        <button type="submit" class="dropdown-item">
+                                            <i class="bi bi-box-arrow-right me-2"></i>Sair
+                                        </button>
+                                    </form>
+                                </li>
+                            </ul>
                         </li>
                     {% endif %}
                 </ul>

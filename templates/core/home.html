@@ -5,22 +5,31 @@
 {% block content %}
 <div class="row justify-content-center">
     <div class="col-12 col-xl-10">
-        <div class="card shadow-sm">
-            <div class="card-body p-4">
-                <h1 class="h3 mb-2">
-                    <i class="bi bi-boxes text-primary me-2"></i>Bem-vindo ao FabriQ
-                </h1>
-                <p class="text-body-secondary mb-4">
-                    ERP industrial para o controle do fluxo produtivo — pedidos, PCP,
-                    estoque, qualidade e produção em um único sistema.
-                </p>
-                <div class="alert alert-info mb-0" role="alert">
-                    <i class="bi bi-info-circle me-1"></i>
-                    Sistema em implantação — Fase 0 (estrutura inicial) concluída.
-                    O login e o controle de usuários chegam na Fase 1.
-                </div>
+        <h1 class="h4 mb-1">Olá, {{ user.first_name|default:user.username }}!</h1>
+        <p class="text-body-secondary mb-4">Escolha um módulo para começar.</p>
+
+        {% if modulos_menu %}
+            <div class="row row-cols-1 row-cols-sm-2 row-cols-lg-3 g-3">
+                {% for modulo in modulos_menu %}
+                    <div class="col">
+                        <a href="{% url modulo.url_name %}" class="card h-100 shadow-sm text-decoration-none card-modulo">
+                            <div class="card-body">
+                                <h2 class="h6 mb-1">
+                                    <i class="bi {{ modulo.icone }} text-primary me-2"></i>{{ modulo.titulo }}
+                                </h2>
+                                <p class="small text-body-secondary mb-0">{{ modulo.descricao }}</p>
+                            </div>
+                        </a>
+                    </div>
+                {% endfor %}
             </div>
-        </div>
+        {% else %}
+            <div class="alert alert-warning" role="alert">
+                <i class="bi bi-exclamation-triangle me-1"></i>
+                Nenhum módulo disponível para o seu perfil no momento.
+                Se você acha que isso é um erro, procure o administrador do sistema.
+            </div>
+        {% endif %}
     </div>
 </div>
 {% endblock %}
