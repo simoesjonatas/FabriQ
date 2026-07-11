@@ -37,6 +37,13 @@ MODULOS = {
         "url_name": "pedidos:lista",
         "perfis": {DIRETORIA, PCP, COMPRAS, EXPEDICAO},
     },
+    "pcp": {
+        "titulo": "PCP",
+        "descricao": "Programação da produção e ocupação dos equipamentos",
+        "icone": "bi-calendar3",
+        "url_name": "pcp:calendario",
+        "perfis": {DIRETORIA, PCP},
+    },
     "cadastros": {
         "titulo": "Cadastros",
         "descricao": (

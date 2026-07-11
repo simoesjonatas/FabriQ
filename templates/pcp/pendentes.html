@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+
+{% block title %}PCP · Aguardando programação{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-12 col-xxl-11">
+
+        <div class="page-header page-header-actions mb-4">
+            <div>
+                <span class="eyebrow"><i class="bi bi-calendar3 me-1"></i>PCP</span>
+                <h1>Aguardando programação</h1>
+                <p>Itens de pedidos com saldo ainda não programado, do prazo mais urgente ao mais folgado.</p>
+            </div>
+        </div>
+
+        {% include "pcp/partials/nav_pcp.html" with aba="pendentes" %}
+
+        <div class="card shadow-sm data-panel">
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead>
+                            <tr>
+                                <th>Pedido</th>
+                                <th>Prazo</th>
+                                <th>Produto</th>
+                                <th class="text-end">Pedido</th>
+                                <th class="text-end">Programado</th>
+                                <th class="text-end">Saldo</th>
+                                <th>Status</th>
+                                <th class="text-end">Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for item in itens %}
+                                <tr>
+                                    <td class="identifier-cell">
+                                        <a href="{% url 'pedidos:detalhe' item.pedido.pk %}" class="text-decoration-none">
+                                            {{ item.pedido.numero }}
+                                        </a>
+                                        <div class="small text-body-secondary fw-normal">{{ item.pedido.cliente }}</div>
+                                    </td>
+                                    <td>
+                                        {% if item.pedido.prazo < hoje %}
+                                            <span class="text-danger fw-semibold">
+                                                <i class="bi bi-exclamation-triangle me-1"></i>{{ item.pedido.prazo|date:"d/m/Y" }}
+                                            </span>
+                                        {% else %}
+                                            {{ item.pedido.prazo|date:"d/m/Y" }}
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ item.produto.codigo }} · {{ item.produto.nome }}</td>
+                                    <td class="text-end">{{ item.quantidade|floatformat:"-3" }}</td>
+                                    <td class="text-end">{{ item.programado|floatformat:"-3" }}</td>
+                                    <td class="text-end fw-bold">{{ item.saldo|floatformat:"-3" }}</td>
+                                    <td>
+                                        <span class="badge {{ item.pedido.badge_status }}">
+                                            {{ item.pedido.get_status_display }}
+                                        </span>
+                                    </td>
+                                    <td class="text-end">
+                                        <a href="{% url 'pcp:criar' %}?item={{ item.pk }}"
+                                           class="btn btn-sm btn-primary">
+                                            <i class="bi bi-calendar-plus me-1"></i>Programar
+                                        </a>
+                                    </td>
+                                </tr>
+                            {% empty %}
+                                <tr>
+                                    <td colspan="8" class="text-center text-body-secondary py-4">
+                                        Nenhum item aguardando programação. 🎉
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

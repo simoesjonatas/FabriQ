@@ -1,0 +1,18 @@
+{% comment %}Navegação entre as visões do PCP. Espera: aba ("calendario"|"lista"|"pendentes").{% endcomment %}
+<ul class="nav form-tabs mb-4" role="navigation" aria-label="Visões do PCP">
+    <li class="nav-item">
+        <a class="nav-link{% if aba == 'calendario' %} active{% endif %}" href="{% url 'pcp:calendario' %}">
+            <i class="bi bi-calendar3" aria-hidden="true"></i>Calendário
+        </a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link{% if aba == 'lista' %} active{% endif %}" href="{% url 'pcp:lista' %}">
+            <i class="bi bi-list-ul" aria-hidden="true"></i>Lista
+        </a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link{% if aba == 'pendentes' %} active{% endif %}" href="{% url 'pcp:pendentes' %}">
+            <i class="bi bi-hourglass-split" aria-hidden="true"></i>Aguardando programação
+        </a>
+    </li>
+</ul>

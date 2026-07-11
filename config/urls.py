@@ -11,6 +11,7 @@ urlpatterns = [
     path("", include("apps.accounts.urls")),
     path("cadastros/", include("apps.cadastros.urls")),
     path("pedidos/", include("apps.pedidos.urls")),
+    path("pcp/", include("apps.pcp.urls")),
 ]
 
 if settings.DEBUG:

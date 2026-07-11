@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+
+{% block title %}{% if form.instance.pk %}Reprogramar{% else %}Nova programação{% endif %}{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-12 col-md-10 col-lg-8">
+
+        <nav class="app-breadcrumb" aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item">
+                    <a href="{% url 'pcp:calendario' %}">
+                        <i class="bi bi-arrow-left-short" aria-hidden="true"></i>PCP
+                    </a>
+                </li>
+                <li class="breadcrumb-item active" aria-current="page">
+                    {% if form.instance.pk %}Reprogramar{% else %}Nova programação{% endif %}
+                </li>
+            </ol>
+        </nav>
+
+        <div class="card shadow-sm form-panel">
+            <div class="card-body p-4">
+                <h1 class="h5 mb-3">
+                    {% if form.instance.pk %}
+                        <i class="bi bi-arrow-repeat text-primary me-2"></i>Reprogramar
+                        <span class="text-body-secondary">· {{ form.instance.item.produto.codigo }} · {{ form.instance.item.pedido.numero }}</span>
+                    {% else %}
+                        <i class="bi bi-calendar-plus text-primary me-2"></i>Nova programação
+                    {% endif %}
+                </h1>
+
+                {% if form.non_field_errors %}
+                    <div class="alert alert-danger" role="alert">
+                        {% for erro in form.non_field_errors %}{{ erro }}{% endfor %}
+                    </div>
+                {% endif %}
+
+                <form method="post" novalidate>
+                    {% csrf_token %}
+                    <div class="row g-3">
+                        <div class="col-12">
+                            {% include "includes/campo.html" with campo=form.item %}
+                        </div>
+                        <div class="col-12 col-md-6">
+                            {% include "includes/campo.html" with campo=form.equipamento %}
+                        </div>
+                        <div class="col-12 col-md-6">
+                            {% include "includes/campo.html" with campo=form.operador %}
+                        </div>
+                        <div class="col-12 col-md-6">
+                            {% include "includes/campo.html" with campo=form.data %}
+                        </div>
+                        <div class="col-12 col-md-6">
+                            {% include "includes/campo.html" with campo=form.quantidade %}
+                        </div>
+                        <div class="col-12">
+                            {% include "includes/campo.html" with campo=form.observacoes %}
+                        </div>
+                    </div>
+
+                    <div class="form-actions-bar">
+                        <a href="{% url 'pcp:calendario' %}" class="btn btn-outline-secondary">Cancelar</a>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-check-lg me-1"></i>Salvar programação
+                        </button>
+                    </div>
+                </form>
+            </div>
+
+            {% if form.instance.pk %}
+                <div class="card-footer small text-body-secondary">
+                    <i class="bi bi-clock-history me-1"></i>
+                    Criado em {{ form.instance.criado_em|date:"d/m/Y H:i" }}
+                    {% if form.instance.criado_por %}por {{ form.instance.criado_por }}{% endif %}
+                    · Última alteração em {{ form.instance.atualizado_em|date:"d/m/Y H:i" }}
+                    {% if form.instance.atualizado_por %}por {{ form.instance.atualizado_por }}{% endif %}
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

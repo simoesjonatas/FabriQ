@@ -61,15 +61,15 @@ STATUS_EDITAVEIS = {
 }
 
 BADGE_POR_STATUS = {
-    StatusPedido.RECEBIDO: "text-bg-secondary",
-    StatusPedido.EM_ANALISE: "text-bg-info",
-    StatusPedido.AGUARDANDO_MP: "text-bg-warning",
-    StatusPedido.PROGRAMADO: "text-bg-dark",
-    StatusPedido.EM_PRODUCAO: "text-bg-primary",
-    StatusPedido.CQ: "text-bg-warning",
-    StatusPedido.FINALIZADO: "text-bg-success",
-    StatusPedido.EXPEDIDO: "text-bg-success",
-    StatusPedido.CANCELADO: "text-bg-danger",
+    StatusPedido.RECEBIDO: "text-bg-secondary status-badge status-badge--recebido",
+    StatusPedido.EM_ANALISE: "text-bg-info status-badge status-badge--analise",
+    StatusPedido.AGUARDANDO_MP: "text-bg-warning status-badge status-badge--aguardando",
+    StatusPedido.PROGRAMADO: "text-bg-primary status-badge status-badge--programado",
+    StatusPedido.EM_PRODUCAO: "text-bg-primary status-badge status-badge--producao",
+    StatusPedido.CQ: "text-bg-warning status-badge status-badge--qualidade",
+    StatusPedido.FINALIZADO: "text-bg-success status-badge status-badge--finalizado",
+    StatusPedido.EXPEDIDO: "text-bg-success status-badge status-badge--expedido",
+    StatusPedido.CANCELADO: "text-bg-danger status-badge status-badge--cancelado",
 }
 
 
@@ -124,7 +124,9 @@ class Pedido(ModeloAuditado):
 
     @property
     def badge_status(self) -> str:
-        return BADGE_POR_STATUS.get(self.status, "text-bg-secondary")
+        return BADGE_POR_STATUS.get(
+            self.status, "text-bg-secondary status-badge status-badge--recebido"
+        )
 
     @property
     def proximos_status(self) -> list[tuple[str, str]]:

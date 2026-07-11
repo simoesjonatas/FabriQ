@@ -1,0 +1,209 @@
+{% extends "base.html" %}
+
+{% block title %}PCP · Lista{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-12 col-xxl-11">
+
+        <div class="page-header page-header-actions mb-4">
+            <div>
+                <span class="eyebrow"><i class="bi bi-calendar3 me-1"></i>PCP</span>
+                <h1>Programações</h1>
+                <p>Filtre por período, equipamento, produto ou status do pedido.</p>
+            </div>
+            <a href="{% url 'pcp:criar' %}" class="btn btn-primary">
+                <i class="bi bi-plus-lg me-1"></i>Nova programação
+            </a>
+        </div>
+
+        {% include "pcp/partials/nav_pcp.html" with aba="lista" %}
+
+        <div class="card shadow-sm data-panel">
+            <div class="card-body">
+                <form method="get" class="row g-2 mb-3 align-items-end">
+                    <div class="col-6 col-md-2">
+                        <label class="form-label small mb-1" for="filtroDe">De</label>
+                        <input type="date" name="de" id="filtroDe" value="{{ filtro_de }}" class="form-control">
+                    </div>
+                    <div class="col-6 col-md-2">
+                        <label class="form-label small mb-1" for="filtroAte">Até</label>
+                        <input type="date" name="ate" id="filtroAte" value="{{ filtro_ate }}" class="form-control">
+                    </div>
+                    <div class="col-6 col-md-2">
+                        <label class="form-label small mb-1" for="filtroEquipamento">Equipamento</label>
+                        <select name="equipamento" id="filtroEquipamento" class="form-select">
+                            <option value="">Todos</option>
+                            {% for equipamento in equipamentos %}
+                                <option value="{{ equipamento.pk }}"
+                                        {% if filtro_equipamento == equipamento.pk|stringformat:"s" %}selected{% endif %}>
+                                    {{ equipamento.codigo }}
+                                </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-6 col-md-2">
+                        <label class="form-label small mb-1" for="filtroProduto">Produto</label>
+                        <select name="produto" id="filtroProduto" class="form-select">
+                            <option value="">Todos</option>
+                            {% for produto in produtos %}
+                                <option value="{{ produto.pk }}"
+                                        {% if filtro_produto == produto.pk|stringformat:"s" %}selected{% endif %}>
+                                    {{ produto.codigo }}
+                                </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-6 col-md-2">
+                        <label class="form-label small mb-1" for="filtroStatus">Status do pedido</label>
+                        <select name="status" id="filtroStatus" class="form-select">
+                            <option value="">Todos</option>
+                            {% for valor, rotulo in status_choices %}
+                                <option value="{{ valor }}" {% if filtro_status == valor %}selected{% endif %}>
+                                    {{ rotulo }}
+                                </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-6 col-md-2 d-grid">
+                        <button type="submit" class="btn btn-outline-secondary">
+                            <i class="bi bi-funnel me-1"></i>Filtrar
+                        </button>
+                    </div>
+                </form>
+
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead>
+                            <tr>
+                                <th>Data</th>
+                                <th>Pedido</th>
+                                <th>Produto</th>
+                                <th class="text-end">Qtd.</th>
+                                <th>Equipamento</th>
+                                <th>Operador</th>
+                                <th>Status do pedido</th>
+                                <th class="text-end">Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for programacao in programacoes %}
+                                <tr>
+                                    <td class="identifier-cell">{{ programacao.data|date:"d/m/Y" }}</td>
+                                    <td>
+                                        <a href="{% url 'pedidos:detalhe' programacao.item.pedido.pk %}"
+                                           class="text-decoration-none">
+                                            {{ programacao.item.pedido.numero }}
+                                        </a>
+                                        <div class="small text-body-secondary">
+                                            {{ programacao.item.pedido.cliente }}
+                                        </div>
+                                    </td>
+                                    <td>{{ programacao.item.produto.codigo }} · {{ programacao.item.produto.nome }}</td>
+                                    <td class="text-end">{{ programacao.quantidade|floatformat:"-3" }}</td>
+                                    <td>{{ programacao.equipamento.codigo }}</td>
+                                    <td>{{ programacao.operador|default:"—" }}</td>
+                                    <td>
+                                        <span class="badge {{ programacao.item.pedido.badge_status }}">
+                                            {{ programacao.item.pedido.get_status_display }}
+                                        </span>
+                                    </td>
+                                    <td class="text-end text-nowrap">
+                                        <a href="{% url 'pcp:editar' programacao.pk %}"
+                                           class="btn btn-sm btn-outline-primary" title="Reprogramar">
+                                            <i class="bi bi-pencil"></i>
+                                        </a>
+                                        <button type="button" class="btn btn-sm btn-outline-danger"
+                                                title="Remover programação"
+                                                data-bs-toggle="modal" data-bs-target="#modalRemover"
+                                                data-remover-url="{% url 'pcp:remover' programacao.pk %}"
+                                                data-remover-descricao="{{ programacao.item.produto.codigo }} · {{ programacao.quantidade|floatformat:'-3' }} em {{ programacao.data|date:'d/m/Y' }} ({{ programacao.equipamento.codigo }})">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </td>
+                                </tr>
+                            {% empty %}
+                                <tr>
+                                    <td colspan="8" class="text-center text-body-secondary py-4">
+                                        Nenhuma programação encontrada.
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+
+                {% if is_paginated %}
+                    <nav class="mt-3" aria-label="Paginação">
+                        <ul class="pagination pagination-sm justify-content-center mb-0">
+                            {% if page_obj.has_previous %}
+                                <li class="page-item">
+                                    <a class="page-link"
+                                       href="?de={{ filtro_de }}&ate={{ filtro_ate }}&equipamento={{ filtro_equipamento }}&produto={{ filtro_produto }}&status={{ filtro_status }}&page={{ page_obj.previous_page_number }}">
+                                        Anterior
+                                    </a>
+                                </li>
+                            {% endif %}
+                            <li class="page-item disabled">
+                                <span class="page-link">
+                                    Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}
+                                </span>
+                            </li>
+                            {% if page_obj.has_next %}
+                                <li class="page-item">
+                                    <a class="page-link"
+                                       href="?de={{ filtro_de }}&ate={{ filtro_ate }}&equipamento={{ filtro_equipamento }}&produto={{ filtro_produto }}&status={{ filtro_status }}&page={{ page_obj.next_page_number }}">
+                                        Próxima
+                                    </a>
+                                </li>
+                            {% endif %}
+                        </ul>
+                    </nav>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="modalRemover" tabindex="-1" aria-labelledby="modalRemoverTitulo" aria-hidden="true">
+    <div class="modal-dialog">
+        <form method="post" id="formRemoverProgramacao" class="modal-content" action="">
+            {% csrf_token %}
+            <div class="modal-header">
+                <h2 class="modal-title h6" id="modalRemoverTitulo">
+                    <i class="bi bi-trash text-danger me-1"></i>Remover programação
+                </h2>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body">
+                <p class="small mb-2" id="removerDescricao"></p>
+                <p class="text-body-secondary small mb-2">
+                    A programação não será excluída: ficará inativa, com o motivo
+                    registrado no histórico do pedido.
+                </p>
+                <label class="form-label" for="motivoRemocao">Motivo da remoção</label>
+                <textarea class="form-control" id="motivoRemocao" name="motivo"
+                          rows="3" maxlength="500" required></textarea>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Voltar</button>
+                <button type="submit" class="btn btn-danger">
+                    <i class="bi bi-trash me-1"></i>Confirmar remoção
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.querySelectorAll("[data-remover-url]").forEach((botao) => {
+        botao.addEventListener("click", () => {
+            document.getElementById("formRemoverProgramacao").action = botao.dataset.removerUrl;
+            document.getElementById("removerDescricao").textContent = botao.dataset.removerDescricao;
+            document.getElementById("motivoRemocao").value = "";
+        });
+    });
+</script>
+{% endblock %}

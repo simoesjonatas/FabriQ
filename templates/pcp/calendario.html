@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+
+{% block title %}PCP · Calendário{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-12 col-xxl-11">
+
+        <div class="page-header page-header-actions mb-4">
+            <div>
+                <span class="eyebrow"><i class="bi bi-calendar3 me-1"></i>PCP</span>
+                <h1>Programação da produção</h1>
+                <p>{{ total_no_mes }} programaç{{ total_no_mes|pluralize:"ão,ões" }} em {{ mes_atual|date:"F \d\e Y" }}.</p>
+            </div>
+            <a href="{% url 'pcp:criar' %}" class="btn btn-primary">
+                <i class="bi bi-plus-lg me-1"></i>Nova programação
+            </a>
+        </div>
+
+        {% include "pcp/partials/nav_pcp.html" with aba="calendario" %}
+
+        <div class="card shadow-sm data-panel">
+            <div class="card-body">
+                <form method="get" class="row g-2 mb-3 align-items-end">
+                    <input type="hidden" name="mes" value="{{ mes_atual|date:'Y-m' }}">
+                    <div class="col-6 col-md-3">
+                        <label class="form-label small mb-1" for="filtroEquipamento">Equipamento</label>
+                        <select name="equipamento" id="filtroEquipamento" class="form-select">
+                            <option value="">Todos</option>
+                            {% for equipamento in equipamentos %}
+                                <option value="{{ equipamento.pk }}"
+                                        {% if equipamento_selecionado == equipamento.pk|stringformat:"s" %}selected{% endif %}>
+                                    {{ equipamento.codigo }} · {{ equipamento.nome }}
+                                </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <label class="form-label small mb-1" for="filtroProduto">Produto</label>
+                        <select name="produto" id="filtroProduto" class="form-select">
+                            <option value="">Todos</option>
+                            {% for produto in produtos %}
+                                <option value="{{ produto.pk }}"
+                                        {% if produto_selecionado == produto.pk|stringformat:"s" %}selected{% endif %}>
+                                    {{ produto.codigo }} · {{ produto.nome }}
+                                </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-6 col-md-2 d-grid">
+                        <button type="submit" class="btn btn-outline-secondary">
+                            <i class="bi bi-funnel me-1"></i>Filtrar
+                        </button>
+                    </div>
+                    <div class="col-6 col-md-4">
+                        <div class="d-flex justify-content-md-end align-items-center gap-1">
+                            <a class="btn btn-outline-secondary btn-sm" title="Mês anterior"
+                               href="?mes={{ mes_anterior|date:'Y-m' }}{% if equipamento_selecionado %}&equipamento={{ equipamento_selecionado }}{% endif %}{% if produto_selecionado %}&produto={{ produto_selecionado }}{% endif %}">
+                                <i class="bi bi-chevron-left"></i>
+                            </a>
+                            <span class="fw-bold text-capitalize px-2">{{ mes_atual|date:"F Y" }}</span>
+                            <a class="btn btn-outline-secondary btn-sm" title="Próximo mês"
+                               href="?mes={{ mes_proximo|date:'Y-m' }}{% if equipamento_selecionado %}&equipamento={{ equipamento_selecionado }}{% endif %}{% if produto_selecionado %}&produto={{ produto_selecionado }}{% endif %}">
+                                <i class="bi bi-chevron-right"></i>
+                            </a>
+                        </div>
+                    </div>
+                </form>
+
+                <div class="table-responsive">
+                    <table class="table pcp-calendario mb-0">
+                        <thead>
+                            <tr>
+                                <th>Dom</th><th>Seg</th><th>Ter</th><th>Qua</th>
+                                <th>Qui</th><th>Sex</th><th>Sáb</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for semana in semanas %}
+                                <tr>
+                                    {% for dia in semana %}
+                                        <td class="pcp-dia{% if dia.fora_do_mes %} pcp-dia-fora{% endif %}{% if dia.hoje %} pcp-dia-hoje{% endif %}">
+                                            <span class="pcp-dia-numero">{{ dia.data.day }}</span>
+                                            {% for programacao in dia.programacoes %}
+                                                <a href="{% url 'pcp:editar' programacao.pk %}"
+                                                   class="pcp-chip{% if programacao.sobrecarga %} pcp-chip-sobrecarga{% endif %}"
+                                                   title="{{ programacao.item.pedido.numero }} · {{ programacao.item.pedido.cliente }} · {{ programacao.item.produto.nome }} · {{ programacao.quantidade|floatformat:'-3' }} {{ programacao.item.produto.get_unidade_display }} · {{ programacao.equipamento.nome }}{% if programacao.operador %} · {{ programacao.operador }}{% endif %}{% if programacao.sobrecarga %} · ACIMA DA CAPACIDADE{% endif %}">
+                                                    {% if programacao.sobrecarga %}
+                                                        <i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i>
+                                                    {% endif %}
+                                                    <span class="pcp-chip-equip">{{ programacao.equipamento.codigo }}</span>
+                                                    <span class="pcp-chip-texto">
+                                                        {{ programacao.item.produto.codigo }} × {{ programacao.quantidade|floatformat:"-3" }}
+                                                    </span>
+                                                </a>
+                                            {% endfor %}
+                                        </td>
+                                    {% endfor %}
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+
+                <p class="small text-body-secondary mt-3 mb-0">
+                    <i class="bi bi-exclamation-triangle-fill text-danger me-1"></i>
+                    indica que o total programado no dia passou a capacidade do equipamento.
+                    Clique em uma programação para reprogramar.
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

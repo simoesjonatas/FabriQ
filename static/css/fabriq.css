@@ -1019,6 +1019,122 @@ body.is-page-loading {
     background: var(--fabriq-ink) !important;
 }
 
+.badge.status-badge,
+.status-badge {
+    --status-bg: rgba(var(--fabriq-primary-rgb), 0.12);
+    --status-border: rgba(var(--fabriq-primary-rgb), 0.24);
+    --status-color: var(--fabriq-primary-dark);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 92px;
+    padding: 0.38rem 0.58rem;
+    border: 1px solid var(--status-border);
+    border-radius: 999px;
+    color: var(--status-color) !important;
+    background: var(--status-bg) !important;
+    font-size: 0.74rem;
+    font-weight: 850;
+    line-height: 1;
+    letter-spacing: 0;
+    white-space: nowrap;
+}
+
+.badge.status-badge.fs-6,
+.status-badge.fs-6 {
+    min-width: 112px;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.9rem !important;
+}
+
+.status-badge--recebido {
+    --status-bg: #eef2f6;
+    --status-border: #d9e2ec;
+    --status-color: #344054;
+}
+
+.status-badge--analise {
+    --status-bg: #e0f2fe;
+    --status-border: #bae6fd;
+    --status-color: #075985;
+}
+
+.status-badge--aguardando,
+.status-badge--qualidade {
+    --status-bg: #fef3c7;
+    --status-border: #fde68a;
+    --status-color: #92400e;
+}
+
+.status-badge--programado {
+    --status-bg: #dbeafe;
+    --status-border: #bfdbfe;
+    --status-color: #1d4ed8;
+}
+
+.status-badge--producao {
+    --status-bg: #ccfbf1;
+    --status-border: #99f6e4;
+    --status-color: #0f766e;
+}
+
+.status-badge--finalizado,
+.status-badge--expedido {
+    --status-bg: #d1fadf;
+    --status-border: #a6f4c5;
+    --status-color: #05603a;
+}
+
+.status-badge--cancelado {
+    --status-bg: #fee4e2;
+    --status-border: #fecdca;
+    --status-color: #b42318;
+}
+
+:root[data-bs-theme="dark"] .status-badge--recebido {
+    --status-bg: rgba(148, 163, 184, 0.18);
+    --status-border: rgba(148, 163, 184, 0.34);
+    --status-color: #cbd5e1;
+}
+
+:root[data-bs-theme="dark"] .status-badge--analise {
+    --status-bg: rgba(14, 165, 233, 0.18);
+    --status-border: rgba(56, 189, 248, 0.32);
+    --status-color: #7dd3fc;
+}
+
+:root[data-bs-theme="dark"] .status-badge--aguardando,
+:root[data-bs-theme="dark"] .status-badge--qualidade {
+    --status-bg: rgba(245, 158, 11, 0.18);
+    --status-border: rgba(251, 191, 36, 0.32);
+    --status-color: #fcd34d;
+}
+
+:root[data-bs-theme="dark"] .status-badge--programado {
+    --status-bg: rgba(96, 165, 250, 0.2);
+    --status-border: rgba(147, 197, 253, 0.36);
+    --status-color: #bfdbfe;
+}
+
+:root[data-bs-theme="dark"] .status-badge--producao {
+    --status-bg: rgba(var(--fabriq-primary-rgb), 0.18);
+    --status-border: rgba(var(--fabriq-primary-rgb), 0.34);
+    --status-color: #99f6e4;
+}
+
+:root[data-bs-theme="dark"] .status-badge--finalizado,
+:root[data-bs-theme="dark"] .status-badge--expedido {
+    --status-bg: rgba(34, 197, 94, 0.18);
+    --status-border: rgba(74, 222, 128, 0.32);
+    --status-color: #86efac;
+}
+
+:root[data-bs-theme="dark"] .status-badge--cancelado {
+    --status-bg: rgba(248, 113, 113, 0.18);
+    --status-border: rgba(252, 165, 165, 0.32);
+    --status-color: #fca5a5;
+}
+
 .badge-profile {
     color: var(--fabriq-primary-dark);
     background: rgba(var(--fabriq-primary-rgb), 0.12);
@@ -1041,6 +1157,91 @@ body.is-page-loading {
     --bs-table-bg: #151d2c;
     --bs-table-color: var(--fabriq-muted);
     --bs-table-border-color: var(--fabriq-row-border);
+}
+
+/* PCP — calendário de programação */
+
+.pcp-calendario {
+    table-layout: fixed;
+    min-width: 860px;
+}
+
+.pcp-calendario thead th {
+    text-align: center;
+}
+
+.pcp-dia {
+    height: 112px;
+    padding: 0.45rem;
+    border: 1px solid var(--fabriq-row-border);
+    vertical-align: top;
+}
+
+.pcp-dia-numero {
+    display: inline-flex;
+    min-width: 24px;
+    height: 24px;
+    align-items: center;
+    justify-content: center;
+    border-radius: 7px;
+    color: var(--fabriq-muted);
+    font-size: 0.78rem;
+    font-weight: 800;
+}
+
+.pcp-dia-fora {
+    background: var(--fabriq-surface-soft);
+}
+
+.pcp-dia-fora .pcp-dia-numero {
+    opacity: 0.45;
+}
+
+.pcp-dia-hoje .pcp-dia-numero {
+    color: #ffffff;
+    background: var(--fabriq-primary);
+}
+
+.pcp-chip {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    margin-top: 0.3rem;
+    padding: 0.22rem 0.45rem;
+    overflow: hidden;
+    border: 1px solid rgba(var(--fabriq-primary-rgb), 0.28);
+    border-radius: 6px;
+    color: var(--fabriq-ink);
+    background: rgba(var(--fabriq-primary-rgb), 0.08);
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-decoration: none;
+    white-space: nowrap;
+}
+
+.pcp-chip:hover,
+.pcp-chip:focus {
+    border-color: var(--fabriq-primary);
+    color: var(--fabriq-ink);
+    background: rgba(var(--fabriq-primary-rgb), 0.16);
+}
+
+.pcp-chip-equip {
+    color: var(--fabriq-primary-dark);
+}
+
+.pcp-chip-texto {
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.pcp-chip-sobrecarga {
+    border-color: rgba(220, 53, 69, 0.55);
+    background: var(--bs-danger-bg-subtle);
+}
+
+.pcp-chip-sobrecarga i {
+    color: var(--bs-danger);
 }
 
 .alert {
