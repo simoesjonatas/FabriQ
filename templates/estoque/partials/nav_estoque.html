@@ -1,0 +1,18 @@
+{% comment %}Navegação do módulo Estoque. Espera: aba ("saldo"|"movimentacoes"|"locais").{% endcomment %}
+<ul class="nav form-tabs mb-4" role="navigation" aria-label="Visões do estoque">
+    <li class="nav-item">
+        <a class="nav-link{% if aba == 'saldo' %} active{% endif %}" href="{% url 'estoque:saldo' %}">
+            <i class="bi bi-clipboard-data" aria-hidden="true"></i>Saldo
+        </a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link{% if aba == 'movimentacoes' %} active{% endif %}" href="{% url 'estoque:movimentacoes' %}">
+            <i class="bi bi-arrow-left-right" aria-hidden="true"></i>Movimentações
+        </a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link{% if aba == 'locais' %} active{% endif %}" href="{% url 'estoque:local_lista' %}">
+            <i class="bi bi-geo" aria-hidden="true"></i>Locais
+        </a>
+    </li>
+</ul>

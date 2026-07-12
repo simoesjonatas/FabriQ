@@ -1,0 +1,146 @@
+{% extends "base.html" %}
+
+{% block title %}Estoque · Movimentações{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-12 col-xxl-11">
+
+        <div class="page-header page-header-actions mb-4">
+            <div>
+                <span class="eyebrow"><i class="bi bi-box2 me-1"></i>Estoque</span>
+                <h1>Histórico de movimentações</h1>
+                <p>Registros imutáveis: correções são feitas com movimentação inversa.</p>
+            </div>
+            <a href="{% url 'estoque:movimentar' %}" class="btn btn-primary">
+                <i class="bi bi-arrow-left-right me-1"></i>Movimentar
+            </a>
+        </div>
+
+        {% include "estoque/partials/nav_estoque.html" with aba="movimentacoes" %}
+
+        <div class="card shadow-sm data-panel">
+            <div class="card-body">
+                <form method="get" class="row g-2 mb-3 align-items-end">
+                    <div class="col-6 col-md-2">
+                        <label class="form-label small mb-1" for="filtroDe">De</label>
+                        <input type="date" name="de" id="filtroDe" value="{{ filtro_de }}" class="form-control">
+                    </div>
+                    <div class="col-6 col-md-2">
+                        <label class="form-label small mb-1" for="filtroAte">Até</label>
+                        <input type="date" name="ate" id="filtroAte" value="{{ filtro_ate }}" class="form-control">
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <label class="form-label small mb-1" for="filtroTipo">Tipo</label>
+                        <select name="tipo" id="filtroTipo" class="form-select">
+                            <option value="">Todos</option>
+                            {% for valor, rotulo in tipo_choices %}
+                                <option value="{{ valor }}" {% if filtro_tipo == valor %}selected{% endif %}>
+                                    {{ rotulo }}
+                                </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <label class="form-label small mb-1" for="filtroQ">Pesquisar</label>
+                        <input type="search" name="q" id="filtroQ" value="{{ filtro_q }}"
+                               class="form-control" placeholder="Item, lote, motivo, documento">
+                    </div>
+                    <div class="col-12 col-md-2 d-grid">
+                        <button type="submit" class="btn btn-outline-secondary">
+                            <i class="bi bi-funnel me-1"></i>Filtrar
+                        </button>
+                    </div>
+                </form>
+
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead>
+                            <tr>
+                                <th>Data/hora</th>
+                                <th>Tipo</th>
+                                <th>Item</th>
+                                <th>Lote</th>
+                                <th class="text-end">Qtd.</th>
+                                <th>Origem → Destino</th>
+                                <th>Motivo</th>
+                                <th>Usuário</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for movimentacao in movimentacoes %}
+                                <tr>
+                                    <td class="text-nowrap">{{ movimentacao.criado_em|date:"d/m/Y H:i" }}</td>
+                                    <td>
+                                        {% if movimentacao.tipo == "ENTRADA" %}
+                                            <span class="badge text-bg-success">Entrada</span>
+                                        {% elif movimentacao.tipo == "SAIDA" %}
+                                            <span class="badge text-bg-danger">Saída</span>
+                                        {% elif movimentacao.tipo == "TRANSFERENCIA" %}
+                                            <span class="badge text-bg-info">Transferência</span>
+                                        {% else %}
+                                            <span class="badge text-bg-warning">{{ movimentacao.get_tipo_display }}</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <span class="identifier-cell">{{ movimentacao.item.codigo }}</span>
+                                        · {{ movimentacao.item.nome }}
+                                    </td>
+                                    <td>{{ movimentacao.lote.codigo|default:"—" }}</td>
+                                    <td class="text-end">{{ movimentacao.quantidade|floatformat:"-3" }}</td>
+                                    <td>
+                                        {{ movimentacao.local_origem.nome|default:"—" }}
+                                        <i class="bi bi-arrow-right small text-body-secondary"></i>
+                                        {{ movimentacao.local_destino.nome|default:"—" }}
+                                    </td>
+                                    <td>
+                                        {{ movimentacao.motivo }}
+                                        {% if movimentacao.documento %}
+                                            <div class="small text-body-secondary">Doc.: {{ movimentacao.documento }}</div>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ movimentacao.criado_por|default:"—" }}</td>
+                                </tr>
+                            {% empty %}
+                                <tr>
+                                    <td colspan="8" class="text-center text-body-secondary py-4">
+                                        Nenhuma movimentação encontrada.
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+
+                {% if is_paginated %}
+                    <nav class="mt-3" aria-label="Paginação">
+                        <ul class="pagination pagination-sm justify-content-center mb-0">
+                            {% if page_obj.has_previous %}
+                                <li class="page-item">
+                                    <a class="page-link"
+                                       href="?de={{ filtro_de }}&ate={{ filtro_ate }}&tipo={{ filtro_tipo }}&q={{ filtro_q|urlencode }}&page={{ page_obj.previous_page_number }}">
+                                        Anterior
+                                    </a>
+                                </li>
+                            {% endif %}
+                            <li class="page-item disabled">
+                                <span class="page-link">
+                                    Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}
+                                </span>
+                            </li>
+                            {% if page_obj.has_next %}
+                                <li class="page-item">
+                                    <a class="page-link"
+                                       href="?de={{ filtro_de }}&ate={{ filtro_ate }}&tipo={{ filtro_tipo }}&q={{ filtro_q|urlencode }}&page={{ page_obj.next_page_number }}">
+                                        Próxima
+                                    </a>
+                                </li>
+                            {% endif %}
+                        </ul>
+                    </nav>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -44,6 +44,13 @@ MODULOS = {
         "url_name": "pcp:calendario",
         "perfis": {DIRETORIA, PCP},
     },
+    "estoque": {
+        "titulo": "Estoque",
+        "descricao": "Saldos, movimentações, lotes, validade e locais físicos",
+        "icone": "bi-box2",
+        "url_name": "estoque:saldo",
+        "perfis": {ALMOXARIFADO, DIRETORIA, PCP, COMPRAS},
+    },
     "cadastros": {
         "titulo": "Cadastros",
         "descricao": (

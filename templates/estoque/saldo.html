@@ -1,0 +1,122 @@
+{% extends "base.html" %}
+
+{% block title %}Estoque · Saldo{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-12 col-xxl-11">
+
+        <div class="page-header page-header-actions mb-4">
+            <div>
+                <span class="eyebrow"><i class="bi bi-box2 me-1"></i>Estoque</span>
+                <h1>Consulta de saldo</h1>
+                <p>Saldos por item, lote e local — calculados das movimentações.</p>
+            </div>
+            <a href="{% url 'estoque:movimentar' %}" class="btn btn-primary">
+                <i class="bi bi-arrow-left-right me-1"></i>Movimentar
+            </a>
+        </div>
+
+        {% include "estoque/partials/nav_estoque.html" with aba="saldo" %}
+
+        <div class="card shadow-sm data-panel">
+            <div class="card-body">
+                <form method="get" class="row g-2 mb-3 align-items-end">
+                    <div class="col-12 col-md-4">
+                        <label class="form-label small mb-1" for="filtroQ">Pesquisar</label>
+                        <input type="search" name="q" id="filtroQ" value="{{ filtro_q }}"
+                               class="form-control" placeholder="Código ou nome do item">
+                    </div>
+                    <div class="col-6 col-md-2">
+                        <label class="form-label small mb-1" for="filtroTipoItem">Tipo</label>
+                        <select name="tipo_item" id="filtroTipoItem" class="form-select">
+                            <option value="">Todos</option>
+                            {% for valor, rotulo in tipos_item %}
+                                <option value="{{ valor }}" {% if filtro_tipo_item == valor %}selected{% endif %}>
+                                    {{ rotulo }}
+                                </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-6 col-md-2">
+                        <label class="form-label small mb-1" for="filtroLocal">Local</label>
+                        <select name="local" id="filtroLocal" class="form-select">
+                            <option value="">Todos</option>
+                            {% for local in locais %}
+                                <option value="{{ local.pk }}" {% if filtro_local == local.pk|stringformat:"s" %}selected{% endif %}>
+                                    {{ local.nome }}
+                                </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-6 col-md-2">
+                        <div class="form-check mt-4">
+                            <input type="checkbox" name="zerados" value="1" id="filtroZerados"
+                                   class="form-check-input" {% if mostrar_zerados %}checked{% endif %}>
+                            <label class="form-check-label small" for="filtroZerados">Mostrar zerados</label>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-2 d-grid">
+                        <button type="submit" class="btn btn-outline-secondary">
+                            <i class="bi bi-funnel me-1"></i>Filtrar
+                        </button>
+                    </div>
+                </form>
+
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead>
+                            <tr>
+                                <th>Tipo</th>
+                                <th>Item</th>
+                                <th>Lote</th>
+                                <th>Validade</th>
+                                <th>Local</th>
+                                <th class="text-end">Saldo</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for linha in linhas %}
+                                <tr>
+                                    <td><span class="badge text-bg-light border">{{ linha.tipo_item }}</span></td>
+                                    <td>
+                                        <span class="identifier-cell">{{ linha.item.codigo }}</span>
+                                        · {{ linha.item.nome }}
+                                    </td>
+                                    <td>{{ linha.lote.codigo|default:"—" }}</td>
+                                    <td>
+                                        {% if linha.lote and linha.lote.validade %}
+                                            {{ linha.lote.validade|date:"d/m/Y" }}
+                                            {% if linha.lote.situacao_validade == "VENCIDO" %}
+                                                <span class="badge text-bg-danger">Vencido</span>
+                                            {% elif linha.lote.situacao_validade == "VENCE_EM_BREVE" %}
+                                                <span class="badge text-bg-warning">Vence em breve</span>
+                                            {% endif %}
+                                        {% else %}
+                                            —
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ linha.local.nome|default:"—" }}</td>
+                                    <td class="text-end fw-bold {% if linha.saldo < 0 %}text-danger{% endif %}">
+                                        {{ linha.saldo|floatformat:"-3" }}
+                                        <span class="text-body-secondary fw-normal small">
+                                            {{ linha.item.get_unidade_display }}
+                                        </span>
+                                    </td>
+                                </tr>
+                            {% empty %}
+                                <tr>
+                                    <td colspan="6" class="text-center text-body-secondary py-4">
+                                        Nenhum saldo encontrado. Registre a primeira movimentação
+                                        em “Movimentar”.
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

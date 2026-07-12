@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+
+{% block title %}Movimentar estoque{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-12 col-md-10 col-lg-8">
+
+        <nav class="app-breadcrumb" aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item">
+                    <a href="{% url 'estoque:saldo' %}">
+                        <i class="bi bi-arrow-left-short" aria-hidden="true"></i>Estoque
+                    </a>
+                </li>
+                <li class="breadcrumb-item active" aria-current="page">Movimentar</li>
+            </ol>
+        </nav>
+
+        <div class="card shadow-sm form-panel">
+            <div class="card-body p-4">
+                <h1 class="h5 mb-3">
+                    <i class="bi bi-arrow-left-right text-primary me-2"></i>Movimentar estoque
+                </h1>
+
+                {% if form.non_field_errors %}
+                    <div class="alert alert-danger" role="alert">
+                        {% for erro in form.non_field_errors %}{{ erro }}{% endfor %}
+                    </div>
+                {% endif %}
+
+                <form method="post" novalidate>
+                    {% csrf_token %}
+                    <div class="row g-3">
+                        <div class="col-12 col-md-5">
+                            {% include "includes/campo.html" with campo=form.tipo %}
+                        </div>
+                        <div class="col-12 col-md-7">
+                            {% include "includes/campo.html" with campo=form.item %}
+                        </div>
+                        <div class="col-12 col-md-4">
+                            {% include "includes/campo.html" with campo=form.quantidade %}
+                        </div>
+                        <div class="col-6 col-md-4">
+                            {% include "includes/campo.html" with campo=form.lote_codigo %}
+                        </div>
+                        <div class="col-6 col-md-4">
+                            {% include "includes/campo.html" with campo=form.lote_validade %}
+                        </div>
+                        <div class="col-12 col-md-6" id="grupoOrigem">
+                            {% include "includes/campo.html" with campo=form.local_origem %}
+                        </div>
+                        <div class="col-12 col-md-6" id="grupoDestino">
+                            {% include "includes/campo.html" with campo=form.local_destino %}
+                        </div>
+                        <div class="col-12 col-md-8">
+                            {% include "includes/campo.html" with campo=form.motivo %}
+                        </div>
+                        <div class="col-12 col-md-4">
+                            {% include "includes/campo.html" with campo=form.documento %}
+                        </div>
+                    </div>
+
+                    <div class="form-actions-bar">
+                        <a href="{% url 'estoque:saldo' %}" class="btn btn-outline-secondary">Cancelar</a>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-check-lg me-1"></i>Registrar movimentação
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <p class="small text-body-secondary mt-3">
+            <i class="bi bi-info-circle me-1"></i>
+            Movimentações não podem ser editadas nem excluídas. Para corrigir um
+            lançamento errado, registre a movimentação inversa (ajuste de inventário)
+            informando o motivo.
+        </p>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Mostra origem/destino conforme o tipo de movimentação
+    const REGRAS_LOCAIS = {
+        "ENTRADA": {origem: false, destino: true},
+        "SAIDA": {origem: true, destino: false},
+        "TRANSFERENCIA": {origem: true, destino: true},
+        "AJUSTE_ENTRADA": {origem: false, destino: true},
+        "AJUSTE_SAIDA": {origem: true, destino: false},
+        "": {origem: true, destino: true},
+    };
+
+    const seletorTipo = document.getElementById("id_tipo");
+    const grupoOrigem = document.getElementById("grupoOrigem");
+    const grupoDestino = document.getElementById("grupoDestino");
+
+    function atualizarLocais() {
+        const regra = REGRAS_LOCAIS[seletorTipo.value] || REGRAS_LOCAIS[""];
+
+        grupoOrigem.hidden = !regra.origem;
+        grupoDestino.hidden = !regra.destino;
+
+        if (!regra.origem) document.getElementById("id_local_origem").value = "";
+        if (!regra.destino) document.getElementById("id_local_destino").value = "";
+    }
+
+    seletorTipo.addEventListener("change", atualizarLocais);
+    atualizarLocais();
+</script>
+{% endblock %}
