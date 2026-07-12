@@ -1,7 +1,7 @@
 """Configurações do ambiente de produção."""
 
 from .base import *  # noqa: F403
-from .base import BASE_DIR, LOGGING, env
+from .base import BASE_DIR, LOGGING, MIDDLEWARE, env
 
 DEBUG = False
 
@@ -13,6 +13,22 @@ DATABASES = {
 }
 
 CSRF_TRUSTED_ORIGINS = env.list("DJANGO_CSRF_TRUSTED_ORIGINS", default=[])
+
+# Arquivos estáticos em produção
+MIDDLEWARE = [
+    MIDDLEWARE[0],
+    "whitenoise.middleware.WhiteNoiseMiddleware",
+    *MIDDLEWARE[1:],
+]
+STATIC_URL = "/static/"
+STORAGES = {
+    "default": {
+        "BACKEND": "django.core.files.storage.FileSystemStorage",
+    },
+    "staticfiles": {
+        "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
+    },
+}
 
 # Segurança
 # HTTPS pode não estar disponível no início (ver cronograma), por isso

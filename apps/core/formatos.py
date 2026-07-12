@@ -12,3 +12,12 @@ def quantidade(valor) -> str:
         return ""
     texto = f"{Decimal(valor).normalize():f}"
     return texto
+
+
+def quantidade_com_unidade(valor, unidade_display: str) -> str:
+    """"40" + "Unidade" -> "40 unidades"; "1" + "Litro" -> "1 litro"."""
+    texto = quantidade(valor)
+    unidade = unidade_display.lower()
+    if texto and Decimal(valor) != 1 and not unidade.endswith("s"):
+        unidade += "s"
+    return f"{texto} {unidade}"

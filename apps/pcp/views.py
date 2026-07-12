@@ -203,16 +203,17 @@ class ProgramacaoCriarView(ProgramacaoFormBase, CreateView):
         response = super().form_valid(form)
         programacao = self.object
         pedido = programacao.item.pedido
+        quantidade_texto = formatos.quantidade_com_unidade(
+            programacao.quantidade, programacao.item.produto.get_unidade_display()
+        )
 
         HistoricoPedido.registrar(
             pedido=pedido,
             usuario=self.request.user,
             descricao=(
                 f"Item {programacao.item.produto.codigo} programado: "
-                f"{formatos.quantidade(programacao.quantidade)} "
-                f"{programacao.item.produto.get_unidade_display().lower()} para "
-                f"{programacao.data:%d/%m/%Y} no equipamento "
-                f"{programacao.equipamento.codigo}"
+                f"{quantidade_texto} para {programacao.data:%d/%m/%Y} "
+                f"no equipamento {programacao.equipamento.codigo}"
             ),
         )
 

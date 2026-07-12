@@ -2,3 +2,4 @@
 -r base.txt
 
 gunicorn>=23.0
+whitenoise>=6.9
