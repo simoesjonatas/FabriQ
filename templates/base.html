@@ -61,15 +61,41 @@
                         <strong>Corpo &amp; Cheiro</strong>
                     </span>
                 </div>
-                <ul class="navbar-nav me-auto">
-                    {% for modulo in modulos_menu %}
+                <ul class="navbar-nav app-module-nav me-auto">
+                    {% for modulo in modulos_menu_principais %}
                         <li class="nav-item">
-                            <a class="nav-link{% if request.resolver_match.view_name == modulo.url_name %} active{% endif %}"
+                            <a class="nav-link module-nav-link{% if modulo.ativo %} active{% endif %}"
                                href="{% url modulo.url_name %}">
-                                <i class="bi {{ modulo.icone }} me-1"></i>{{ modulo.titulo }}
+                                <i class="bi {{ modulo.icone }}" aria-hidden="true"></i>
+                                <span>{{ modulo.titulo }}</span>
                             </a>
                         </li>
                     {% endfor %}
+                    {% if modulos_menu_mais %}
+                        <li class="nav-item dropdown module-more">
+                            <a class="nav-link dropdown-toggle module-nav-link{% if modulos_menu_mais_ativo %} active{% endif %}"
+                               href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                <i class="bi bi-grid-3x3-gap" aria-hidden="true"></i>
+                                <span>Módulos</span>
+                            </a>
+                            <ul class="dropdown-menu module-menu-dropdown">
+                                {% for modulo in modulos_menu_mais %}
+                                    <li>
+                                        <a class="dropdown-item module-menu-item{% if modulo.ativo %} active{% endif %}"
+                                           href="{% url modulo.url_name %}">
+                                            <span class="module-menu-icon" aria-hidden="true">
+                                                <i class="bi {{ modulo.icone }}"></i>
+                                            </span>
+                                            <span class="module-menu-copy">
+                                                <strong>{{ modulo.titulo }}</strong>
+                                                <small>{{ modulo.descricao }}</small>
+                                            </span>
+                                        </a>
+                                    </li>
+                                {% endfor %}
+                            </ul>
+                        </li>
+                    {% endif %}
                 </ul>
                 <div class="client-lockup d-none d-md-flex" aria-label="Cliente Corpo & Cheiro">
                     <span class="client-logo-wrap">
