@@ -51,6 +51,20 @@ MODULOS = {
         "url_name": "estoque:saldo",
         "perfis": {ALMOXARIFADO, DIRETORIA, PCP, COMPRAS},
     },
+    "recebimento": {
+        "titulo": "Recebimento",
+        "descricao": "Registro de notas fiscais com entrada automática em quarentena",
+        "icone": "bi-inbox",
+        "url_name": "recebimento:lista",
+        "perfis": {ALMOXARIFADO, COMPRAS, DIRETORIA},
+    },
+    "quarentena": {
+        "titulo": "Quarentena",
+        "descricao": "Liberação, reprovação e bloqueio de materiais recebidos",
+        "icone": "bi-shield-exclamation",
+        "url_name": "recebimento:quarentena",
+        "perfis": {QUALIDADE, DIRETORIA},
+    },
     "cadastros": {
         "titulo": "Cadastros",
         "descricao": (

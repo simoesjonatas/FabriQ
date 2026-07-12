@@ -1,16 +1,9 @@
 from django import forms
 
-from apps.cadastros.models import Embalagem, MateriaPrima, Produto
+from apps.cadastros.itens import atribuir_item, campo_do_item, opcoes_de_itens, resolver_item
 from apps.core.forms import BootstrapFormMixin
 
 from .models import LocalEstoque, Lote, Movimentacao
-
-# Prefixos do select unificado de itens ("P-3" = Produto pk 3)
-MODELOS_POR_PREFIXO = {
-    "P": ("produto", Produto),
-    "MP": ("materia_prima", MateriaPrima),
-    "E": ("embalagem", Embalagem),
-}
 
 
 class LocalEstoqueForm(BootstrapFormMixin, forms.ModelForm):
@@ -52,21 +45,7 @@ class MovimentacaoForm(BootstrapFormMixin, forms.ModelForm):
         super().__init__(*args, **kwargs)
         self.usuario = usuario
         self._lote_novo = None
-
-        grupos = [
-            ("Produtos", "P", Produto),
-            ("Matérias-primas", "MP", MateriaPrima),
-            ("Embalagens", "E", Embalagem),
-        ]
-        opcoes: list = [("", "---------")]
-        for rotulo, prefixo, modelo in grupos:
-            itens = [
-                (f"{prefixo}-{objeto.pk}", f"{objeto.codigo} · {objeto.nome}")
-                for objeto in modelo.objects.filter(ativo=True)
-            ]
-            if itens:
-                opcoes.append((rotulo, itens))
-        self.fields["item"].choices = opcoes
+        self.fields["item"].choices = opcoes_de_itens()
 
         locais = LocalEstoque.objects.filter(ativo=True)
         self.fields["local_origem"].queryset = locais
@@ -74,20 +53,11 @@ class MovimentacaoForm(BootstrapFormMixin, forms.ModelForm):
 
     def clean_item(self):
         valor = self.cleaned_data["item"]
-        prefixo, _, pk = valor.partition("-")
-        entrada = MODELOS_POR_PREFIXO.get(prefixo)
-        if entrada is None or not pk.isdigit():
-            raise forms.ValidationError("Escolha um item válido.")
-
-        campo, modelo = entrada
-        item = modelo.objects.filter(pk=int(pk)).first()
-        if item is None:
-            raise forms.ValidationError("Escolha um item válido.")
-
-        # Zera os três e define só o escolhido
-        for nome_campo, _modelo in MODELOS_POR_PREFIXO.values():
-            setattr(self.instance, nome_campo, None)
-        setattr(self.instance, campo, item)
+        try:
+            _campo, item = resolver_item(valor)
+        except ValueError as erro:
+            raise forms.ValidationError("Escolha um item válido.") from erro
+        atribuir_item(self.instance, item)
         return valor
 
     def clean(self):
@@ -104,9 +74,7 @@ class MovimentacaoForm(BootstrapFormMixin, forms.ModelForm):
         if item is None:
             return cleaned
 
-        campo = {Produto: "produto", MateriaPrima: "materia_prima"}.get(
-            type(item), "embalagem"
-        )
+        campo = campo_do_item(item)
         existente = Lote.objects.filter(**{campo: item}, codigo=codigo).first()
         if existente:
             if validade and existente.validade and validade != existente.validade:

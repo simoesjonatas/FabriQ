@@ -13,6 +13,7 @@ urlpatterns = [
     path("pedidos/", include("apps.pedidos.urls")),
     path("pcp/", include("apps.pcp.urls")),
     path("estoque/", include("apps.estoque.urls")),
+    path("", include("apps.recebimento.urls")),
 ]
 
 if settings.DEBUG:

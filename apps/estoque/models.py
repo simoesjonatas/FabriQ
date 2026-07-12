@@ -21,6 +21,7 @@ from django.db import models
 from django.db.models import Q, Sum
 from django.utils import timezone
 
+from apps.cadastros.itens import campo_do_item
 from apps.cadastros.models import Embalagem, MateriaPrima, Produto
 from apps.core.models import ModeloAuditado, ModeloBase
 
@@ -332,16 +333,6 @@ class Movimentacao(ModeloAuditado):
                 )
 
 
-def _campo_do_item(item) -> str:
-    if isinstance(item, Produto):
-        return "produto"
-    if isinstance(item, MateriaPrima):
-        return "materia_prima"
-    if isinstance(item, Embalagem):
-        return "embalagem"
-    raise TypeError(f"Item de estoque inválido: {item!r}")
-
-
 # Sentinela: "não filtrar por lote" (diferente de lote=None, que é o
 # bucket de movimentações sem lote informado)
 TODOS_OS_LOTES = object()
@@ -355,7 +346,7 @@ def saldo(item, lote=TODOS_OS_LOTES, local=None) -> Decimal:
       TODOS_OS_LOTES (padrão, não filtra).
     - local: um LocalEstoque ou None (todos os locais).
     """
-    filtro_item = {_campo_do_item(item): item}
+    filtro_item = {campo_do_item(item): item}
     movimentacoes = Movimentacao.objects.filter(**filtro_item)
     if lote is not TODOS_OS_LOTES:
         movimentacoes = movimentacoes.filter(lote=lote)

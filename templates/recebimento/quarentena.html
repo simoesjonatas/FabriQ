@@ -1,0 +1,117 @@
+{% extends "base.html" %}
+
+{% block title %}Quarentena{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-12 col-xxl-11">
+
+        <div class="page-header page-header-actions mb-4">
+            <div>
+                <span class="eyebrow"><i class="bi bi-shield-exclamation me-1"></i>Quarentena</span>
+                <h1>Materiais aguardando decisão</h1>
+                <p>Nenhum material fica disponível para produção antes da liberação da Qualidade.</p>
+            </div>
+        </div>
+
+        <div class="card shadow-sm data-panel">
+            <div class="card-body">
+                <form method="get" class="row g-2 mb-3">
+                    <div class="col-12 col-md-6">
+                        <input type="search" name="q" value="{{ filtro_q }}" class="form-control"
+                               placeholder="Pesquisar por item, lote, NF ou fornecedor">
+                    </div>
+                    <div class="col-12 col-md-2 d-grid">
+                        <button type="submit" class="btn btn-outline-secondary">
+                            <i class="bi bi-search me-1"></i>Filtrar
+                        </button>
+                    </div>
+                </form>
+
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead>
+                            <tr>
+                                <th>Recebido</th>
+                                <th>Item</th>
+                                <th>Lote</th>
+                                <th>Validade</th>
+                                <th class="text-end">Qtd.</th>
+                                <th>Fornecedor / NF</th>
+                                <th>Situação</th>
+                                <th class="text-end">Decisão</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for item in itens %}
+                                <tr>
+                                    <td>
+                                        {{ item.recebimento.data_recebimento|date:"d/m/Y" }}
+                                        <div class="small {% if item.dias_em_quarentena > 7 %}text-danger fw-semibold{% else %}text-body-secondary{% endif %}">
+                                            {{ item.dias_em_quarentena }} dia{{ item.dias_em_quarentena|pluralize }} em quarentena
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <span class="identifier-cell">{{ item.item.codigo }}</span>
+                                        · {{ item.item.nome }}
+                                    </td>
+                                    <td>{{ item.lote.codigo }}</td>
+                                    <td>{{ item.lote.validade|date:"d/m/Y"|default:"—" }}</td>
+                                    <td class="text-end">{{ item.quantidade|floatformat:"-3" }}</td>
+                                    <td>
+                                        <a href="{% url 'recebimento:detalhe' item.recebimento.pk %}"
+                                           class="text-decoration-none">
+                                            {{ item.recebimento.numero }}
+                                        </a>
+                                        <div class="small text-body-secondary">
+                                            {{ item.recebimento.fornecedor }} · NF {{ item.recebimento.nota_fiscal }}
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <span class="badge {{ item.badge_status }}">
+                                            {{ item.get_status_display }}
+                                        </span>
+                                    </td>
+                                    <td class="text-end text-nowrap">
+                                        {% include "recebimento/partials/botoes_decisao.html" with item=item %}
+                                    </td>
+                                </tr>
+                            {% empty %}
+                                <tr>
+                                    <td colspan="8" class="text-center text-body-secondary py-4">
+                                        Nenhum material aguardando decisão. 🎉
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+
+                {% if is_paginated %}
+                    <nav class="mt-3" aria-label="Paginação">
+                        <ul class="pagination pagination-sm justify-content-center mb-0">
+                            {% if page_obj.has_previous %}
+                                <li class="page-item">
+                                    <a class="page-link" href="?q={{ filtro_q|urlencode }}&page={{ page_obj.previous_page_number }}">Anterior</a>
+                                </li>
+                            {% endif %}
+                            <li class="page-item disabled">
+                                <span class="page-link">
+                                    Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}
+                                </span>
+                            </li>
+                            {% if page_obj.has_next %}
+                                <li class="page-item">
+                                    <a class="page-link" href="?q={{ filtro_q|urlencode }}&page={{ page_obj.next_page_number }}">Próxima</a>
+                                </li>
+                            {% endif %}
+                        </ul>
+                    </nav>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+{% include "recebimento/partials/modal_decisao.html" %}
+{% endblock %}

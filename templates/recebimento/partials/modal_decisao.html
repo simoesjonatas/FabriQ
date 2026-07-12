@@ -1,0 +1,67 @@
+{% comment %}
+Modal única de decisão de quarentena (liberar/bloquear/reprovar).
+Os botões que a abrem definem: data-decidir-url, data-decisao,
+data-decisao-rotulo e data-item-descricao.
+Espera no contexto: locais_liberacao.
+{% endcomment %}
+<div class="modal fade" id="modalDecisao" tabindex="-1" aria-labelledby="modalDecisaoTitulo" aria-hidden="true">
+    <div class="modal-dialog">
+        <form method="post" id="formDecisao" class="modal-content" action="">
+            {% csrf_token %}
+            <input type="hidden" name="decisao" id="decisaoValor" value="">
+            <input type="hidden" name="proxima" value="{{ request.get_full_path }}">
+            <div class="modal-header">
+                <h2 class="modal-title h6" id="modalDecisaoTitulo">Decisão de quarentena</h2>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body">
+                <p class="small mb-3" id="decisaoDescricao"></p>
+
+                <div class="mb-3" id="grupoLocalDestino" hidden>
+                    <label class="form-label" for="decisaoLocalDestino">Local de destino</label>
+                    <select class="form-select" name="local_destino" id="decisaoLocalDestino">
+                        <option value="">---------</option>
+                        {% for local in locais_liberacao %}
+                            <option value="{{ local.pk }}">{{ local.nome }}</option>
+                        {% endfor %}
+                    </select>
+                    <div class="form-text">O material sai da quarentena para este local.</div>
+                </div>
+
+                <label class="form-label" for="decisaoObservacoes">
+                    Observações <span id="observacoesObrigatorias" class="text-danger" hidden>(obrigatório)</span>
+                </label>
+                <textarea class="form-control" name="observacoes" id="decisaoObservacoes"
+                          rows="3" maxlength="500"></textarea>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Voltar</button>
+                <button type="submit" class="btn btn-primary" id="decisaoConfirmar">Confirmar</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+    document.addEventListener("click", (evento) => {
+        const botao = evento.target.closest("[data-decidir-url]");
+        if (!botao) return;
+
+        const decisao = botao.dataset.decisao;
+        const liberar = decisao === "LIBERADO";
+
+        document.getElementById("formDecisao").action = botao.dataset.decidirUrl;
+        document.getElementById("decisaoValor").value = decisao;
+        document.getElementById("decisaoDescricao").textContent = botao.dataset.itemDescricao;
+        document.getElementById("modalDecisaoTitulo").textContent = botao.dataset.decisaoRotulo;
+        document.getElementById("grupoLocalDestino").hidden = !liberar;
+        document.getElementById("decisaoLocalDestino").required = liberar;
+        document.getElementById("decisaoObservacoes").required = !liberar;
+        document.getElementById("observacoesObrigatorias").hidden = liberar;
+        document.getElementById("decisaoObservacoes").value = "";
+
+        const confirmar = document.getElementById("decisaoConfirmar");
+        confirmar.className = liberar ? "btn btn-success" : "btn btn-danger";
+        confirmar.textContent = botao.dataset.decisaoRotulo;
+    });
+</script>

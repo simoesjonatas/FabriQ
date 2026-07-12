@@ -1,0 +1,32 @@
+<div class="repeatable-item" data-formset-item>
+    {% for hidden in subform.hidden_fields %}{{ hidden }}{% endfor %}
+
+    <div class="repeatable-item-bar">
+        <span><i class="bi bi-box-seam me-1" aria-hidden="true"></i>Item recebido</span>
+        <button type="button" class="btn btn-sm btn-outline-secondary"
+                data-formset-remove aria-label="Remover item" title="Remover item">
+            <i class="bi bi-trash" aria-hidden="true"></i>
+        </button>
+    </div>
+
+    {% if subform.non_field_errors %}
+        <div class="alert alert-danger py-2" role="alert">
+            {% for erro in subform.non_field_errors %}{{ erro }}{% endfor %}
+        </div>
+    {% endif %}
+
+    <div class="row g-3">
+        <div class="col-12 col-md-5">
+            {% include "includes/campo.html" with campo=subform.item %}
+        </div>
+        <div class="col-6 col-md-2">
+            {% include "includes/campo.html" with campo=subform.quantidade %}
+        </div>
+        <div class="col-6 col-md-3">
+            {% include "includes/campo.html" with campo=subform.lote_codigo %}
+        </div>
+        <div class="col-12 col-md-2">
+            {% include "includes/campo.html" with campo=subform.lote_validade %}
+        </div>
+    </div>
+</div>

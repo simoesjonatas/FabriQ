@@ -1,0 +1,23 @@
+<div class="repeatable-item" data-formset-item>
+    {% for hidden in subform.hidden_fields %}{{ hidden }}{% endfor %}
+
+    <div class="repeatable-item-bar">
+        <span><i class="bi bi-paperclip me-1" aria-hidden="true"></i>Anexo</span>
+        <button type="button" class="btn btn-sm btn-outline-secondary"
+                data-formset-remove aria-label="Remover anexo" title="Remover anexo">
+            <i class="bi bi-trash" aria-hidden="true"></i>
+        </button>
+    </div>
+
+    <div class="row g-3">
+        <div class="col-12 col-md-3">
+            {% include "includes/campo.html" with campo=subform.tipo %}
+        </div>
+        <div class="col-12 col-md-5">
+            {% include "includes/campo.html" with campo=subform.arquivo %}
+        </div>
+        <div class="col-12 col-md-4">
+            {% include "includes/campo.html" with campo=subform.descricao %}
+        </div>
+    </div>
+</div>
