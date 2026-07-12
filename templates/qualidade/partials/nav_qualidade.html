@@ -1,0 +1,13 @@
+{% comment %}Navegação do módulo Qualidade. Espera: aba ("analises"|"tipos").{% endcomment %}
+<ul class="nav form-tabs mb-4" role="navigation" aria-label="Visões da qualidade">
+    <li class="nav-item">
+        <a class="nav-link{% if aba == 'analises' %} active{% endif %}" href="{% url 'qualidade:lista' %}">
+            <i class="bi bi-clipboard2-pulse" aria-hidden="true"></i>Análises
+        </a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link{% if aba == 'tipos' %} active{% endif %}" href="{% url 'qualidade:tipo_lista' %}">
+            <i class="bi bi-sliders" aria-hidden="true"></i>Tipos de análise
+        </a>
+    </li>
+</ul>

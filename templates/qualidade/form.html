@@ -1,0 +1,138 @@
+{% extends "base.html" %}
+
+{% block title %}{% if form.instance.pk %}Editar análise{% else %}Nova análise{% endif %}{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-12 col-xl-10">
+
+        <nav class="app-breadcrumb" aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item">
+                    <a href="{% url 'qualidade:lista' %}">
+                        <i class="bi bi-arrow-left-short" aria-hidden="true"></i>Análises
+                    </a>
+                </li>
+                <li class="breadcrumb-item active" aria-current="page">
+                    {% if form.instance.pk %}{{ form.instance.numero }}{% else %}Nova{% endif %}
+                </li>
+            </ol>
+        </nav>
+
+        <div class="card shadow-sm form-panel">
+            <div class="card-body p-4">
+                <h1 class="h5 mb-3">
+                    {% if form.instance.pk %}
+                        <i class="bi bi-pencil-square text-primary me-2"></i>Editar análise
+                        <span class="text-body-secondary">· {{ form.instance.numero }}</span>
+                    {% else %}
+                        <i class="bi bi-clipboard2-plus text-primary me-2"></i>Nova análise
+                    {% endif %}
+                </h1>
+
+                {% if form.non_field_errors %}
+                    <div class="alert alert-danger" role="alert">
+                        {% for erro in form.non_field_errors %}{{ erro }}{% endfor %}
+                    </div>
+                {% endif %}
+
+                <form method="post" enctype="multipart/form-data" novalidate>
+                    {% csrf_token %}
+
+                    <div class="form-section-panel mb-3">
+                        <div class="form-section-heading">
+                            <div>
+                                <h2><i class="bi bi-upc-scan me-1" aria-hidden="true"></i>Lote analisado</h2>
+                                <p>O laudo fica vinculado ao lote e aparece na quarentena.</p>
+                            </div>
+                        </div>
+                        <div class="row g-3">
+                            <div class="col-12 col-md-7">
+                                {% include "includes/campo.html" with campo=form.lote %}
+                            </div>
+                            <div class="col-12 col-md-5">
+                                {% include "includes/campo.html" with campo=form.observacoes %}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="repeatable-section mb-3" data-formset data-formset-prefix="resultados">
+                        <div class="repeatable-section-header">
+                            <div>
+                                <h2><i class="bi bi-clipboard-data me-1" aria-hidden="true"></i>Resultados</h2>
+                                <p>Um resultado por tipo de análise; valores fora da referência são destacados.</p>
+                            </div>
+                            <button type="button" class="btn btn-outline-primary" data-formset-add="resultados">
+                                <i class="bi bi-plus-lg me-1" aria-hidden="true"></i>Adicionar resultado
+                            </button>
+                        </div>
+
+                        {{ resultados_formset.management_form }}
+                        {% if resultados_formset.non_form_errors %}
+                            <div class="alert alert-danger" role="alert">
+                                {% for erro in resultados_formset.non_form_errors %}{{ erro }}{% endfor %}
+                            </div>
+                        {% endif %}
+                        <div class="repeatable-list" data-formset-list="resultados">
+                            {% for subform in resultados_formset %}
+                                {% include "qualidade/partials/resultado_formset_item.html" with subform=subform %}
+                            {% endfor %}
+                        </div>
+                        <template data-formset-template="resultados">
+                            {% include "qualidade/partials/resultado_formset_item.html" with subform=resultados_formset.empty_form %}
+                        </template>
+                    </div>
+
+                    <div class="repeatable-section" data-formset data-formset-prefix="anexos">
+                        <div class="repeatable-section-header">
+                            <div>
+                                <h2><i class="bi bi-paperclip me-1" aria-hidden="true"></i>Anexos</h2>
+                                <p>Laudos e evidências — PDF ou imagem, até 10 MB cada.</p>
+                            </div>
+                            <button type="button" class="btn btn-outline-primary" data-formset-add="anexos">
+                                <i class="bi bi-plus-lg me-1" aria-hidden="true"></i>Adicionar anexo
+                            </button>
+                        </div>
+
+                        {{ anexos_formset.management_form }}
+                        {% if anexos_formset.non_form_errors %}
+                            <div class="alert alert-danger" role="alert">
+                                {% for erro in anexos_formset.non_form_errors %}{{ erro }}{% endfor %}
+                            </div>
+                        {% endif %}
+                        <div class="repeatable-list" data-formset-list="anexos">
+                            {% for subform in anexos_formset %}
+                                {% include "qualidade/partials/anexo_formset_item.html" with subform=subform %}
+                            {% endfor %}
+                        </div>
+                        <template data-formset-template="anexos">
+                            {% include "qualidade/partials/anexo_formset_item.html" with subform=anexos_formset.empty_form %}
+                        </template>
+                    </div>
+
+                    <div class="form-actions-bar">
+                        {% if form.instance.pk %}
+                            <a href="{% url 'qualidade:detalhe' form.instance.pk %}" class="btn btn-outline-secondary">Cancelar</a>
+                        {% else %}
+                            <a href="{% url 'qualidade:lista' %}" class="btn btn-outline-secondary">Cancelar</a>
+                        {% endif %}
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-check-lg me-1"></i>Salvar análise
+                        </button>
+                    </div>
+                </form>
+            </div>
+
+            {% if form.instance.pk %}
+                <div class="card-footer small text-body-secondary">
+                    <i class="bi bi-clock-history me-1"></i>
+                    Criada em {{ form.instance.criado_em|date:"d/m/Y H:i" }}
+                    {% if form.instance.criado_por %}por {{ form.instance.criado_por }}{% endif %}
+                    · Última alteração em {{ form.instance.atualizado_em|date:"d/m/Y H:i" }}
+                    {% if form.instance.atualizado_por %}por {{ form.instance.atualizado_por }}{% endif %}
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,144 @@
+{% extends "base.html" %}
+
+{% block title %}Qualidade · Análises{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-12 col-xxl-11">
+
+        <div class="page-header page-header-actions mb-4">
+            <div>
+                <span class="eyebrow"><i class="bi bi-clipboard2-pulse me-1"></i>Qualidade</span>
+                <h1>Análises</h1>
+                <p>Resultados de qualidade por lote, com aprovação e reprovação.</p>
+            </div>
+            <a href="{% url 'qualidade:criar' %}" class="btn btn-primary">
+                <i class="bi bi-plus-lg me-1"></i>Nova análise
+            </a>
+        </div>
+
+        {% include "qualidade/partials/nav_qualidade.html" with aba="analises" %}
+
+        <div class="card shadow-sm data-panel">
+            <div class="card-body">
+                <form method="get" class="row g-2 mb-3 align-items-end">
+                    <div class="col-12 col-md-4">
+                        <label class="form-label small mb-1" for="filtroQ">Pesquisar</label>
+                        <input type="search" name="q" id="filtroQ" value="{{ filtro_q }}"
+                               class="form-control" placeholder="Lote ou item">
+                    </div>
+                    <div class="col-6 col-md-2">
+                        <label class="form-label small mb-1" for="filtroStatus">Situação</label>
+                        <select name="status" id="filtroStatus" class="form-select">
+                            <option value="">Todas</option>
+                            {% for valor, rotulo in status_choices %}
+                                <option value="{{ valor }}" {% if filtro_status == valor %}selected{% endif %}>
+                                    {{ rotulo }}
+                                </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-6 col-md-2">
+                        <label class="form-label small mb-1" for="filtroDe">De</label>
+                        <input type="date" name="de" id="filtroDe" value="{{ filtro_de }}" class="form-control">
+                    </div>
+                    <div class="col-6 col-md-2">
+                        <label class="form-label small mb-1" for="filtroAte">Até</label>
+                        <input type="date" name="ate" id="filtroAte" value="{{ filtro_ate }}" class="form-control">
+                    </div>
+                    <div class="col-6 col-md-2 d-grid">
+                        <button type="submit" class="btn btn-outline-secondary">
+                            <i class="bi bi-funnel me-1"></i>Filtrar
+                        </button>
+                    </div>
+                </form>
+
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead>
+                            <tr>
+                                <th>Nº</th>
+                                <th>Lote</th>
+                                <th>Item</th>
+                                <th>Criada</th>
+                                <th>Situação</th>
+                                <th>Decidida por</th>
+                                <th class="text-end">Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for analise in analises %}
+                                <tr>
+                                    <td class="identifier-cell">
+                                        <a href="{% url 'qualidade:detalhe' analise.pk %}" class="text-decoration-none">
+                                            {{ analise.numero }}
+                                        </a>
+                                    </td>
+                                    <td>{{ analise.lote.codigo }}</td>
+                                    <td>{{ analise.lote.item }}</td>
+                                    <td>{{ analise.criado_em|date:"d/m/Y H:i" }}</td>
+                                    <td>
+                                        <span class="badge {{ analise.badge_status }}">
+                                            {{ analise.get_status_display }}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        {% if analise.decidido_por %}
+                                            {{ analise.decidido_por }}
+                                            <div class="small text-body-secondary">
+                                                {{ analise.decidido_em|date:"d/m/Y H:i" }}
+                                            </div>
+                                        {% else %}
+                                            —
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-end">
+                                        <a href="{% url 'qualidade:detalhe' analise.pk %}"
+                                           class="btn btn-sm btn-outline-primary">
+                                            <i class="bi bi-eye"></i> Ver
+                                        </a>
+                                    </td>
+                                </tr>
+                            {% empty %}
+                                <tr>
+                                    <td colspan="7" class="text-center text-body-secondary py-4">
+                                        Nenhuma análise registrada.
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+
+                {% if is_paginated %}
+                    <nav class="mt-3" aria-label="Paginação">
+                        <ul class="pagination pagination-sm justify-content-center mb-0">
+                            {% if page_obj.has_previous %}
+                                <li class="page-item">
+                                    <a class="page-link"
+                                       href="?q={{ filtro_q|urlencode }}&status={{ filtro_status }}&de={{ filtro_de }}&ate={{ filtro_ate }}&page={{ page_obj.previous_page_number }}">
+                                        Anterior
+                                    </a>
+                                </li>
+                            {% endif %}
+                            <li class="page-item disabled">
+                                <span class="page-link">
+                                    Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}
+                                </span>
+                            </li>
+                            {% if page_obj.has_next %}
+                                <li class="page-item">
+                                    <a class="page-link"
+                                       href="?q={{ filtro_q|urlencode }}&status={{ filtro_status }}&de={{ filtro_de }}&ate={{ filtro_ate }}&page={{ page_obj.next_page_number }}">
+                                        Próxima
+                                    </a>
+                                </li>
+                            {% endif %}
+                        </ul>
+                    </nav>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

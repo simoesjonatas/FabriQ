@@ -241,6 +241,7 @@ class QuarentenaFilaView(AcessoModuloMixin, ListView):
                 "embalagem",
                 "lote",
             )
+            .prefetch_related("lote__analises")
             .order_by("recebimento__data_recebimento", "id")
         )
         termo = self.request.GET.get("q", "").strip()

@@ -65,6 +65,13 @@ MODULOS = {
         "url_name": "recebimento:quarentena",
         "perfis": {QUALIDADE, DIRETORIA},
     },
+    "qualidade": {
+        "titulo": "Qualidade",
+        "descricao": "Análises de lotes, tipos de análise e valores de referência",
+        "icone": "bi-clipboard2-pulse",
+        "url_name": "qualidade:lista",
+        "perfis": {QUALIDADE, DIRETORIA},
+    },
     "cadastros": {
         "titulo": "Cadastros",
         "descricao": (

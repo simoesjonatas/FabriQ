@@ -38,6 +38,7 @@
                                 <th>Validade</th>
                                 <th class="text-end">Qtd.</th>
                                 <th>Fornecedor / NF</th>
+                                <th>Análise</th>
                                 <th>Situação</th>
                                 <th class="text-end">Decisão</th>
                             </tr>
@@ -68,6 +69,23 @@
                                         </div>
                                     </td>
                                     <td>
+                                        {% with analise=item.lote.analises.all.0 %}
+                                            {% if analise %}
+                                                <a href="{% url 'qualidade:detalhe' analise.pk %}"
+                                                   class="badge {{ analise.badge_status }} text-decoration-none"
+                                                   title="{{ analise.numero }}">
+                                                    {{ analise.get_status_display }}
+                                                </a>
+                                            {% else %}
+                                                <a href="{% url 'qualidade:criar' %}?lote={{ item.lote.pk }}"
+                                                   class="btn btn-sm btn-outline-secondary"
+                                                   title="Registrar análise do lote">
+                                                    <i class="bi bi-clipboard2-plus me-1"></i>Analisar
+                                                </a>
+                                            {% endif %}
+                                        {% endwith %}
+                                    </td>
+                                    <td>
                                         <span class="badge {{ item.badge_status }}">
                                             {{ item.get_status_display }}
                                         </span>
@@ -78,7 +96,7 @@
                                 </tr>
                             {% empty %}
                                 <tr>
-                                    <td colspan="8" class="text-center text-body-secondary py-4">
+                                    <td colspan="9" class="text-center text-body-secondary py-4">
                                         Nenhum material aguardando decisão. 🎉
                                     </td>
                                 </tr>

@@ -1,0 +1,10 @@
+{% extends "cadastros/base_lista.html" %}
+
+{% block icone %}bi-sliders{% endblock %}
+{% block rotulo_novo %}Novo tipo{% endblock %}
+
+{% block celulas %}
+    <td>{{ objeto.nome }}</td>
+    <td>{{ objeto.unidade|default:"—" }}</td>
+    <td>{{ objeto.referencia|default:"—" }}</td>
+{% endblock %}
