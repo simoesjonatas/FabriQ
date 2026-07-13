@@ -19,8 +19,8 @@ urlpatterns = [
     path("producao/", include("apps.producao.urls")),
 ]
 
-if settings.DEBUG:
-    # Em produção o Nginx serve os arquivos de mídia
+if settings.DEBUG or getattr(settings, "SERVE_MEDIA_FILES", False):
+    # No deploy inicial com Nginx Proxy Manager, o Django pode servir mídia.
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
 
 admin.site.site_header = "FabriQ · Administração"

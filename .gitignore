@@ -12,6 +12,9 @@ db.sqlite3
 
 # Ambiente
 .env
+.env.*
+!.env.example
+!.env.production.example
 
 # Editores e SO
 .vscode/
