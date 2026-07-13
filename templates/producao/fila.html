@@ -1,0 +1,131 @@
+{% extends "base.html" %}
+
+{% block title %}Produção{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-12 col-xxl-11">
+
+        <div class="page-header mb-4">
+            <div>
+                <span class="eyebrow"><i class="bi bi-gear-wide-connected me-1"></i>Chão de fábrica</span>
+                <h1>Produção</h1>
+                <p>Ordens liberadas para produzir, em andamento e concluídas.</p>
+            </div>
+        </div>
+
+        <div class="card shadow-sm data-panel">
+            <div class="card-body">
+                <form method="get" class="row g-2 mb-3 align-items-end">
+                    <div class="col-12 col-md-6">
+                        <label class="form-label small mb-1" for="filtroQ">Pesquisar</label>
+                        <input type="search" name="q" id="filtroQ" value="{{ filtro_q }}"
+                               class="form-control" placeholder="Produto, cliente ou nº da OP">
+                    </div>
+                    <div class="col-8 col-md-4">
+                        <label class="form-label small mb-1" for="filtroStatus">Situação</label>
+                        <select name="status" id="filtroStatus" class="form-select">
+                            <option value="">Todas</option>
+                            {% for valor, rotulo in status_choices %}
+                                <option value="{{ valor }}" {% if filtro_status == valor %}selected{% endif %}>
+                                    {{ rotulo }}
+                                </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-4 col-md-2 d-grid">
+                        <button type="submit" class="btn btn-outline-secondary">
+                            <i class="bi bi-funnel me-1"></i>Filtrar
+                        </button>
+                    </div>
+                </form>
+
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead>
+                            <tr>
+                                <th>OP</th>
+                                <th>Produto</th>
+                                <th>Cliente</th>
+                                <th class="text-end">Qtd. prevista</th>
+                                <th>Data</th>
+                                <th>Operador</th>
+                                <th>Situação</th>
+                                <th class="text-end">Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for ordem in ordens %}
+                                <tr>
+                                    <td class="identifier-cell">
+                                        <a href="{% url 'producao:painel' ordem.pk %}" class="text-decoration-none">
+                                            {{ ordem.numero }}
+                                        </a>
+                                    </td>
+                                    <td>{{ ordem.produto.codigo }} · {{ ordem.produto.nome }}</td>
+                                    <td>{{ ordem.pedido.cliente }}</td>
+                                    <td class="text-end">{{ ordem.quantidade|floatformat:"-3" }}</td>
+                                    <td>{{ ordem.data_programada|date:"d/m/Y" }}</td>
+                                    <td>{{ ordem.operador|default:"—" }}</td>
+                                    <td>
+                                        <span class="badge {{ ordem.badge_status }}">
+                                            {{ ordem.get_status_display }}
+                                        </span>
+                                    </td>
+                                    <td class="text-end">
+                                        {% if ordem.status == "LIBERADA" %}
+                                            <a href="{% url 'producao:painel' ordem.pk %}"
+                                               class="btn btn-sm btn-primary">
+                                                <i class="bi bi-play-fill"></i> Produzir
+                                            </a>
+                                        {% else %}
+                                            <a href="{% url 'producao:painel' ordem.pk %}"
+                                               class="btn btn-sm btn-outline-primary">
+                                                <i class="bi bi-eye"></i> Painel
+                                            </a>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                            {% empty %}
+                                <tr>
+                                    <td colspan="8" class="text-center text-body-secondary py-4">
+                                        Nenhuma ordem na produção. Libere uma OP no módulo de ordens.
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+
+                {% if is_paginated %}
+                    <nav class="mt-3" aria-label="Paginação">
+                        <ul class="pagination pagination-sm justify-content-center mb-0">
+                            {% if page_obj.has_previous %}
+                                <li class="page-item">
+                                    <a class="page-link"
+                                       href="?q={{ filtro_q|urlencode }}&status={{ filtro_status }}&page={{ page_obj.previous_page_number }}">
+                                        Anterior
+                                    </a>
+                                </li>
+                            {% endif %}
+                            <li class="page-item disabled">
+                                <span class="page-link">
+                                    Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}
+                                </span>
+                            </li>
+                            {% if page_obj.has_next %}
+                                <li class="page-item">
+                                    <a class="page-link"
+                                       href="?q={{ filtro_q|urlencode }}&status={{ filtro_status }}&page={{ page_obj.next_page_number }}">
+                                        Próxima
+                                    </a>
+                                </li>
+                            {% endif %}
+                        </ul>
+                    </nav>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

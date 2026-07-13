@@ -28,10 +28,17 @@ class HomePageTests(TestCase):
         response = self.client.get(reverse("core:home"))
         self.assertContains(response, "Usuários")
 
-    def test_producao_nao_ve_o_modulo_usuarios(self):
+    def test_producao_ve_so_seus_modulos(self):
         usuario = User.objects.create_user(username="operador", password="senha-forte-123")
         usuario.groups.add(Group.objects.get(name=PRODUCAO))
         self.client.login(username="operador", password="senha-forte-123")
         response = self.client.get(reverse("core:home"))
+        # Vê o módulo de Produção, mas não o de Usuários (só Administrador)
+        self.assertContains(response, "Produção")
         self.assertNotContains(response, "Usuários")
+
+    def test_usuario_sem_perfil_ve_mensagem_vazia(self):
+        User.objects.create_user(username="sem_perfil", password="senha-forte-123")
+        self.client.login(username="sem_perfil", password="senha-forte-123")
+        response = self.client.get(reverse("core:home"))
         self.assertContains(response, "Nenhum módulo disponível para o seu perfil")

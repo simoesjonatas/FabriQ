@@ -1,0 +1,340 @@
+{% extends "base.html" %}
+
+{% block title %}Produção · {{ ordem.numero }}{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-12 col-xxl-11">
+
+        <nav class="app-breadcrumb" aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item">
+                    <a href="{% url 'producao:fila' %}">
+                        <i class="bi bi-arrow-left-short" aria-hidden="true"></i>Produção
+                    </a>
+                </li>
+                <li class="breadcrumb-item active" aria-current="page">{{ ordem.numero }}</li>
+            </ol>
+        </nav>
+
+        <div class="page-header page-header-actions mb-4">
+            <div>
+                <span class="eyebrow"><i class="bi bi-gear-wide-connected me-1"></i>Produção</span>
+                <h1>{{ ordem.numero }}</h1>
+                <p>
+                    {{ ordem.produto.codigo }} · {{ ordem.produto.nome }} ·
+                    prevista {{ ordem.quantidade|floatformat:"-3" }} {{ ordem.produto.get_unidade_display }} ·
+                    {{ ordem.pedido.cliente }}
+                </p>
+            </div>
+            <div class="d-flex gap-2 align-items-center flex-wrap">
+                <span class="badge {{ ordem.badge_status }} fs-6">{{ ordem.get_status_display }}</span>
+                <a href="{% url 'ordens:detalhe' ordem.pk %}" class="btn btn-outline-secondary">
+                    <i class="bi bi-journal-check me-1"></i>Ver OP
+                </a>
+            </div>
+        </div>
+
+        {% if pode_iniciar %}
+            <div class="card shadow-sm mb-4">
+                <div class="card-body text-center py-5">
+                    <i class="bi bi-play-circle display-5 text-primary"></i>
+                    <h2 class="h5 mt-3">Pronto para produzir</h2>
+                    <p class="text-body-secondary">
+                        Equipamento {{ ordem.equipamento.codigo }} · Operador {{ ordem.operador|default:"a definir" }}.
+                        Ao iniciar, o pedido avança para “Em produção”.
+                    </p>
+                    <form method="post" action="{% url 'producao:iniciar' ordem.pk %}">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-primary btn-lg">
+                            <i class="bi bi-play-fill me-1"></i>Iniciar produção
+                        </button>
+                    </form>
+                </div>
+            </div>
+        {% endif %}
+
+        {% if execucao %}
+            <div class="row g-4">
+                <div class="col-12 col-lg-7">
+                    {% if em_producao %}
+                        {% if execucao.tem_parada_aberta %}
+                            <div class="alert alert-warning d-flex justify-content-between align-items-center flex-wrap gap-2" role="alert">
+                                <span>
+                                    <i class="bi bi-pause-circle me-1"></i>
+                                    <strong>Produção parada.</strong> Encerre a parada para retomar.
+                                </span>
+                                <form method="post" action="{% url 'producao:encerrar_parada' ordem.pk %}">
+                                    {% csrf_token %}
+                                    <button type="submit" class="btn btn-sm btn-warning">
+                                        <i class="bi bi-play-fill me-1"></i>Retomar produção
+                                    </button>
+                                </form>
+                            </div>
+                        {% endif %}
+
+                        <div class="card shadow-sm mb-4">
+                            <div class="card-body">
+                                <div class="section-heading">
+                                    <div>
+                                        <h2><i class="bi bi-sliders me-1 text-primary"></i>Registros da produção</h2>
+                                        <p>Paradas, ocorrências e fotos do processo.</p>
+                                    </div>
+                                </div>
+
+                                {% if not execucao.tem_parada_aberta %}
+                                    <form method="post" action="{% url 'producao:abrir_parada' ordem.pk %}" class="row g-2 align-items-end mb-3">
+                                        {% csrf_token %}
+                                        <div class="col-12 col-md-4">
+                                            <label class="form-label small mb-1" for="{{ parada_form.motivo.id_for_label }}">Motivo da parada</label>
+                                            {{ parada_form.motivo }}
+                                        </div>
+                                        <div class="col-12 col-md-5">
+                                            <label class="form-label small mb-1" for="{{ parada_form.observacoes.id_for_label }}">Observações</label>
+                                            {{ parada_form.observacoes }}
+                                        </div>
+                                        <div class="col-12 col-md-3 d-grid">
+                                            <button type="submit" class="btn btn-outline-warning">
+                                                <i class="bi bi-pause-fill me-1"></i>Registrar parada
+                                            </button>
+                                        </div>
+                                    </form>
+                                    <hr>
+                                {% endif %}
+
+                                <form method="post" action="{% url 'producao:ocorrencia' ordem.pk %}" class="mb-3">
+                                    {% csrf_token %}
+                                    <label class="form-label small mb-1" for="{{ ocorrencia_form.descricao.id_for_label }}">Nova ocorrência</label>
+                                    <div class="input-group">
+                                        {{ ocorrencia_form.descricao }}
+                                        <button type="submit" class="btn btn-outline-secondary">
+                                            <i class="bi bi-chat-left-text me-1"></i>Registrar
+                                        </button>
+                                    </div>
+                                </form>
+
+                                <form method="post" action="{% url 'producao:foto' ordem.pk %}"
+                                      enctype="multipart/form-data" class="row g-2 align-items-end">
+                                    {% csrf_token %}
+                                    <div class="col-12 col-md-6">
+                                        <label class="form-label small mb-1" for="{{ foto_form.arquivo.id_for_label }}">Foto do processo</label>
+                                        {{ foto_form.arquivo }}
+                                    </div>
+                                    <div class="col-8 col-md-4">
+                                        <label class="form-label small mb-1" for="{{ foto_form.descricao.id_for_label }}">Descrição</label>
+                                        {{ foto_form.descricao }}
+                                    </div>
+                                    <div class="col-4 col-md-2 d-grid">
+                                        <button type="submit" class="btn btn-outline-secondary">
+                                            <i class="bi bi-camera me-1"></i>Anexar
+                                        </button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    {% endif %}
+
+                    <div class="card shadow-sm data-panel mb-4">
+                        <div class="card-body">
+                            <div class="section-heading">
+                                <div>
+                                    <h2><i class="bi bi-box-seam me-1 text-primary"></i>Materiais da OP</h2>
+                                    <p>Serão baixados do estoque (FEFO) ao concluir.</p>
+                                </div>
+                            </div>
+                            <div class="table-responsive">
+                                <table class="table align-middle mb-0">
+                                    <thead>
+                                        <tr>
+                                            <th>Material</th>
+                                            <th class="text-end">Necessário</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for material in ordem.materiais.all %}
+                                            <tr>
+                                                <td>{{ material.item.codigo }} · {{ material.item.nome }}</td>
+                                                <td class="text-end">
+                                                    {{ material.quantidade_necessaria|floatformat:"-3" }}
+                                                    <span class="text-body-secondary small">{{ material.item.get_unidade_display }}</span>
+                                                </td>
+                                            </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card shadow-sm mb-4">
+                        <div class="card-body">
+                            <div class="section-heading">
+                                <div><h2><i class="bi bi-pause-circle me-1 text-primary"></i>Paradas</h2></div>
+                            </div>
+                            <ul class="list-group list-group-flush">
+                                {% for parada in execucao.paradas.all %}
+                                    <li class="list-group-item px-0 d-flex justify-content-between gap-3 flex-wrap">
+                                        <span>
+                                            <span class="badge text-bg-light border">{{ parada.get_motivo_display }}</span>
+                                            {{ parada.observacoes }}
+                                            {% if parada.em_aberto %}
+                                                <span class="badge text-bg-warning">em aberto</span>
+                                            {% endif %}
+                                        </span>
+                                        <span class="text-body-secondary small text-nowrap">
+                                            {{ parada.inicio|date:"d/m H:i" }} · {{ parada.duracao }}
+                                        </span>
+                                    </li>
+                                {% empty %}
+                                    <li class="list-group-item px-0 text-body-secondary">Sem paradas.</li>
+                                {% endfor %}
+                            </ul>
+                        </div>
+                    </div>
+
+                    <div class="card shadow-sm mb-4">
+                        <div class="card-body">
+                            <div class="section-heading">
+                                <div><h2><i class="bi bi-chat-left-text me-1 text-primary"></i>Ocorrências</h2></div>
+                            </div>
+                            <ul class="list-group list-group-flush">
+                                {% for ocorrencia in execucao.ocorrencias.all %}
+                                    <li class="list-group-item px-0">
+                                        <div class="d-flex justify-content-between gap-3 flex-wrap">
+                                            <span>{{ ocorrencia.descricao }}</span>
+                                            <span class="text-body-secondary small text-nowrap">
+                                                {{ ocorrencia.data|date:"d/m/Y H:i" }} · {{ ocorrencia.registrado_por }}
+                                            </span>
+                                        </div>
+                                    </li>
+                                {% empty %}
+                                    <li class="list-group-item px-0 text-body-secondary">Sem ocorrências.</li>
+                                {% endfor %}
+                            </ul>
+                        </div>
+                    </div>
+
+                    <div class="card shadow-sm">
+                        <div class="card-body">
+                            <div class="section-heading">
+                                <div><h2><i class="bi bi-images me-1 text-primary"></i>Fotos</h2></div>
+                            </div>
+                            <ul class="list-group list-group-flush">
+                                {% for foto in execucao.fotos.all %}
+                                    <li class="list-group-item px-0 d-flex justify-content-between align-items-center gap-3 flex-wrap">
+                                        <span>{{ foto.descricao|default:foto.arquivo.name }}</span>
+                                        <a href="{{ foto.arquivo.url }}" target="_blank" rel="noopener"
+                                           class="btn btn-sm btn-outline-primary" data-no-page-loading>
+                                            <i class="bi bi-image me-1"></i>Abrir
+                                        </a>
+                                    </li>
+                                {% empty %}
+                                    <li class="list-group-item px-0 text-body-secondary">Sem fotos.</li>
+                                {% endfor %}
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-12 col-lg-5">
+                    <div class="card shadow-sm mb-4">
+                        <div class="card-body">
+                            <div class="section-heading">
+                                <div><h2><i class="bi bi-stopwatch me-1 text-primary"></i>Tempos</h2></div>
+                            </div>
+                            <dl class="row mb-0 small">
+                                <dt class="col-6">Início</dt>
+                                <dd class="col-6">{{ execucao.iniciado_em|date:"d/m/Y H:i" }}</dd>
+                                <dt class="col-6">Por</dt>
+                                <dd class="col-6">{{ execucao.iniciado_por }}</dd>
+                                <dt class="col-6">Tempo total</dt>
+                                <dd class="col-6">{{ execucao.tempo_total }}</dd>
+                                <dt class="col-6">Em parada</dt>
+                                <dd class="col-6">{{ execucao.tempo_paradas }}</dd>
+                                <dt class="col-6">Produtivo</dt>
+                                <dd class="col-6">{{ execucao.tempo_produtivo }}</dd>
+                                {% if execucao.concluida %}
+                                    <dt class="col-6">Conclusão</dt>
+                                    <dd class="col-6">{{ execucao.concluido_em|date:"d/m/Y H:i" }}</dd>
+                                {% endif %}
+                            </dl>
+                        </div>
+                    </div>
+
+                    {% if execucao.concluida %}
+                        <div class="card shadow-sm">
+                            <div class="card-body">
+                                <div class="section-heading">
+                                    <div><h2><i class="bi bi-check2-circle me-1 text-success"></i>Resultado</h2></div>
+                                </div>
+                                <dl class="row mb-0 small">
+                                    <dt class="col-6">Produzido</dt>
+                                    <dd class="col-6 fw-bold">
+                                        {{ execucao.quantidade_produzida|floatformat:"-3" }}
+                                        {{ ordem.produto.get_unidade_display }}
+                                    </dd>
+                                    <dt class="col-6">Perdas</dt>
+                                    <dd class="col-6">{{ execucao.perdas|floatformat:"-3" }}</dd>
+                                    <dt class="col-6">Lote produzido</dt>
+                                    <dd class="col-6">{{ execucao.lote_produzido.codigo }}</dd>
+                                    <dt class="col-6">Concluída por</dt>
+                                    <dd class="col-6">{{ execucao.concluido_por }}</dd>
+                                </dl>
+                            </div>
+                        </div>
+                    {% elif em_producao %}
+                        <div class="card shadow-sm">
+                            <div class="card-body">
+                                <div class="section-heading">
+                                    <div>
+                                        <h2><i class="bi bi-flag-fill me-1 text-primary"></i>Concluir produção</h2>
+                                        <p>Baixa os materiais e dá entrada do produto acabado.</p>
+                                    </div>
+                                </div>
+                                <button type="button" class="btn btn-primary w-100"
+                                        data-bs-toggle="modal" data-bs-target="#modalConcluir"
+                                        {% if execucao.tem_parada_aberta %}disabled title="Encerre a parada em aberto"{% endif %}>
+                                    <i class="bi bi-check-lg me-1"></i>Concluir produção
+                                </button>
+                            </div>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+{% if em_producao and not execucao.tem_parada_aberta %}
+    <div class="modal fade" id="modalConcluir" tabindex="-1" aria-labelledby="modalConcluirTitulo" aria-hidden="true">
+        <div class="modal-dialog">
+            <form method="post" action="{% url 'producao:concluir' ordem.pk %}" class="modal-content">
+                {% csrf_token %}
+                <div class="modal-header">
+                    <h2 class="modal-title h6" id="modalConcluirTitulo">
+                        <i class="bi bi-check2-circle text-success me-1"></i>Concluir {{ ordem.numero }}
+                    </h2>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="text-body-secondary small mb-3">
+                        Os materiais serão baixados do estoque (FEFO) e {{ ordem.produto.codigo }}
+                        entrará como produto acabado no lote informado.
+                    </p>
+                    {% include "includes/campo.html" with campo=concluir_form.quantidade_produzida %}
+                    {% include "includes/campo.html" with campo=concluir_form.perdas %}
+                    {% include "includes/campo.html" with campo=concluir_form.lote_codigo %}
+                    {% include "includes/campo.html" with campo=concluir_form.lote_validade %}
+                    {% include "includes/campo.html" with campo=concluir_form.local_destino %}
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Voltar</button>
+                    <button type="submit" class="btn btn-success">
+                        <i class="bi bi-check-lg me-1"></i>Concluir e estocar
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+{% endif %}
+{% endblock %}

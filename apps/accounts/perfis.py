@@ -79,6 +79,13 @@ MODULOS = {
         "url_name": "qualidade:lista",
         "perfis": {QUALIDADE, DIRETORIA},
     },
+    "producao": {
+        "titulo": "Produção",
+        "descricao": "Execução das ordens: início, paradas, ocorrências e conclusão",
+        "icone": "bi-gear-wide-connected",
+        "url_name": "producao:fila",
+        "perfis": {PRODUCAO, PCP, DIRETORIA},
+    },
     "cadastros": {
         "titulo": "Cadastros",
         "descricao": (

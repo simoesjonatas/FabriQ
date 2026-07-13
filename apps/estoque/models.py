@@ -443,3 +443,70 @@ def saldos_detalhados():
         )
     )
     return linhas
+
+
+def posicoes_para_consumo(item, excluir_local=None) -> list[dict]:
+    """
+    Posições de estoque disponíveis para consumo, por (lote, local),
+    ordenadas em FEFO — First Expired, First Out: o lote que vence
+    primeiro sai primeiro; lotes sem validade e itens sem lote vão por
+    último. Só retorna posições com saldo positivo.
+
+    `excluir_local` remove um local do consumo (ex.: a Quarentena, cujo
+    material ainda não foi liberado pela Qualidade).
+
+    Retorna: [{"lote", "local", "saldo"}, ...].
+    """
+    campo = campo_do_item(item)
+    movimentacoes = Movimentacao.objects.filter(**{campo: item})
+
+    entradas = (
+        movimentacoes.filter(tipo__in=TIPOS_COM_DESTINO)
+        .values("lote_id", "local_destino_id")
+        .annotate(total=Sum("quantidade"))
+    )
+    saidas = (
+        movimentacoes.filter(tipo__in=TIPOS_COM_ORIGEM)
+        .values("lote_id", "local_origem_id")
+        .annotate(total=Sum("quantidade"))
+    )
+
+    acumulado: dict[tuple, Decimal] = {}
+    for linha in entradas:
+        chave = (linha["lote_id"], linha["local_destino_id"])
+        acumulado[chave] = acumulado.get(chave, Decimal("0")) + linha["total"]
+    for linha in saidas:
+        chave = (linha["lote_id"], linha["local_origem_id"])
+        acumulado[chave] = acumulado.get(chave, Decimal("0")) - linha["total"]
+
+    excluir_id = excluir_local.pk if excluir_local is not None else None
+    lotes = Lote.objects.in_bulk(
+        {chave[0] for chave in acumulado if chave[0] is not None}
+    )
+    locais = LocalEstoque.objects.in_bulk(
+        {chave[1] for chave in acumulado if chave[1] is not None}
+    )
+
+    posicoes = []
+    for (lote_id, local_id), saldo_pos in acumulado.items():
+        if saldo_pos <= 0 or local_id == excluir_id:
+            continue
+        posicoes.append(
+            {
+                "lote": lotes.get(lote_id),
+                "local": locais.get(local_id),
+                "saldo": saldo_pos,
+            }
+        )
+
+    def chave_fefo(posicao):
+        lote = posicao["lote"]
+        sem_validade = lote is None or lote.validade is None
+        return (
+            sem_validade,
+            lote.validade if lote and lote.validade else None,
+            lote.id if lote else 0,
+        )
+
+    posicoes.sort(key=chave_fefo)
+    return posicoes
