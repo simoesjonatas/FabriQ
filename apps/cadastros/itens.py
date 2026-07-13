@@ -22,10 +22,15 @@ GRUPOS_DE_ITENS = [
 ]
 
 
-def opcoes_de_itens():
-    """Choices com optgroups para um select unificado de itens ativos."""
+def opcoes_de_itens(prefixos=("P", "MP", "E")):
+    """
+    Choices com optgroups para um select unificado de itens ativos.
+    `prefixos` restringe os grupos (ex.: ("MP", "E") exclui produtos).
+    """
     opcoes: list = [("", "---------")]
     for rotulo, prefixo, modelo in GRUPOS_DE_ITENS:
+        if prefixo not in prefixos:
+            continue
         itens = [
             (f"{prefixo}-{objeto.pk}", f"{objeto.codigo} · {objeto.nome}")
             for objeto in modelo.objects.filter(ativo=True)

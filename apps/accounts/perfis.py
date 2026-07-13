@@ -65,6 +65,13 @@ MODULOS = {
         "url_name": "recebimento:quarentena",
         "perfis": {QUALIDADE, DIRETORIA},
     },
+    "ordens": {
+        "titulo": "Ordens de produção",
+        "descricao": "Fórmulas, emissão e liberação de OPs com checagem de materiais",
+        "icone": "bi-journal-check",
+        "url_name": "ordens:lista",
+        "perfis": {PCP, DIRETORIA},
+    },
     "qualidade": {
         "titulo": "Qualidade",
         "descricao": "Análises de lotes, tipos de análise e valores de referência",

@@ -1,0 +1,239 @@
+{% extends "base.html" %}
+
+{% block title %}{{ ordem.numero }}{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-12 col-xxl-11">
+
+        <nav class="app-breadcrumb" aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item">
+                    <a href="{% url 'ordens:lista' %}">
+                        <i class="bi bi-arrow-left-short" aria-hidden="true"></i>Ordens
+                    </a>
+                </li>
+                <li class="breadcrumb-item active" aria-current="page">{{ ordem.numero }}</li>
+            </ol>
+        </nav>
+
+        <div class="page-header page-header-actions mb-4">
+            <div>
+                <span class="eyebrow"><i class="bi bi-journal-check me-1"></i>Ordem de produção</span>
+                <h1>{{ ordem.numero }}</h1>
+                <p>
+                    {{ ordem.produto.codigo }} · {{ ordem.produto.nome }} ·
+                    {{ ordem.quantidade|floatformat:"-3" }} {{ ordem.produto.get_unidade_display }} ·
+                    programada para {{ ordem.data_programada|date:"d/m/Y" }}
+                </p>
+            </div>
+            <div class="d-flex gap-2 align-items-center flex-wrap">
+                <span class="badge {{ ordem.badge_status }} fs-6">{{ ordem.get_status_display }}</span>
+                {% if ordem.editavel %}
+                    <a href="{% url 'ordens:editar' ordem.pk %}" class="btn btn-outline-primary">
+                        <i class="bi bi-pencil me-1"></i>Editar
+                    </a>
+                {% endif %}
+                <a href="{% url 'ordens:imprimir' ordem.pk %}" target="_blank" rel="noopener"
+                   class="btn btn-outline-secondary" data-no-page-loading>
+                    <i class="bi bi-printer me-1"></i>Imprimir
+                </a>
+            </div>
+        </div>
+
+        <div class="row g-4">
+            <div class="col-12 col-lg-7">
+                <div class="card shadow-sm data-panel mb-4">
+                    <div class="card-body">
+                        <div class="section-heading">
+                            <div>
+                                <h2><i class="bi bi-box-seam me-1 text-primary"></i>Materiais necessários</h2>
+                                <p>Snapshot da fórmula “{{ ordem.formula.nome }}” para esta quantidade.</p>
+                            </div>
+                        </div>
+                        <div class="table-responsive">
+                            <table class="table align-middle mb-0">
+                                <thead>
+                                    <tr>
+                                        <th>Material</th>
+                                        <th class="text-end">Necessário</th>
+                                        <th class="text-end">Disponível*</th>
+                                        <th>Situação</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for material in ordem.materiais.all %}
+                                        <tr>
+                                            <td>
+                                                <span class="identifier-cell">{{ material.item.codigo }}</span>
+                                                · {{ material.item.nome }}
+                                            </td>
+                                            <td class="text-end fw-bold">
+                                                {{ material.quantidade_necessaria|floatformat:"-3" }}
+                                                <span class="text-body-secondary fw-normal small">
+                                                    {{ material.item.get_unidade_display }}
+                                                </span>
+                                            </td>
+                                            <td class="text-end">{{ material.disponivel|floatformat:"-3" }}</td>
+                                            <td>
+                                                {% if material.disponivel >= material.quantidade_necessaria %}
+                                                    <span class="badge text-bg-success">Suficiente</span>
+                                                {% else %}
+                                                    <span class="badge text-bg-danger">Insuficiente</span>
+                                                {% endif %}
+                                            </td>
+                                        </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                        <p class="small text-body-secondary mt-2 mb-0">
+                            * saldo fora da quarentena — apenas material liberado pela Qualidade.
+                        </p>
+                    </div>
+                </div>
+
+                <div class="card shadow-sm">
+                    <div class="card-body">
+                        <div class="section-heading">
+                            <div><h2><i class="bi bi-clock-history me-1 text-primary"></i>Histórico</h2></div>
+                        </div>
+                        <ul class="list-group list-group-flush">
+                            {% for evento in ordem.historico.all %}
+                                <li class="list-group-item px-0">
+                                    <div class="d-flex justify-content-between gap-3 flex-wrap">
+                                        <span>{{ evento.descricao }}</span>
+                                        <span class="text-body-secondary small text-nowrap">
+                                            {{ evento.data|date:"d/m/Y H:i" }}
+                                            {% if evento.usuario %}· {{ evento.usuario }}{% endif %}
+                                        </span>
+                                    </div>
+                                </li>
+                            {% empty %}
+                                <li class="list-group-item px-0 text-body-secondary">Sem registros.</li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-12 col-lg-5">
+                {% if ordem.editavel %}
+                    <div class="card shadow-sm mb-4">
+                        <div class="card-body">
+                            <div class="section-heading">
+                                <div>
+                                    <h2><i class="bi bi-list-check me-1 text-primary"></i>Checklist de liberação</h2>
+                                    <p>Todas as condições precisam estar verdes.</p>
+                                </div>
+                            </div>
+                            <ul class="list-group list-group-flush mb-3">
+                                {% for condicao in condicoes %}
+                                    <li class="list-group-item px-0 d-flex gap-2">
+                                        {% if condicao.ok %}
+                                            <i class="bi bi-check-circle-fill text-success"></i>
+                                        {% else %}
+                                            <i class="bi bi-x-circle-fill text-danger"></i>
+                                        {% endif %}
+                                        <div>
+                                            {{ condicao.rotulo }}
+                                            <div class="small text-body-secondary">{{ condicao.detalhe }}</div>
+                                        </div>
+                                    </li>
+                                {% endfor %}
+                            </ul>
+                            <form method="post" action="{% url 'ordens:liberar' ordem.pk %}">
+                                {% csrf_token %}
+                                <button type="submit" class="btn btn-primary w-100"
+                                        {% if not pode_liberar %}disabled{% endif %}>
+                                    <i class="bi bi-unlock me-1"></i>Liberar para produção
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                {% endif %}
+
+                <div class="card shadow-sm mb-4">
+                    <div class="card-body">
+                        <div class="section-heading">
+                            <div><h2><i class="bi bi-card-text me-1 text-primary"></i>Dados</h2></div>
+                        </div>
+                        <dl class="row mb-0 small">
+                            <dt class="col-5">Pedido</dt>
+                            <dd class="col-7">
+                                <a href="{% url 'pedidos:detalhe' ordem.pedido.pk %}" class="text-decoration-none">
+                                    {{ ordem.pedido.numero }}
+                                </a>
+                                · {{ ordem.pedido.cliente }}
+                            </dd>
+                            <dt class="col-5">Fórmula</dt>
+                            <dd class="col-7">
+                                {{ ordem.formula.nome }}
+                                (rende {{ ordem.formula.rendimento|floatformat:"-3" }})
+                            </dd>
+                            <dt class="col-5">Equipamento</dt>
+                            <dd class="col-7">{{ ordem.equipamento|default:"—" }}</dd>
+                            <dt class="col-5">Operador</dt>
+                            <dd class="col-7">{{ ordem.operador|default:"—" }}</dd>
+                            <dt class="col-5">Observações</dt>
+                            <dd class="col-7">{{ ordem.observacoes|linebreaksbr|default:"—" }}</dd>
+                            {% if ordem.liberado_em %}
+                                <dt class="col-5">Liberada</dt>
+                                <dd class="col-7">
+                                    {{ ordem.liberado_em|date:"d/m/Y H:i" }} por {{ ordem.liberado_por }}
+                                </dd>
+                            {% endif %}
+                            {% if ordem.motivo_cancelamento %}
+                                <dt class="col-5 text-danger">Cancelamento</dt>
+                                <dd class="col-7 text-danger">{{ ordem.motivo_cancelamento|linebreaksbr }}</dd>
+                            {% endif %}
+                            <dt class="col-5">Emitida</dt>
+                            <dd class="col-7">
+                                {{ ordem.criado_em|date:"d/m/Y H:i" }}
+                                {% if ordem.criado_por %}por {{ ordem.criado_por }}{% endif %}
+                            </dd>
+                        </dl>
+                    </div>
+                </div>
+
+                {% if ordem.pode_cancelar %}
+                    <button type="button" class="btn btn-outline-danger w-100"
+                            data-bs-toggle="modal" data-bs-target="#modalCancelarOP">
+                        <i class="bi bi-x-circle me-1"></i>Cancelar OP
+                    </button>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if ordem.pode_cancelar %}
+    <div class="modal fade" id="modalCancelarOP" tabindex="-1" aria-labelledby="modalCancelarOPTitulo" aria-hidden="true">
+        <div class="modal-dialog">
+            <form method="post" action="{% url 'ordens:cancelar' ordem.pk %}" class="modal-content">
+                {% csrf_token %}
+                <div class="modal-header">
+                    <h2 class="modal-title h6" id="modalCancelarOPTitulo">
+                        <i class="bi bi-x-circle text-danger me-1"></i>Cancelar {{ ordem.numero }}
+                    </h2>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="text-body-secondary small mb-2">
+                        A OP não será excluída: ficará como “Cancelada” com o motivo no histórico.
+                    </p>
+                    <label class="form-label" for="motivoCancelamentoOP">Motivo do cancelamento</label>
+                    <textarea class="form-control" id="motivoCancelamentoOP" name="motivo"
+                              rows="3" maxlength="500" required></textarea>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Voltar</button>
+                    <button type="submit" class="btn btn-danger">
+                        <i class="bi bi-x-circle me-1"></i>Confirmar cancelamento
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+{% endif %}
+{% endblock %}

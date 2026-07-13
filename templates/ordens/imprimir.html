@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ ordem.numero }} · Ordem de Produção</title>
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+            color: #1d2939;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 24px;
+            font-size: 14px;
+        }
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            border-bottom: 3px solid #0f766e;
+            padding-bottom: 12px;
+            margin-bottom: 20px;
+        }
+        h1 { font-size: 22px; margin: 0; }
+        h2 { font-size: 14px; margin: 20px 0 8px; text-transform: uppercase; letter-spacing: 0.4px; color: #0f766e; }
+        .meta { color: #667085; font-size: 12px; text-align: right; }
+        table { width: 100%; border-collapse: collapse; margin-top: 4px; }
+        th, td { border: 1px solid #d0d5dd; padding: 6px 10px; text-align: left; }
+        th { background: #f2f4f7; font-size: 12px; text-transform: uppercase; letter-spacing: 0.3px; }
+        td.num, th.num { text-align: right; }
+        .grade { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 24px; }
+        .grade div { padding: 4px 0; border-bottom: 1px dotted #e4e7ec; }
+        .grade span { color: #667085; font-size: 12px; display: block; }
+        .assinaturas { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; margin-top: 56px; }
+        .assinaturas div { border-top: 1px solid #1d2939; padding-top: 6px; text-align: center; font-size: 12px; color: #667085; }
+        .obs { min-height: 60px; border: 1px solid #d0d5dd; padding: 8px; margin-top: 4px; }
+        .no-print { margin: 16px 0; }
+        @media print {
+            .no-print { display: none; }
+            body { padding: 0; }
+        }
+    </style>
+</head>
+<body>
+    <div class="no-print">
+        <button onclick="window.print()">🖨 Imprimir</button>
+        <a href="{% url 'ordens:detalhe' ordem.pk %}">Voltar</a>
+    </div>
+
+    <header>
+        <div>
+            <h1>Ordem de Produção {{ ordem.numero }}</h1>
+            <div>FabriQ · Corpo &amp; Cheiro</div>
+        </div>
+        <div class="meta">
+            Status: <strong>{{ ordem.get_status_display }}</strong><br>
+            Emitida em {{ ordem.criado_em|date:"d/m/Y H:i" }}
+            {% if ordem.criado_por %}por {{ ordem.criado_por }}{% endif %}<br>
+            {% if ordem.liberado_em %}
+                Liberada em {{ ordem.liberado_em|date:"d/m/Y H:i" }} por {{ ordem.liberado_por }}
+            {% endif %}
+        </div>
+    </header>
+
+    <h2>Produção</h2>
+    <div class="grade">
+        <div><span>Produto</span>{{ ordem.produto.codigo }} · {{ ordem.produto.nome }}</div>
+        <div><span>Quantidade prevista</span>{{ ordem.quantidade|floatformat:"-3" }} {{ ordem.produto.get_unidade_display }}</div>
+        <div><span>Fórmula</span>{{ ordem.formula.nome }} (rendimento {{ ordem.formula.rendimento|floatformat:"-3" }})</div>
+        <div><span>Data programada</span>{{ ordem.data_programada|date:"d/m/Y" }}</div>
+        <div><span>Equipamento</span>{{ ordem.equipamento|default:"—" }}</div>
+        <div><span>Operador</span>{{ ordem.operador|default:"—" }}</div>
+        <div><span>Pedido</span>{{ ordem.pedido.numero }} · {{ ordem.pedido.cliente }}</div>
+        <div><span>Prazo do pedido</span>{{ ordem.pedido.prazo|date:"d/m/Y" }}</div>
+    </div>
+
+    <h2>Materiais necessários</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>Código</th>
+                <th>Material</th>
+                <th class="num">Quantidade</th>
+                <th>Unidade</th>
+                <th>Lote usado</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for material in ordem.materiais.all %}
+                <tr>
+                    <td>{{ material.item.codigo }}</td>
+                    <td>{{ material.item.nome }}</td>
+                    <td class="num">{{ material.quantidade_necessaria|floatformat:"-3" }}</td>
+                    <td>{{ material.item.get_unidade_display }}</td>
+                    <td>&nbsp;</td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <h2>Observações</h2>
+    <div class="obs">{{ ordem.observacoes|linebreaksbr }}</div>
+
+    <div class="assinaturas">
+        <div>Operador — {{ ordem.operador|default:"" }}</div>
+        <div>PCP / Responsável</div>
+    </div>
+</body>
+</html>

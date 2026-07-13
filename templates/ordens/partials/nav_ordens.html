@@ -1,0 +1,13 @@
+{% comment %}Navegação do módulo Ordens. Espera: aba ("ordens"|"formulas").{% endcomment %}
+<ul class="nav form-tabs mb-4" role="navigation" aria-label="Visões das ordens de produção">
+    <li class="nav-item">
+        <a class="nav-link{% if aba == 'ordens' %} active{% endif %}" href="{% url 'ordens:lista' %}">
+            <i class="bi bi-journal-check" aria-hidden="true"></i>Ordens
+        </a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link{% if aba == 'formulas' %} active{% endif %}" href="{% url 'ordens:formula_lista' %}">
+            <i class="bi bi-eyedropper" aria-hidden="true"></i>Fórmulas
+        </a>
+    </li>
+</ul>

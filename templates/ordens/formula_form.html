@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+
+{% block title %}{% if form.instance.pk %}Editar fórmula{% else %}Nova fórmula{% endif %}{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-12 col-xl-9">
+
+        <nav class="app-breadcrumb" aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item">
+                    <a href="{% url 'ordens:formula_lista' %}">
+                        <i class="bi bi-arrow-left-short" aria-hidden="true"></i>Fórmulas
+                    </a>
+                </li>
+                <li class="breadcrumb-item active" aria-current="page">
+                    {% if form.instance.pk %}{{ form.instance }}{% else %}Nova{% endif %}
+                </li>
+            </ol>
+        </nav>
+
+        <div class="card shadow-sm form-panel">
+            <div class="card-body p-4">
+                <h1 class="h5 mb-3">
+                    {% if form.instance.pk %}
+                        <i class="bi bi-pencil-square text-primary me-2"></i>Editar fórmula
+                        <span class="text-body-secondary">· {{ form.instance }}</span>
+                    {% else %}
+                        <i class="bi bi-eyedropper text-primary me-2"></i>Nova fórmula
+                    {% endif %}
+                </h1>
+
+                {% if form.non_field_errors %}
+                    <div class="alert alert-danger" role="alert">
+                        {% for erro in form.non_field_errors %}{{ erro }}{% endfor %}
+                    </div>
+                {% endif %}
+
+                <form method="post" novalidate>
+                    {% csrf_token %}
+
+                    <div class="form-section-panel mb-3">
+                        <div class="form-section-heading">
+                            <div>
+                                <h2><i class="bi bi-box-seam me-1" aria-hidden="true"></i>Produto e rendimento</h2>
+                                <p>As quantidades dos materiais valem para este rendimento.</p>
+                            </div>
+                        </div>
+                        <div class="row g-3">
+                            <div class="col-12 col-md-6">
+                                {% include "includes/campo.html" with campo=form.produto %}
+                            </div>
+                            <div class="col-6 col-md-3">
+                                {% include "includes/campo.html" with campo=form.nome %}
+                            </div>
+                            <div class="col-6 col-md-3">
+                                {% include "includes/campo.html" with campo=form.rendimento %}
+                            </div>
+                            <div class="col-12">
+                                {% include "includes/campo.html" with campo=form.observacoes %}
+                            </div>
+                            <div class="col-12">
+                                {% include "includes/campo.html" with campo=form.ativo %}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="repeatable-section" data-formset data-formset-prefix="componentes">
+                        <div class="repeatable-section-header">
+                            <div>
+                                <h2><i class="bi bi-droplet me-1" aria-hidden="true"></i>Materiais da fórmula</h2>
+                                <p>Matérias-primas e embalagens com as quantidades para o rendimento.</p>
+                            </div>
+                            <button type="button" class="btn btn-outline-primary" data-formset-add="componentes">
+                                <i class="bi bi-plus-lg me-1" aria-hidden="true"></i>Adicionar material
+                            </button>
+                        </div>
+
+                        {{ componentes_formset.management_form }}
+                        {% if componentes_formset.non_form_errors %}
+                            <div class="alert alert-danger" role="alert">
+                                {% for erro in componentes_formset.non_form_errors %}{{ erro }}{% endfor %}
+                            </div>
+                        {% endif %}
+                        <div class="repeatable-list" data-formset-list="componentes">
+                            {% for subform in componentes_formset %}
+                                {% include "ordens/partials/componente_formset_item.html" with subform=subform %}
+                            {% endfor %}
+                        </div>
+                        <template data-formset-template="componentes">
+                            {% include "ordens/partials/componente_formset_item.html" with subform=componentes_formset.empty_form %}
+                        </template>
+                    </div>
+
+                    <div class="form-actions-bar">
+                        <a href="{% url 'ordens:formula_lista' %}" class="btn btn-outline-secondary">Cancelar</a>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-check-lg me-1"></i>Salvar fórmula
+                        </button>
+                    </div>
+                </form>
+            </div>
+
+            {% if form.instance.pk %}
+                <div class="card-footer small text-body-secondary">
+                    <i class="bi bi-clock-history me-1"></i>
+                    Criada em {{ form.instance.criado_em|date:"d/m/Y H:i" }}
+                    {% if form.instance.criado_por %}por {{ form.instance.criado_por }}{% endif %}
+                    · Última alteração em {{ form.instance.atualizado_em|date:"d/m/Y H:i" }}
+                    {% if form.instance.atualizado_por %}por {{ form.instance.atualizado_por }}{% endif %}
+                </div>
+            {% endif %}
+        </div>
+
+        {% if form.instance.pk %}
+            <p class="small text-body-secondary mt-3">
+                <i class="bi bi-info-circle me-1"></i>
+                Alterar a fórmula não muda OPs já emitidas: cada OP guarda o
+                snapshot dos materiais calculados na emissão.
+            </p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

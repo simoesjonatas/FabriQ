@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+
+{% block title %}Fórmulas{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-12 col-xxl-11">
+
+        <div class="page-header page-header-actions mb-4">
+            <div>
+                <span class="eyebrow"><i class="bi bi-eyedropper me-1"></i>Produção</span>
+                <h1>Fórmulas</h1>
+                <p>Composição dos produtos: materiais e quantidades por rendimento.</p>
+            </div>
+            <a href="{% url 'ordens:formula_criar' %}" class="btn btn-primary">
+                <i class="bi bi-plus-lg me-1"></i>Nova fórmula
+            </a>
+        </div>
+
+        {% include "ordens/partials/nav_ordens.html" with aba="formulas" %}
+
+        <div class="card shadow-sm data-panel">
+            <div class="card-body">
+                {% include "includes/filtros_lista.html" with placeholder_pesquisa="Produto ou nome da fórmula" %}
+
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead>
+                            <tr>
+                                <th>Produto</th>
+                                <th>Fórmula</th>
+                                <th class="text-end">Rendimento</th>
+                                <th>Materiais</th>
+                                <th>Situação</th>
+                                <th class="text-end">Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for formula in formulas %}
+                                <tr {% if not formula.ativo %}class="table-secondary text-body-secondary"{% endif %}>
+                                    <td>
+                                        <span class="identifier-cell">{{ formula.produto.codigo }}</span>
+                                        · {{ formula.produto.nome }}
+                                    </td>
+                                    <td>{{ formula.nome }}</td>
+                                    <td class="text-end">
+                                        {{ formula.rendimento|floatformat:"-3" }}
+                                        <span class="text-body-secondary small">
+                                            {{ formula.produto.get_unidade_display }}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        {% for componente in formula.componentes.all %}
+                                            <span class="badge text-bg-light border">{{ componente.item.codigo }}</span>
+                                        {% endfor %}
+                                    </td>
+                                    <td>
+                                        {% if formula.ativo %}
+                                            <span class="badge text-bg-success">Ativa</span>
+                                        {% else %}
+                                            <span class="badge text-bg-secondary">Inativa</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-end">
+                                        <a href="{% url 'ordens:formula_editar' formula.pk %}"
+                                           class="btn btn-sm btn-outline-primary">
+                                            <i class="bi bi-pencil"></i> Editar
+                                        </a>
+                                    </td>
+                                </tr>
+                            {% empty %}
+                                <tr>
+                                    <td colspan="6" class="text-center text-body-secondary py-4">
+                                        Nenhuma fórmula cadastrada. As OPs dependem delas.
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+
+                {% include "includes/paginacao.html" %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

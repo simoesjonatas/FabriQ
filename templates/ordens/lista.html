@@ -1,0 +1,140 @@
+{% extends "base.html" %}
+
+{% block title %}Ordens de produção{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-12 col-xxl-11">
+
+        <div class="page-header page-header-actions mb-4">
+            <div>
+                <span class="eyebrow"><i class="bi bi-journal-check me-1"></i>Produção</span>
+                <h1>Ordens de produção</h1>
+                <p>Emissão, checagem de materiais e liberação para o chão de fábrica.</p>
+            </div>
+            <a href="{% url 'ordens:criar' %}" class="btn btn-primary">
+                <i class="bi bi-plus-lg me-1"></i>Nova OP
+            </a>
+        </div>
+
+        {% include "ordens/partials/nav_ordens.html" with aba="ordens" %}
+
+        <div class="card shadow-sm data-panel">
+            <div class="card-body">
+                <form method="get" class="row g-2 mb-3 align-items-end">
+                    <div class="col-12 col-md-4">
+                        <label class="form-label small mb-1" for="filtroQ">Pesquisar</label>
+                        <input type="search" name="q" id="filtroQ" value="{{ filtro_q }}"
+                               class="form-control" placeholder="Produto, cliente ou nº da OP">
+                    </div>
+                    <div class="col-6 col-md-2">
+                        <label class="form-label small mb-1" for="filtroStatus">Status</label>
+                        <select name="status" id="filtroStatus" class="form-select">
+                            <option value="">Todos</option>
+                            {% for valor, rotulo in status_choices %}
+                                <option value="{{ valor }}" {% if filtro_status == valor %}selected{% endif %}>
+                                    {{ rotulo }}
+                                </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-6 col-md-2">
+                        <label class="form-label small mb-1" for="filtroDe">De</label>
+                        <input type="date" name="de" id="filtroDe" value="{{ filtro_de }}" class="form-control">
+                    </div>
+                    <div class="col-6 col-md-2">
+                        <label class="form-label small mb-1" for="filtroAte">Até</label>
+                        <input type="date" name="ate" id="filtroAte" value="{{ filtro_ate }}" class="form-control">
+                    </div>
+                    <div class="col-6 col-md-2 d-grid">
+                        <button type="submit" class="btn btn-outline-secondary">
+                            <i class="bi bi-funnel me-1"></i>Filtrar
+                        </button>
+                    </div>
+                </form>
+
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead>
+                            <tr>
+                                <th>Nº</th>
+                                <th>Produto</th>
+                                <th>Pedido</th>
+                                <th class="text-end">Qtd.</th>
+                                <th>Data</th>
+                                <th>Equipamento</th>
+                                <th>Status</th>
+                                <th class="text-end">Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for ordem in ordens %}
+                                <tr>
+                                    <td class="identifier-cell">
+                                        <a href="{% url 'ordens:detalhe' ordem.pk %}" class="text-decoration-none">
+                                            {{ ordem.numero }}
+                                        </a>
+                                    </td>
+                                    <td>{{ ordem.produto.codigo }} · {{ ordem.produto.nome }}</td>
+                                    <td>
+                                        {{ ordem.pedido.numero }}
+                                        <div class="small text-body-secondary">{{ ordem.pedido.cliente }}</div>
+                                    </td>
+                                    <td class="text-end">{{ ordem.quantidade|floatformat:"-3" }}</td>
+                                    <td>{{ ordem.data_programada|date:"d/m/Y" }}</td>
+                                    <td>{{ ordem.equipamento.codigo|default:"—" }}</td>
+                                    <td>
+                                        <span class="badge {{ ordem.badge_status }}">
+                                            {{ ordem.get_status_display }}
+                                        </span>
+                                    </td>
+                                    <td class="text-end">
+                                        <a href="{% url 'ordens:detalhe' ordem.pk %}"
+                                           class="btn btn-sm btn-outline-primary">
+                                            <i class="bi bi-eye"></i> Ver
+                                        </a>
+                                    </td>
+                                </tr>
+                            {% empty %}
+                                <tr>
+                                    <td colspan="8" class="text-center text-body-secondary py-4">
+                                        Nenhuma ordem de produção.
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+
+                {% if is_paginated %}
+                    <nav class="mt-3" aria-label="Paginação">
+                        <ul class="pagination pagination-sm justify-content-center mb-0">
+                            {% if page_obj.has_previous %}
+                                <li class="page-item">
+                                    <a class="page-link"
+                                       href="?q={{ filtro_q|urlencode }}&status={{ filtro_status }}&de={{ filtro_de }}&ate={{ filtro_ate }}&page={{ page_obj.previous_page_number }}">
+                                        Anterior
+                                    </a>
+                                </li>
+                            {% endif %}
+                            <li class="page-item disabled">
+                                <span class="page-link">
+                                    Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}
+                                </span>
+                            </li>
+                            {% if page_obj.has_next %}
+                                <li class="page-item">
+                                    <a class="page-link"
+                                       href="?q={{ filtro_q|urlencode }}&status={{ filtro_status }}&de={{ filtro_de }}&ate={{ filtro_ate }}&page={{ page_obj.next_page_number }}">
+                                        Próxima
+                                    </a>
+                                </li>
+                            {% endif %}
+                        </ul>
+                    </nav>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
