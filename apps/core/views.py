@@ -1,9 +1,16 @@
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib.messages.views import SuccessMessageMixin
 from django.db.models import Q
+from django.http import JsonResponse
+from django.views.decorators.http import require_GET
 from django.views.generic import CreateView, ListView, TemplateView, UpdateView
 
 from apps.accounts.mixins import AcessoModuloMixin
+
+
+@require_GET
+def healthcheck(request):
+    return JsonResponse({"status": "ok"})
 
 
 class HomeView(LoginRequiredMixin, TemplateView):

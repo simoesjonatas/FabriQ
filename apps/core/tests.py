@@ -8,6 +8,14 @@ from apps.accounts.perfis import ADMINISTRADOR, PRODUCAO
 User = get_user_model()
 
 
+class HealthcheckTests(TestCase):
+    def test_healthcheck_nao_exige_login(self):
+        response = self.client.get(reverse("core:healthcheck"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), {"status": "ok"})
+
+
 class HomePageTests(TestCase):
     def test_anonimo_e_redirecionado_para_login(self):
         response = self.client.get(reverse("core:home"))

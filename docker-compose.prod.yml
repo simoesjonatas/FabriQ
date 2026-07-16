@@ -46,7 +46,15 @@ services:
       # 8190 escolhida 
       - "${FABRIQ_WEB_PORT:-8190}:8000"
     healthcheck:
-      test: ["CMD-SHELL", "python -c \"import socket; s=socket.create_connection(('127.0.0.1', 8000), 5); s.close()\""]
+      test:
+        - CMD-SHELL
+        - >
+          python -c "import os, http.client;
+          host=(os.getenv('FABRIQ_DOMAIN') or next((h.strip() for h in (os.getenv('DJANGO_ALLOWED_HOSTS') or '').split(',') if h.strip() and h.strip() != '*'), 'localhost'));
+          conn=http.client.HTTPConnection('127.0.0.1', 8000, timeout=5);
+          conn.request('GET', '/healthz/', headers={'Host': host, 'Connection': 'close'});
+          resp=conn.getresponse();
+          raise SystemExit(0 if resp.status == 200 else 1)"
       interval: 30s
       timeout: 10s
       retries: 5
