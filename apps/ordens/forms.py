@@ -12,6 +12,7 @@ from .models import (
     ComponenteFormula,
     Formula,
     OrdemProducao,
+    StatusFormula,
 )
 
 
@@ -30,6 +31,20 @@ class FormulaForm(JustificativaAuditoriaMixin, BootstrapFormMixin, forms.ModelFo
         if self.instance.pk and self.instance.produto_id:
             produtos = produtos | Produto.objects.filter(pk=self.instance.produto_id)
         self.fields["produto"].queryset = produtos.distinct()
+
+    def clean_produto(self):
+        produto = self.cleaned_data["produto"]
+        if (
+            self.instance.pk
+            and self.instance.produto_id
+            and produto.pk != self.instance.produto_id
+            and self.instance.tem_op_emitida
+        ):
+            raise forms.ValidationError(
+                "Esta fórmula já tem OP emitida — o produto não pode ser "
+                "trocado. Cadastre uma nova fórmula para o outro produto."
+            )
+        return produto
 
 
 class ComponenteForm(BootstrapFormMixin, forms.ModelForm):
@@ -141,7 +156,10 @@ class OrdemProducaoForm(JustificativaAuditoriaMixin, BootstrapFormMixin, forms.M
             self.fields["item_pedido"].disabled = True
         self.fields["item_pedido"].queryset = itens.distinct()
 
-        formulas = Formula.objects.filter(ativo=True).select_related("produto")
+        # Só versões vigentes entram em OP nova (Etapa 3)
+        formulas = Formula.objects.filter(
+            ativo=True, status=StatusFormula.VIGENTE
+        ).select_related("produto")
         if self.instance.pk and self.instance.formula_id:
             formulas = formulas | Formula.objects.filter(pk=self.instance.formula_id)
         self.fields["formula"].queryset = formulas.distinct()

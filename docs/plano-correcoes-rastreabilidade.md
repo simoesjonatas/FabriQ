@@ -169,9 +169,33 @@ Modelo de referência do cliente no **Anexo A** (layout livre — o conteúdo é
 
 ---
 
-## Etapa 3 — Versão e snapshot imutável da fórmula (P1)
+## Etapa 3 — Versão e snapshot imutável da fórmula (P1) ✅ CONCLUÍDA (19/07/2026)
 
 **Objetivo (PDF 2.4 e 4.2):** a emissão da OP congela uma cópia da fórmula; alterações futuras geram nova versão, nunca substituição retroativa.
+
+> **Status:** implementada e testada (220 testes do projeto passando; critério de aceite
+> verificado também nas telas com a base de demonstração).
+> - `Formula` versionada: `versao` (começa em 1), `status` Vigente/Histórica,
+>   `aprovada_por`/`aprovada_em` (preenchidos automaticamente por quem salva a versão em
+>   vigor — o fluxo formal de aprovação com perfil vem na Etapa 8), unicidade
+>   (`produto`, `nome`, `versao`).
+> - Editar fórmula **com OP emitida** (qualquer status) cria a versão `versao + 1`
+>   vigente com os componentes do formulário e congela a anterior como histórica —
+>   com **justificativa obrigatória** (inclusive quando só os componentes mudam) e
+>   evento próprio na trilha. Sem OP, edita em vigor. Produto não pode ser trocado
+>   em fórmula com OP; fórmula histórica não abre para edição e não aparece para OP
+>   nova (o form só oferece vigentes).
+> - `SnapshotFormulaOP` + `ItemSnapshotFormulaOP` imutáveis, congelados na
+>   **liberação** da OP: nome, versão, data da versão, rendimento, instruções e itens
+>   com quantidade teórica × escalada (código/nome/unidade copiados como texto —
+>   sobrevivem a renomeações de cadastro). `MaterialOP` segue como lista operacional.
+> - Telas: detalhe e impressão da OP mostram **número e data da versão congelada**;
+>   lista de fórmulas mostra versão + badge Vigente/Histórica (históricas ficam com
+>   cadeado, sem edição); o form avisa quando a edição vai gerar nova versão.
+> - OPs liberadas ANTES desta etapa não ganham snapshot retroativo (seria evidência
+>   falsa) — as telas toleram a ausência; a partir de agora toda liberação congela.
+> - `carregar_demo`: OPs de demonstração congelam snapshot; fórmulas demo buscadas
+>   pela versão vigente.
 
 ### Passos
 1. Em `apps/ordens/models.py`, adicionar versionamento à `Formula`:

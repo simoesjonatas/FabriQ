@@ -48,7 +48,13 @@
                         <div class="section-heading">
                             <div>
                                 <h2><i class="bi bi-box-seam me-1 text-primary"></i>Materiais necessários</h2>
-                                <p>Snapshot da fórmula “{{ ordem.formula.nome }}” para esta quantidade.</p>
+                                <p>
+                                    Snapshot da fórmula “{{ ordem.formula.nome }}”
+                                    v{{ ordem.formula.versao }} para esta quantidade
+                                    {% if ordem.snapshot_formula %}
+                                        — congelada em {{ ordem.snapshot_formula.congelado_em|date:"d/m/Y H:i" }}
+                                    {% endif %}.
+                                </p>
                             </div>
                         </div>
                         <div class="table-responsive">
@@ -181,8 +187,22 @@
                             <dt class="col-5">Fórmula</dt>
                             <dd class="col-7">
                                 {{ ordem.formula.nome }}
+                                <span class="badge text-bg-light border">v{{ ordem.formula.versao }}</span>
+                                {% if not ordem.formula.vigente %}
+                                    <span class="badge {{ ordem.formula.badge_status }}">
+                                        {{ ordem.formula.get_status_display }}
+                                    </span>
+                                {% endif %}
                                 (rende {{ ordem.formula.rendimento|floatformat:"-3" }})
                             </dd>
+                            {% if ordem.snapshot_formula %}
+                                <dt class="col-5">Versão congelada</dt>
+                                <dd class="col-7">
+                                    {{ ordem.snapshot_formula.nome }}
+                                    v{{ ordem.snapshot_formula.versao }} em
+                                    {{ ordem.snapshot_formula.congelado_em|date:"d/m/Y H:i" }}
+                                </dd>
+                            {% endif %}
                             <dt class="col-5">Lote do produto</dt>
                             <dd class="col-7">
                                 {% if ordem.lote_produto %}

@@ -17,6 +17,8 @@ from .models import (
     ComponenteFormula,
     Formula,
     OrdemProducao,
+    SnapshotFormulaOP,
+    StatusFormula,
     StatusOP,
     saldo_disponivel,
 )
@@ -142,6 +144,231 @@ class FormulaTests(BaseOrdens):
         response = self.client.post(reverse("ordens:formula_criar"), dados)
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "já está na fórmula")
+
+
+class VersionamentoFormulaTests(BaseOrdens):
+    """Etapa 3: editar fórmula com OP emitida gera nova versão."""
+
+    def dados_edicao(self, **kwargs):
+        componente = self.formula.componentes.get()
+        dados = {
+            "produto": self.produto.pk,
+            "nome": "Padrão",
+            "rendimento": "100",
+            "observacoes": "",
+            "ativo": "on",
+            "justificativa_alteracao": "",
+            "componentes-TOTAL_FORMS": "1",
+            "componentes-INITIAL_FORMS": "1",
+            "componentes-MIN_NUM_FORMS": "0",
+            "componentes-MAX_NUM_FORMS": "1000",
+            "componentes-0-id": str(componente.pk),
+            "componentes-0-item": f"MP-{self.mp.pk}",
+            "componentes-0-quantidade": "40",
+        }
+        dados.update(kwargs)
+        return dados
+
+    def editar_formula(self, **kwargs):
+        return self.client.post(
+            reverse("ordens:formula_editar", args=[self.formula.pk]),
+            self.dados_edicao(**kwargs),
+        )
+
+    def test_editar_sem_op_altera_em_vigor(self):
+        response = self.editar_formula(
+            rendimento="120", justificativa_alteracao="Ajuste"
+        )
+        self.assertRedirects(response, reverse("ordens:formula_lista"))
+
+        self.assertEqual(Formula.objects.count(), 1)
+        self.formula.refresh_from_db()
+        self.assertEqual(self.formula.rendimento, Decimal("120"))
+        self.assertEqual(self.formula.versao, 1)
+        self.assertEqual(self.formula.status, StatusFormula.VIGENTE)
+        self.assertEqual(self.formula.aprovada_por, self.usuario)
+
+    def test_editar_com_op_gera_nova_versao_e_preserva_a_antiga(self):
+        """Critério de aceite do PDF (2.4/4.2)."""
+        entrada_estoque({"materia_prima": self.mp}, "30", self.deposito)
+        ordem = self.criar_op(quantidade="50")
+        material_original = ordem.materiais.get().quantidade_necessaria
+
+        response = self.editar_formula(
+            rendimento="50",
+            justificativa_alteracao="Reduzir batelada e concentrar essência",
+            **{"componentes-0-quantidade": "30"},
+        )
+        self.assertRedirects(response, reverse("ordens:formula_lista"))
+
+        # Duas versões: a antiga intacta e histórica, a nova vigente
+        self.assertEqual(Formula.objects.count(), 2)
+        self.formula.refresh_from_db()
+        self.assertEqual(self.formula.versao, 1)
+        self.assertEqual(self.formula.status, StatusFormula.HISTORICA)
+        self.assertEqual(self.formula.rendimento, Decimal("100"))
+        self.assertEqual(
+            self.formula.componentes.get().quantidade, Decimal("40")
+        )
+
+        nova = Formula.objects.get(versao=2)
+        self.assertEqual(nova.status, StatusFormula.VIGENTE)
+        self.assertEqual(nova.rendimento, Decimal("50"))
+        self.assertEqual(nova.componentes.get().quantidade, Decimal("30"))
+        self.assertEqual(nova.aprovada_por, self.usuario)
+        self.assertIsNotNone(nova.aprovada_em)
+
+        # A OP antiga continua na v1, com o snapshot de materiais original
+        ordem.refresh_from_db()
+        self.assertEqual(ordem.formula, self.formula)
+        self.assertEqual(
+            ordem.materiais.get().quantidade_necessaria, material_original
+        )
+
+        # Trilha registra o versionamento na versão antiga
+        from apps.auditoria.models import AcaoAuditoria
+        from apps.auditoria.servicos import trilha_de
+
+        evento = trilha_de(self.formula).filter(
+            acao=AcaoAuditoria.ALTERACAO, campo="versão"
+        ).get()
+        self.assertIn("v2", evento.valor_novo)
+        self.assertEqual(
+            evento.justificativa, "Reduzir batelada e concentrar essência"
+        )
+
+    def test_versionar_exige_justificativa_mesmo_so_nos_componentes(self):
+        entrada_estoque({"materia_prima": self.mp}, "30", self.deposito)
+        self.criar_op(quantidade="50")
+
+        response = self.editar_formula(**{"componentes-0-quantidade": "35"})
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "nova versão da fórmula")
+        self.assertEqual(Formula.objects.count(), 1)
+        self.assertEqual(
+            self.formula.componentes.get().quantidade, Decimal("40")
+        )
+
+    def test_nova_op_usa_somente_a_versao_vigente(self):
+        entrada_estoque({"materia_prima": self.mp}, "30", self.deposito)
+        self.criar_op(quantidade="50")
+        self.editar_formula(
+            rendimento="50", justificativa_alteracao="Nova escala"
+        )
+        nova = Formula.objects.get(versao=2)
+
+        response = self.client.get(reverse("ordens:criar"))
+        form = response.context["form"]
+        formulas_disponiveis = set(
+            form.fields["formula"].queryset.values_list("pk", flat=True)
+        )
+        self.assertIn(nova.pk, formulas_disponiveis)
+        self.assertNotIn(self.formula.pk, formulas_disponiveis)
+
+        ordem_nova = self.criar_op(formula=str(nova.pk), quantidade="25")
+        self.assertEqual(ordem_nova.formula, nova)
+
+    def test_formula_historica_nao_pode_ser_editada(self):
+        entrada_estoque({"materia_prima": self.mp}, "30", self.deposito)
+        self.criar_op(quantidade="50")
+        self.editar_formula(
+            rendimento="50", justificativa_alteracao="Nova escala"
+        )
+        self.formula.refresh_from_db()
+        self.assertEqual(self.formula.status, StatusFormula.HISTORICA)
+
+        response = self.client.get(
+            reverse("ordens:formula_editar", args=[self.formula.pk])
+        )
+        self.assertRedirects(response, reverse("ordens:formula_lista"))
+
+    def test_produto_nao_muda_em_formula_com_op(self):
+        entrada_estoque({"materia_prima": self.mp}, "30", self.deposito)
+        self.criar_op(quantidade="50")
+        outro_produto = Produto.objects.create(codigo="PA-9", nome="Outro")
+
+        response = self.editar_formula(
+            produto=outro_produto.pk, justificativa_alteracao="tentativa"
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "o produto não pode ser")
+        self.assertEqual(Formula.objects.count(), 1)
+
+
+class SnapshotFormulaTests(BaseOrdens):
+    """Etapa 3: a liberação da OP congela a fórmula (versão + composição)."""
+
+    def liberar_op(self):
+        entrada_estoque({"materia_prima": self.mp}, "30", self.deposito)
+        ordem = self.criar_op(quantidade="50")
+        self.client.post(reverse("ordens:liberar", args=[ordem.pk]))
+        ordem.refresh_from_db()
+        return ordem
+
+    def test_liberacao_congela_versao_e_composicao(self):
+        ordem = self.liberar_op()
+
+        snapshot = ordem.snapshot_formula
+        self.assertEqual(snapshot.nome, "Padrão")
+        self.assertEqual(snapshot.versao, 1)
+        self.assertEqual(snapshot.rendimento, Decimal("100"))
+        self.assertEqual(snapshot.congelado_por, self.usuario)
+
+        item = snapshot.itens.get()
+        self.assertEqual(item.item_codigo, "MP-1")
+        self.assertEqual(item.quantidade_teorica, Decimal("40"))
+        self.assertEqual(item.quantidade_escalada, Decimal("20"))
+
+    def test_snapshot_nao_muda_quando_a_formula_muda(self):
+        ordem = self.liberar_op()
+
+        componente = self.formula.componentes.get()
+        self.client.post(
+            reverse("ordens:formula_editar", args=[self.formula.pk]),
+            {
+                "produto": self.produto.pk,
+                "nome": "Padrão",
+                "rendimento": "50",
+                "observacoes": "",
+                "ativo": "on",
+                "justificativa_alteracao": "Nova escala",
+                "componentes-TOTAL_FORMS": "1",
+                "componentes-INITIAL_FORMS": "1",
+                "componentes-MIN_NUM_FORMS": "0",
+                "componentes-MAX_NUM_FORMS": "1000",
+                "componentes-0-id": str(componente.pk),
+                "componentes-0-item": f"MP-{self.mp.pk}",
+                "componentes-0-quantidade": "10",
+            },
+        )
+        self.assertEqual(Formula.objects.count(), 2)
+
+        snapshot = SnapshotFormulaOP.objects.get(ordem=ordem)
+        self.assertEqual(snapshot.versao, 1)
+        self.assertEqual(snapshot.rendimento, Decimal("100"))
+        self.assertEqual(
+            snapshot.itens.get().quantidade_teorica, Decimal("40")
+        )
+
+        response = self.client.get(reverse("ordens:detalhe", args=[ordem.pk]))
+        self.assertContains(response, "Versão congelada")
+        self.assertContains(response, "v1")
+
+    def test_snapshot_e_imutavel(self):
+        from apps.auditoria.models import TrilhaImutavelError
+
+        ordem = self.liberar_op()
+        snapshot = ordem.snapshot_formula
+
+        snapshot.rendimento = Decimal("999")
+        with self.assertRaises(TrilhaImutavelError):
+            snapshot.save()
+        with self.assertRaises(TrilhaImutavelError):
+            snapshot.delete()
+        with self.assertRaises(TrilhaImutavelError):
+            SnapshotFormulaOP.objects.all().update(rendimento=Decimal("999"))
+        with self.assertRaises(TrilhaImutavelError):
+            snapshot.itens.all().delete()
 
 
 class EmissaoOPTests(BaseOrdens):

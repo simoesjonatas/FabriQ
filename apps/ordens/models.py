@@ -43,7 +43,18 @@ def saldo_disponivel(item) -> Decimal:
     return saldo(item) - saldo(item, local=local_quarentena())
 
 
+class StatusFormula(models.TextChoices):
+    VIGENTE = "VIGENTE", "Vigente"
+    HISTORICA = "HISTORICA", "Histórica"
+
+
 class Formula(ModeloBase):
+    """
+    Fórmula VERSIONADA (Etapa 3 do plano de correções): editar uma
+    fórmula que já tem OP emitida cria uma nova versão e marca a
+    anterior como histórica — nunca há substituição retroativa.
+    """
+
     produto = models.ForeignKey(
         Produto,
         verbose_name="produto",
@@ -53,7 +64,14 @@ class Formula(ModeloBase):
     nome = models.CharField(
         "nome",
         max_length=60,
-        help_text="Identificação da versão. Ex.: “Padrão”, “v2 sem parabenos”.",
+        help_text="Identificação da fórmula. Ex.: “Padrão”, “Sem parabenos”.",
+    )
+    versao = models.PositiveIntegerField("versão", default=1)
+    status = models.CharField(
+        "situação da versão",
+        max_length=10,
+        choices=StatusFormula.choices,
+        default=StatusFormula.VIGENTE,
     )
     rendimento = models.DecimalField(
         "rendimento",
@@ -64,20 +82,47 @@ class Formula(ModeloBase):
     )
     observacoes = models.TextField("observações", blank=True)
 
+    aprovada_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        verbose_name="aprovada por",
+        on_delete=models.PROTECT,
+        related_name="+",
+        null=True,
+        blank=True,
+    )
+    aprovada_em = models.DateTimeField("aprovada em", null=True, blank=True)
+
     class Meta:
         verbose_name = "fórmula"
         verbose_name_plural = "fórmulas"
-        ordering = ["produto__nome", "nome"]
+        ordering = ["produto__nome", "nome", "-versao"]
         constraints = [
             models.UniqueConstraint(
-                fields=["produto", "nome"],
-                name="formula_nome_unico_por_produto",
-                violation_error_message="Este produto já tem uma fórmula com esse nome.",
+                fields=["produto", "nome", "versao"],
+                name="formula_nome_versao_unicos_por_produto",
+                violation_error_message=(
+                    "Este produto já tem esta versão da fórmula."
+                ),
             ),
         ]
 
     def __str__(self) -> str:
-        return f"{self.produto.codigo} · {self.nome}"
+        return f"{self.produto.codigo} · {self.nome} · v{self.versao}"
+
+    @property
+    def vigente(self) -> bool:
+        return self.status == StatusFormula.VIGENTE
+
+    @property
+    def badge_status(self) -> str:
+        return (
+            "text-bg-success" if self.vigente else "text-bg-secondary"
+        )
+
+    @property
+    def tem_op_emitida(self) -> bool:
+        """OPs (em qualquer status) já emitidas com esta versão."""
+        return self.ordens.exists()
 
 
 class ComponenteFormula(models.Model):
@@ -396,6 +441,196 @@ class MaterialOP(models.Model):
     @property
     def disponivel(self) -> Decimal:
         return saldo_disponivel(self.item)
+
+
+class SnapshotQuerySet(models.QuerySet):
+    def update(self, **kwargs):
+        from apps.auditoria.models import TrilhaImutavelError
+
+        raise TrilhaImutavelError(
+            "O snapshot da fórmula é imutável — não pode ser alterado."
+        )
+
+    def delete(self):
+        from apps.auditoria.models import TrilhaImutavelError
+
+        raise TrilhaImutavelError(
+            "O snapshot da fórmula é imutável — não pode ser excluído."
+        )
+
+
+class SnapshotImutavelMixin(models.Model):
+    """save() só cria; update e delete levantam exceção (padrão da Etapa 1)."""
+
+    objects = SnapshotQuerySet.as_manager()
+
+    class Meta:
+        abstract = True
+
+    def save(self, *args, **kwargs):
+        if not self._state.adding:
+            from apps.auditoria.models import TrilhaImutavelError
+
+            raise TrilhaImutavelError(
+                "O snapshot da fórmula é imutável — não pode ser alterado."
+            )
+        super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        from apps.auditoria.models import TrilhaImutavelError
+
+        raise TrilhaImutavelError(
+            "O snapshot da fórmula é imutável — não pode ser excluído."
+        )
+
+
+class SnapshotFormulaOP(SnapshotImutavelMixin):
+    """
+    Cópia congelada da fórmula no momento da LIBERAÇÃO da OP
+    (PDF 2.4/4.2): a OP comprova para sempre com qual versão, rendimento,
+    instruções e composição foi produzida — mesmo que a fórmula mude.
+    """
+
+    ordem = models.OneToOneField(
+        OrdemProducao,
+        verbose_name="ordem de produção",
+        on_delete=models.PROTECT,
+        related_name="snapshot_formula",
+    )
+    formula = models.ForeignKey(
+        Formula,
+        verbose_name="fórmula de origem",
+        on_delete=models.PROTECT,
+        related_name="snapshots",
+    )
+    nome = models.CharField("nome da fórmula", max_length=60)
+    versao = models.PositiveIntegerField("versão")
+    data_versao = models.DateTimeField(
+        "data da versão",
+        null=True,
+        blank=True,
+        help_text="Quando esta versão da fórmula entrou em vigor.",
+    )
+    rendimento = models.DecimalField(
+        "rendimento", max_digits=12, decimal_places=3
+    )
+    instrucoes = models.TextField("instruções de fabricação", blank=True)
+
+    congelado_em = models.DateTimeField("congelado em", auto_now_add=True)
+    congelado_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        verbose_name="congelado por",
+        on_delete=models.PROTECT,
+        related_name="+",
+        null=True,
+        blank=True,
+    )
+
+    class Meta:
+        verbose_name = "snapshot da fórmula da OP"
+        verbose_name_plural = "snapshots da fórmula das OPs"
+        ordering = ["-congelado_em"]
+
+    def __str__(self) -> str:
+        return f"{self.ordem.numero} · {self.nome} · v{self.versao}"
+
+    @classmethod
+    def congelar(cls, ordem, usuario) -> SnapshotFormulaOP:
+        """Congela a fórmula da OP (idempotente: reusa se já congelada)."""
+        existente = getattr(ordem, "snapshot_formula", None)
+        if existente is not None:
+            return existente
+
+        formula = ordem.formula
+        snapshot = cls.objects.create(
+            ordem=ordem,
+            formula=formula,
+            nome=formula.nome,
+            versao=formula.versao,
+            data_versao=formula.aprovada_em or formula.criado_em,
+            rendimento=formula.rendimento,
+            instrucoes=formula.observacoes,
+            congelado_por=usuario,
+        )
+        fator = ordem.quantidade / formula.rendimento
+        for componente in formula.componentes.all():
+            escalada = (componente.quantidade * fator).quantize(
+                Decimal("0.001"), rounding=ROUND_UP
+            )
+            item = componente.item
+            ItemSnapshotFormulaOP.objects.create(
+                snapshot=snapshot,
+                materia_prima=componente.materia_prima,
+                embalagem=componente.embalagem,
+                item_codigo=item.codigo,
+                item_nome=item.nome,
+                item_unidade=item.get_unidade_display(),
+                quantidade_teorica=componente.quantidade,
+                quantidade_escalada=escalada,
+            )
+        return snapshot
+
+
+class ItemSnapshotFormulaOP(SnapshotImutavelMixin):
+    snapshot = models.ForeignKey(
+        SnapshotFormulaOP,
+        verbose_name="snapshot",
+        on_delete=models.CASCADE,
+        related_name="itens",
+    )
+    materia_prima = models.ForeignKey(
+        MateriaPrima,
+        verbose_name="matéria-prima",
+        on_delete=models.PROTECT,
+        related_name="+",
+        null=True,
+        blank=True,
+    )
+    embalagem = models.ForeignKey(
+        Embalagem,
+        verbose_name="embalagem",
+        on_delete=models.PROTECT,
+        related_name="+",
+        null=True,
+        blank=True,
+    )
+    # Cópia textual: o cadastro pode ser renomeado, o snapshot não muda
+    item_codigo = models.CharField("código do item", max_length=30)
+    item_nome = models.CharField("nome do item", max_length=150)
+    item_unidade = models.CharField("unidade", max_length=20, blank=True)
+    quantidade_teorica = models.DecimalField(
+        "quantidade teórica",
+        max_digits=12,
+        decimal_places=3,
+        help_text="Para o rendimento base da fórmula.",
+    )
+    quantidade_escalada = models.DecimalField(
+        "quantidade escalada",
+        max_digits=12,
+        decimal_places=3,
+        help_text="Para a quantidade prevista da OP.",
+    )
+
+    class Meta:
+        verbose_name = "item do snapshot da fórmula"
+        verbose_name_plural = "itens do snapshot da fórmula"
+        ordering = ["id"]
+        constraints = [
+            models.CheckConstraint(
+                condition=(
+                    (Q(materia_prima__isnull=False) & Q(embalagem__isnull=True))
+                    | (Q(materia_prima__isnull=True) & Q(embalagem__isnull=False))
+                ),
+                name="item_snapshot_exatamente_um_item",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.item_codigo} × {formatos.quantidade(self.quantidade_escalada)}"
+
+    @property
+    def item(self):
+        return self.materia_prima or self.embalagem
 
 
 class HistoricoOP(models.Model):

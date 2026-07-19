@@ -18,7 +18,15 @@ from apps.core.views import SalvarComUsuarioMixin
 from apps.pedidos.models import HistoricoPedido
 
 from .forms import ComponenteFormSet, FormulaForm, OrdemProducaoForm
-from .models import Formula, HistoricoOP, OrdemProducao, StatusOP
+from .models import (
+    ComponenteFormula,
+    Formula,
+    HistoricoOP,
+    OrdemProducao,
+    SnapshotFormulaOP,
+    StatusFormula,
+    StatusOP,
+)
 
 logger = logging.getLogger("fabriq")
 
@@ -162,6 +170,7 @@ class OrdemDetalheView(AcessoModuloMixin, TrilhaAuditoriaMixin, DetailView):
             "criado_por",
             "liberado_por",
             "lote_produto",
+            "snapshot_formula",
         ).prefetch_related(
             "materiais__materia_prima",
             "materiais__embalagem",
@@ -211,6 +220,7 @@ class OrdemLiberarView(AcessoModuloMixin, View):
             ordem.save()
 
             lote = ordem.reservar_lote_produto(request.user)
+            snapshot = SnapshotFormulaOP.congelar(ordem, request.user)
 
             AtividadeOP.registrar(
                 ordem,
@@ -228,12 +238,16 @@ class OrdemLiberarView(AcessoModuloMixin, View):
                 ordem,
                 AcaoAuditoria.LIBERACAO,
                 request.user,
-                valor_novo="OP liberada para produção",
+                valor_novo=(
+                    "OP liberada para produção — fórmula "
+                    f"{snapshot.nome} v{snapshot.versao} congelada"
+                ),
             )
             HistoricoOP.registrar(
                 ordem,
                 request.user,
-                f"OP liberada para produção — lote interno {lote.codigo} reservado",
+                f"OP liberada para produção — lote interno {lote.codigo} "
+                f"reservado e fórmula {snapshot.nome} v{snapshot.versao} congelada",
             )
             HistoricoPedido.registrar(
                 pedido=ordem.pedido,
@@ -363,7 +377,8 @@ class FormulaFormBase(AcessoModuloMixin, SalvarComUsuarioMixin):
         return context
 
     def form_valid(self, form):
-        if form.instance.pk is None:
+        criando = form.instance.pk is None
+        if criando:
             form.instance.criado_por = self.request.user
         form.instance.atualizado_por = self.request.user
         self.object = form.save(commit=False)
@@ -374,12 +389,100 @@ class FormulaFormBase(AcessoModuloMixin, SalvarComUsuarioMixin):
                 self.get_context_data(form=form, componentes_formset=formset)
             )
 
-        with transaction.atomic():
-            self.object.save()
-            formset.save()
+        # Fórmula com OP emitida nunca é alterada no lugar: a edição gera
+        # uma NOVA VERSÃO e a atual vira histórica (PDF 2.4/4.2).
+        versionar = (
+            not criando
+            and (form.has_changed() or formset.has_changed())
+            and OrdemProducao.objects.filter(formula_id=form.instance.pk).exists()
+        )
 
-        messages.success(self.request, f"Fórmula “{self.object}” salva.")
+        if versionar and not (
+            form.cleaned_data.get("justificativa_alteracao") or ""
+        ).strip():
+            # Alterações só nos componentes não passam pelo mixin de
+            # justificativa — mas toda nova versão precisa de motivo.
+            form.add_error(
+                "justificativa_alteracao",
+                "Informe a justificativa para gerar a nova versão da fórmula.",
+            )
+            return self.render_to_response(
+                self.get_context_data(form=form, componentes_formset=formset)
+            )
+
+        if versionar:
+            with transaction.atomic():
+                self.object = self._criar_nova_versao(form, formset)
+            messages.success(
+                self.request,
+                f"A fórmula tinha OP emitida: criada a versão "
+                f"v{self.object.versao} (vigente) — a v{self.object.versao - 1} "
+                "ficou histórica e as OPs existentes não mudam.",
+            )
+            logger.info(
+                "Fórmula %s versionada para v%s por %s",
+                self.object.nome,
+                self.object.versao,
+                self.request.user,
+            )
+        else:
+            self.object.aprovada_por = self.request.user
+            self.object.aprovada_em = timezone.now()
+            with transaction.atomic():
+                self.object.save()
+                formset.save()
+            messages.success(self.request, f"Fórmula “{self.object}” salva.")
         return redirect("ordens:formula_lista")
+
+    def _criar_nova_versao(self, form, formset) -> Formula:
+        """Congela a versão atual como histórica e grava a nova como vigente."""
+        usuario = self.request.user
+        justificativa = (
+            form.cleaned_data.get("justificativa_alteracao") or ""
+        ).strip()
+
+        anterior = Formula.objects.get(pk=form.instance.pk)
+        anterior.status = StatusFormula.HISTORICA
+        anterior.atualizado_por = usuario
+        anterior._justificativa_auditoria = justificativa
+        anterior.save()
+
+        nova = Formula(
+            produto=anterior.produto,
+            nome=form.cleaned_data["nome"],
+            versao=anterior.versao + 1,
+            rendimento=form.cleaned_data["rendimento"],
+            observacoes=form.cleaned_data["observacoes"],
+            ativo=form.cleaned_data["ativo"],
+            aprovada_por=usuario,
+            aprovada_em=timezone.now(),
+            criado_por=usuario,
+            atualizado_por=usuario,
+        )
+        nova._justificativa_auditoria = justificativa
+        nova.save()
+
+        for componente_form in formset.forms:
+            dados = componente_form.cleaned_data
+            if not dados or dados.get("DELETE"):
+                continue
+            ComponenteFormula.objects.create(
+                formula=nova,
+                materia_prima=componente_form.instance.materia_prima,
+                embalagem=componente_form.instance.embalagem,
+                quantidade=dados["quantidade"],
+            )
+
+        auditoria.registrar_evento(
+            anterior,
+            AcaoAuditoria.ALTERACAO,
+            usuario,
+            justificativa=justificativa,
+            campo="versão",
+            valor_anterior=f"v{anterior.versao} vigente",
+            valor_novo=f"substituída pela v{nova.versao}",
+        )
+        return nova
 
 
 class FormulaCriarView(FormulaFormBase, CreateView):
@@ -387,4 +490,13 @@ class FormulaCriarView(FormulaFormBase, CreateView):
 
 
 class FormulaEditarView(TrilhaAuditoriaMixin, FormulaFormBase, UpdateView):
-    pass
+    def dispatch(self, request, *args, **kwargs):
+        formula = self.get_object()
+        if request.user.is_authenticated and not formula.vigente:
+            messages.warning(
+                request,
+                f"A fórmula {formula} é histórica e não pode ser editada — "
+                "altere a versão vigente.",
+            )
+            return redirect("ordens:formula_lista")
+        return super().dispatch(request, *args, **kwargs)

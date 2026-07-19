@@ -186,8 +186,10 @@ class JustificativaObrigatoriaTests(BaseAuditoria):
         self.formula.refresh_from_db()
         self.assertEqual(self.formula.rendimento, Decimal("12"))
 
-        registro = trilha_de(self.formula).filter(acao=AcaoAuditoria.ALTERACAO).get()
-        self.assertEqual(registro.campo, "rendimento")
+        # A tela também grava "aprovada por/em" — filtra o campo crítico
+        registro = trilha_de(self.formula).filter(
+            acao=AcaoAuditoria.ALTERACAO, campo="rendimento"
+        ).get()
         self.assertEqual(registro.valor_anterior, "10")
         self.assertEqual(registro.valor_novo, "12")
         self.assertEqual(registro.usuario, self.usuario)

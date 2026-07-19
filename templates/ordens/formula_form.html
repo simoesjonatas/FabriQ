@@ -30,6 +30,18 @@
                     {% endif %}
                 </h1>
 
+                {% if form.instance.pk and form.instance.tem_op_emitida %}
+                    <div class="alert alert-warning d-flex gap-2" role="alert">
+                        <i class="bi bi-layers" aria-hidden="true"></i>
+                        <div>
+                            Esta fórmula já tem OP emitida. Ao salvar alterações, o sistema
+                            cria a <strong>versão v{{ form.instance.versao|add:1 }}</strong>
+                            (vigente) e congela a v{{ form.instance.versao }} como histórica —
+                            as OPs existentes não mudam.
+                        </div>
+                    </div>
+                {% endif %}
+
                 {% if form.non_field_errors %}
                     <div class="alert alert-danger" role="alert">
                         {% for erro in form.non_field_errors %}{{ erro }}{% endfor %}
@@ -121,8 +133,9 @@
         {% if form.instance.pk %}
             <p class="small text-body-secondary mt-3">
                 <i class="bi bi-info-circle me-1"></i>
-                Alterar a fórmula não muda OPs já emitidas: cada OP guarda o
-                snapshot dos materiais calculados na emissão.
+                Alterar a fórmula nunca muda OPs já emitidas: cada OP congela a
+                versão da fórmula na liberação; alterações em fórmula com OP
+                geram uma nova versão.
             </p>
 
             {% include "includes/trilha_auditoria.html" with registros=registros_auditoria %}

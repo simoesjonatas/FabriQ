@@ -42,7 +42,10 @@
                                         <span class="identifier-cell">{{ formula.produto.codigo }}</span>
                                         · {{ formula.produto.nome }}
                                     </td>
-                                    <td>{{ formula.nome }}</td>
+                                    <td>
+                                        {{ formula.nome }}
+                                        <span class="badge text-bg-light border ms-1">v{{ formula.versao }}</span>
+                                    </td>
                                     <td class="text-end">
                                         {{ formula.rendimento|floatformat:"-3" }}
                                         <span class="text-body-secondary small">
@@ -55,17 +58,24 @@
                                         {% endfor %}
                                     </td>
                                     <td>
-                                        {% if formula.ativo %}
-                                            <span class="badge text-bg-success">Ativa</span>
-                                        {% else %}
+                                        <span class="badge {{ formula.badge_status }}">
+                                            {{ formula.get_status_display }}
+                                        </span>
+                                        {% if not formula.ativo %}
                                             <span class="badge text-bg-secondary">Inativa</span>
                                         {% endif %}
                                     </td>
                                     <td class="text-end">
-                                        <a href="{% url 'ordens:formula_editar' formula.pk %}"
-                                           class="btn btn-sm btn-outline-primary">
-                                            <i class="bi bi-pencil"></i> Editar
-                                        </a>
+                                        {% if formula.vigente %}
+                                            <a href="{% url 'ordens:formula_editar' formula.pk %}"
+                                               class="btn btn-sm btn-outline-primary">
+                                                <i class="bi bi-pencil"></i> Editar
+                                            </a>
+                                        {% else %}
+                                            <span class="text-body-secondary small">
+                                                <i class="bi bi-lock me-1"></i>congelada
+                                            </span>
+                                        {% endif %}
                                     </td>
                                 </tr>
                             {% empty %}

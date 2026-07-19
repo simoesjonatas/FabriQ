@@ -53,6 +53,8 @@ from apps.ordens.models import (
     HistoricoOP,
     MaterialOP,
     OrdemProducao,
+    SnapshotFormulaOP,
+    StatusFormula,
     StatusOP,
 )
 from apps.pcp.models import Programacao
@@ -154,9 +156,10 @@ class Command(BaseCommand):
         ExecucaoOP.objects.all().delete()
         HistoricoOP.objects.all().delete()
         MaterialOP.objects.all().delete()
-        # Atividades são imutáveis para usuários; a recarga da demo usa o
-        # caminho interno para limpar o ambiente de demonstração.
+        # Atividades e snapshots são imutáveis para usuários; a recarga da
+        # demo usa o caminho interno para limpar o ambiente de demonstração.
         models.QuerySet.delete(AtividadeOP.objects.all())
+        models.QuerySet.delete(SnapshotFormulaOP.objects.all())
         OrdemProducao.objects.all().delete()
         AnexoAnalise.objects.all().delete()
         ResultadoAnalise.objects.all().delete()
@@ -262,8 +265,11 @@ class Command(BaseCommand):
             formula, _ = Formula.objects.update_or_create(
                 produto=Produto.objects.get(codigo=codigo_produto),
                 nome=nome,
+                status=StatusFormula.VIGENTE,
                 defaults={
                     "rendimento": rendimento,
+                    "aprovada_por": self.usuarios["ana.pcp"],
+                    "aprovada_em": self.agora,
                     "criado_por": self.usuarios["ana.pcp"],
                     "atualizado_por": self.usuarios["ana.pcp"],
                 },
@@ -619,6 +625,7 @@ class Command(BaseCommand):
         )
         ordem.gerar_materiais()
         lote = ordem.reservar_lote_produto(ana)
+        SnapshotFormulaOP.congelar(ordem, ana)
         AtividadeOP.registrar(
             ordem, TipoAtividadeOP.LIBERACAO, ana, "OP liberada para produção"
         )
