@@ -27,7 +27,7 @@ from django.urls import reverse
 from apps.cadastros.models import Embalagem, Equipamento, MateriaPrima, Produto
 from apps.core import formatos
 from apps.core.models import ModeloAuditado, ModeloBase
-from apps.estoque.models import saldo
+from apps.estoque.models import Lote, criar_lote_interno, saldo
 from apps.pedidos.models import ItemPedido, StatusPedido
 
 # Pedido "aprovado" para fins de OP: já analisado/programado e não encerrado
@@ -207,6 +207,19 @@ class OrdemProducao(ModeloAuditado):
     )
     liberado_em = models.DateTimeField("liberada em", null=True, blank=True)
 
+    lote_produto = models.ForeignKey(
+        Lote,
+        verbose_name="lote do produto acabado",
+        on_delete=models.PROTECT,
+        related_name="ordens_de_producao",
+        null=True,
+        blank=True,
+        help_text=(
+            "Lote interno reservado automaticamente na liberação da OP "
+            "e confirmado na conclusão da produção."
+        ),
+    )
+
     class Meta:
         verbose_name = "ordem de produção"
         verbose_name_plural = "ordens de produção"
@@ -245,6 +258,19 @@ class OrdemProducao(ModeloAuditado):
             StatusOP.LIBERADA,
             StatusOP.EM_PRODUCAO,
         }
+
+    def reservar_lote_produto(self, usuario) -> Lote:
+        """
+        Reserva o lote interno do produto acabado (gerado pela sequência).
+
+        Chamado na liberação da OP — o lote já sai na impressão e nas
+        etiquetas; a entrada em estoque só acontece na conclusão.
+        """
+        if self.lote_produto_id is None:
+            self.lote_produto = criar_lote_interno(self.produto, usuario)
+            self.atualizado_por = usuario
+            self.save()
+        return self.lote_produto
 
     def gerar_materiais(self) -> None:
         """(Re)cria o snapshot de materiais a partir da fórmula."""

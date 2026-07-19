@@ -1,6 +1,7 @@
 from django import forms
 from django.forms import BaseInlineFormSet, inlineformset_factory
 
+from apps.auditoria.forms import JustificativaAuditoriaMixin
 from apps.cadastros.itens import atribuir_item, opcoes_de_itens, resolver_item
 from apps.cadastros.models import Equipamento, Produto
 from apps.core.forms import BootstrapFormMixin
@@ -14,7 +15,7 @@ from .models import (
 )
 
 
-class FormulaForm(BootstrapFormMixin, forms.ModelForm):
+class FormulaForm(JustificativaAuditoriaMixin, BootstrapFormMixin, forms.ModelForm):
     class Meta:
         model = Formula
         fields = ["produto", "nome", "rendimento", "observacoes", "ativo"]
@@ -101,7 +102,7 @@ class ItemPedidoOPChoiceField(forms.ModelChoiceField):
         )
 
 
-class OrdemProducaoForm(BootstrapFormMixin, forms.ModelForm):
+class OrdemProducaoForm(JustificativaAuditoriaMixin, BootstrapFormMixin, forms.ModelForm):
     item_pedido = ItemPedidoOPChoiceField(
         queryset=ItemPedido.objects.none(),
         label="Item do pedido",

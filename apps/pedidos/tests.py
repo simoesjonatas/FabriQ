@@ -206,6 +206,8 @@ class PedidoEditarViewTests(TestCase):
                 "cliente": self.pedido.cliente.pk,
                 "prazo": novo_prazo.isoformat(),
                 "observacoes": "Urgente",
+                # Prazo é campo crítico: a edição exige justificativa
+                "justificativa_alteracao": "Prazo renegociado com o cliente",
                 "itens-TOTAL_FORMS": "1",
                 "itens-INITIAL_FORMS": "1",
                 "itens-MIN_NUM_FORMS": "0",

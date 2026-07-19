@@ -165,7 +165,19 @@ class Pedido(ModeloAuditado):
         if novo_status == StatusPedido.CANCELADO:
             self.motivo_cancelamento = motivo.strip()
         self.atualizado_por = usuario
+        self._justificativa_auditoria = motivo.strip()
         self.save()
+
+        if novo_status == StatusPedido.CANCELADO:
+            from apps.auditoria import servicos as auditoria
+            from apps.auditoria.models import AcaoAuditoria
+
+            auditoria.registrar_evento(
+                self,
+                AcaoAuditoria.CANCELAMENTO,
+                usuario,
+                justificativa=motivo.strip(),
+            )
 
         descricao = (
             f"Status alterado de {dict(StatusPedido.choices)[status_anterior]} "

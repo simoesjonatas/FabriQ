@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>Etiqueta · {{ item.lote.codigo }}</title>
+    <style>
+        * { box-sizing: border-box; }
+        html { background: #fff; }
+        body {
+            font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+            background: #fff;
+            color: #1d2939;
+            max-width: 480px;
+            margin: 0 auto;
+            padding: 16px;
+            font-size: 13px;
+        }
+        .etiqueta {
+            border: 2px solid #1d2939;
+            padding: 14px 16px;
+        }
+        h1 {
+            font-size: 15px;
+            margin: 0 0 10px;
+            text-align: center;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            border-bottom: 2px solid #1d2939;
+            padding-bottom: 8px;
+        }
+        .linha { display: flex; gap: 6px; padding: 3px 0; border-bottom: 1px dotted #d0d5dd; }
+        .linha span { color: #475467; min-width: 165px; }
+        .linha strong { font-weight: 600; }
+        .status { margin-top: 10px; border-top: 2px solid #1d2939; padding-top: 8px; }
+        .status h2 { font-size: 12px; margin: 0 0 6px; text-transform: uppercase; letter-spacing: 0.5px; }
+        .status-opcoes { display: grid; grid-template-columns: 1fr 1fr; gap: 2px 12px; }
+        .caixa { font-size: 13px; padding: 2px 0; }
+        .caixa .marca {
+            display: inline-block;
+            width: 14px; height: 14px;
+            border: 1.5px solid #1d2939;
+            text-align: center; line-height: 12px;
+            margin-right: 6px; font-weight: 700;
+        }
+        .rodape { margin-top: 10px; font-size: 10px; color: #667085; text-align: center; }
+        .no-print { margin: 12px 0; }
+        @media print {
+            .no-print { display: none; }
+            body { padding: 0; }
+        }
+    </style>
+</head>
+<body>
+    <div class="no-print">
+        <button onclick="window.print()">🖨 Imprimir etiqueta</button>
+        <a href="{% url 'recebimento:detalhe' item.recebimento.pk %}">Voltar</a>
+    </div>
+
+    <div class="etiqueta">
+        <h1>
+            {% if item.materia_prima %}Matéria-prima{% elif item.embalagem %}Embalagem{% else %}Produto{% endif %}
+        </h1>
+
+        <div class="linha"><span>Nome:</span><strong>{{ item.item.nome }}</strong></div>
+        <div class="linha"><span>Código interno:</span><strong>{{ item.item.codigo }}</strong></div>
+        <div class="linha"><span>Fornecedor:</span>{{ item.recebimento.fornecedor }}</div>
+        <div class="linha"><span>Nº da Nota Fiscal:</span>{{ item.recebimento.nota_fiscal }}</div>
+        <div class="linha"><span>Lote do Fornecedor:</span>{{ item.lote.lote_fornecedor|default:"—" }}</div>
+        <div class="linha"><span>Lote Interno:</span><strong>{{ item.lote.codigo }}</strong></div>
+        <div class="linha"><span>Quantidade:</span>{{ item.quantidade|floatformat:"-3" }} {{ item.item.get_unidade_display }}</div>
+        <div class="linha"><span>Data de Recebimento:</span>{{ item.recebimento.data_recebimento|date:"d/m/Y" }}</div>
+        <div class="linha"><span>Data de Validade:</span>{{ item.lote.validade|date:"d/m/Y"|default:"—" }}</div>
+        <div class="linha"><span>Cliente:</span>{{ item.recebimento.cliente|default:"—" }}</div>
+
+        <div class="status">
+            <h2>Status</h2>
+            <div class="status-opcoes">
+                {% for valor, rotulo in status_choices %}
+                    <div class="caixa">
+                        <span class="marca">{% if item.status == valor %}X{% endif %}</span>{{ rotulo|upper }}
+                    </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <div class="linha" style="margin-top: 10px;">
+            <span>Data da Liberação CQ:</span>
+            {% if liberacao %}{{ liberacao.data|date:"d/m/Y" }}{% else %}___/___/______{% endif %}
+        </div>
+        <div class="linha">
+            <span>Responsável pela Liberação:</span>
+            {% if liberacao %}{{ liberacao.responsavel }}{% else %}—{% endif %}
+        </div>
+        <div class="linha">
+            <span>Localização:</span>
+            {% for posicao in locais %}{{ posicao.local }}{% if not forloop.last %}, {% endif %}{% empty %}—{% endfor %}
+        </div>
+
+        <div class="rodape">
+            Gerada pelo FabriQ em {{ gerada_em|date:"d/m/Y H:i" }} · {{ item.recebimento.numero }}
+        </div>
+    </div>
+</body>
+</html>

@@ -28,7 +28,7 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
 from django.core.management import call_command
 from django.core.management.base import BaseCommand
-from django.db import transaction
+from django.db import models, transaction
 from django.utils import timezone
 
 from apps.accounts import perfis
@@ -40,7 +40,13 @@ from apps.cadastros.models import (
     MateriaPrima,
     Produto,
 )
-from apps.estoque.models import LocalEstoque, Lote, Movimentacao, TipoMovimentacao
+from apps.estoque.models import (
+    LocalEstoque,
+    Lote,
+    Movimentacao,
+    SequenciaLote,
+    TipoMovimentacao,
+)
 from apps.ordens.models import (
     ComponenteFormula,
     Formula,
@@ -51,7 +57,14 @@ from apps.ordens.models import (
 )
 from apps.pcp.models import Programacao
 from apps.pedidos.models import HistoricoPedido, ItemPedido, Pedido, StatusPedido
-from apps.producao.models import ExecucaoOP, FotoProducao, Ocorrencia, Parada
+from apps.producao.models import (
+    AtividadeOP,
+    ExecucaoOP,
+    FotoProducao,
+    Ocorrencia,
+    Parada,
+    TipoAtividadeOP,
+)
 from apps.qualidade.models import Analise, AnexoAnalise, ResultadoAnalise, StatusAnalise, TipoAnalise
 from apps.recebimento.models import (
     AnexoRecebimento,
@@ -141,6 +154,9 @@ class Command(BaseCommand):
         ExecucaoOP.objects.all().delete()
         HistoricoOP.objects.all().delete()
         MaterialOP.objects.all().delete()
+        # Atividades são imutáveis para usuários; a recarga da demo usa o
+        # caminho interno para limpar o ambiente de demonstração.
+        models.QuerySet.delete(AtividadeOP.objects.all())
         OrdemProducao.objects.all().delete()
         AnexoAnalise.objects.all().delete()
         ResultadoAnalise.objects.all().delete()
@@ -152,6 +168,7 @@ class Command(BaseCommand):
         Programacao.objects.all().delete()
         Movimentacao.objects.all().delete()
         Lote.objects.all().delete()
+        SequenciaLote.objects.all().delete()
         HistoricoPedido.objects.all().delete()
         ItemPedido.objects.all().delete()
         Pedido.objects.all().delete()
@@ -601,17 +618,31 @@ class Command(BaseCommand):
             atualizado_por=ana,
         )
         ordem.gerar_materiais()
+        lote = ordem.reservar_lote_produto(ana)
+        AtividadeOP.registrar(
+            ordem, TipoAtividadeOP.LIBERACAO, ana, "OP liberada para produção"
+        )
+        AtividadeOP.registrar(
+            ordem,
+            TipoAtividadeOP.ATRIBUICAO_LOTE,
+            ana,
+            f"Lote interno {lote.codigo} reservado",
+        )
         HistoricoOP.registrar(ordem, ana, "OP emitida")
-        HistoricoOP.registrar(ordem, ana, "OP liberada para produção")
+        HistoricoOP.registrar(
+            ordem,
+            ana,
+            f"OP liberada para produção — lote interno {lote.codigo} reservado",
+        )
         return ordem
 
-    def _produzir(self, ordem, operador, produzido, perdas, lote_codigo, dias_atras):
+    def _produzir(self, ordem, operador, produzido, perdas, chave_lote, dias_atras):
+        """`chave_lote` é só a chave em self.lotes — o código interno é automático."""
         execucao = ExecucaoOP.iniciar(ordem, operador)
         execucao.concluir(
             usuario=operador,
             quantidade_produzida=Decimal(produzido),
             perdas=Decimal(perdas),
-            lote_codigo=lote_codigo,
             validade=self.hoje + timedelta(days=540),
             local_destino=self.locais["Produtos Acabados"],
         )
@@ -620,23 +651,37 @@ class Command(BaseCommand):
         ExecucaoOP.objects.filter(pk=execucao.pk).update(
             iniciado_em=inicio, concluido_em=fim
         )
-        self.lotes[lote_codigo] = Lote.objects.get(
-            produto=ordem.produto, codigo=lote_codigo
-        )
+        self.lotes[chave_lote] = execucao.lote_produzido
 
-    def _lote(self, material, codigo, dias_validade):
-        campo = self._campo(material)
+    def _lote(self, material, lote_fornecedor, dias_validade):
+        """
+        Lote com código interno automático; o código "de demonstração"
+        vira o lote do fornecedor e continua sendo a chave em self.lotes.
+        """
+        from apps.estoque.models import criar_lote_interno
+
         validade = (
             self.hoje + timedelta(days=dias_validade)
             if dias_validade is not None
             else None
         )
-        lote, _ = Lote.objects.get_or_create(
-            codigo=codigo,
-            **{campo: material},
-            defaults={"validade": validade},
+        lote = next(
+            (
+                existente
+                for existente in self.lotes.values()
+                if existente.lote_fornecedor == lote_fornecedor
+                and existente.item == material
+            ),
+            None,
         )
-        self.lotes[codigo] = lote
+        if lote is None:
+            lote = criar_lote_interno(
+                material,
+                self.usuarios["jose.almoxarife"],
+                validade=validade,
+                lote_fornecedor=lote_fornecedor,
+            )
+        self.lotes[lote_fornecedor] = lote
         return lote
 
     def _mover(self, tipo, material, quantidade, *, usuario, motivo,

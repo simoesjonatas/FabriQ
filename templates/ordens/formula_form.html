@@ -92,6 +92,12 @@
                         </template>
                     </div>
 
+                    {% if form.justificativa_alteracao %}
+                        <div class="form-section-panel mb-3">
+                            {% include "includes/campo.html" with campo=form.justificativa_alteracao %}
+                        </div>
+                    {% endif %}
+
                     <div class="form-actions-bar">
                         <a href="{% url 'ordens:formula_lista' %}" class="btn btn-outline-secondary">Cancelar</a>
                         <button type="submit" class="btn btn-primary">
@@ -118,6 +124,8 @@
                 Alterar a fórmula não muda OPs já emitidas: cada OP guarda o
                 snapshot dos materiais calculados na emissão.
             </p>
+
+            {% include "includes/trilha_auditoria.html" with registros=registros_auditoria %}
         {% endif %}
     </div>
 </div>

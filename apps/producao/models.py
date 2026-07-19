@@ -23,6 +23,7 @@ from django.core.validators import FileExtensionValidator
 from django.db import models
 from django.utils import timezone
 
+from apps.auditoria.models import TrilhaImutavelError
 from apps.cadastros.itens import campo_do_item
 from apps.core import formatos
 from apps.core.models import ModeloAuditado
@@ -38,6 +39,87 @@ from apps.pedidos.models import HistoricoPedido, StatusPedido
 
 class ProducaoInsuficiente(Exception):
     """Estoque disponível não cobre um material necessário à conclusão."""
+
+
+class TipoAtividadeOP(models.TextChoices):
+    LIBERACAO = "LIBERACAO", "Liberação da OP"
+    ATRIBUICAO_LOTE = "ATRIBUICAO_LOTE", "Atribuição de lote"
+    SEPARACAO = "SEPARACAO", "Separação de materiais"
+    PRODUCAO = "PRODUCAO", "Produção"
+    ENVASE = "ENVASE", "Envase"
+    CONFERENCIA = "CONFERENCIA", "Conferência"
+    OUTRO = "OUTRO", "Outro"
+
+
+# Atividades que o operador registra manualmente na tela da OP em
+# produção; as demais são geradas pelos próprios fluxos do sistema.
+ATIVIDADES_MANUAIS = [
+    TipoAtividadeOP.SEPARACAO,
+    TipoAtividadeOP.ENVASE,
+    TipoAtividadeOP.CONFERENCIA,
+    TipoAtividadeOP.OUTRO,
+]
+
+
+class AtividadeOPQuerySet(models.QuerySet):
+    def update(self, **kwargs):
+        raise TrilhaImutavelError("Atividades da OP não podem ser alteradas.")
+
+    def delete(self):
+        raise TrilhaImutavelError("Atividades da OP não podem ser excluídas.")
+
+
+class AtividadeOP(models.Model):
+    """
+    Quem fez o quê na OP (Etapa 2c do plano de correções): registro
+    imutável por atividade — produção, envase, atribuição de lote,
+    separação, conferência — com funcionário, data/hora e observação.
+    """
+
+    ordem = models.ForeignKey(
+        OrdemProducao,
+        verbose_name="ordem de produção",
+        on_delete=models.PROTECT,
+        related_name="atividades",
+    )
+    atividade = models.CharField(
+        "atividade", max_length=20, choices=TipoAtividadeOP.choices
+    )
+    funcionario = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        verbose_name="funcionário",
+        on_delete=models.PROTECT,
+        related_name="atividades_de_op",
+    )
+    data = models.DateTimeField("data", auto_now_add=True)
+    observacao = models.CharField("observação", max_length=200, blank=True)
+
+    objects = AtividadeOPQuerySet.as_manager()
+
+    class Meta:
+        verbose_name = "atividade da OP"
+        verbose_name_plural = "atividades da OP"
+        ordering = ["data", "id"]
+
+    def __str__(self) -> str:
+        return f"{self.get_atividade_display()} · {self.ordem.numero} · {self.funcionario}"
+
+    def save(self, *args, **kwargs):
+        if not self._state.adding:
+            raise TrilhaImutavelError("Atividades da OP não podem ser alteradas.")
+        super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise TrilhaImutavelError("Atividades da OP não podem ser excluídas.")
+
+    @classmethod
+    def registrar(cls, ordem, atividade, funcionario, observacao=""):
+        return cls.objects.create(
+            ordem=ordem,
+            atividade=atividade,
+            funcionario=funcionario,
+            observacao=observacao,
+        )
 
 
 def consumir_material_fefo(item, quantidade, *, usuario, motivo, documento, excluir_local):
@@ -171,6 +253,10 @@ class ExecucaoOP(ModeloAuditado):
         ordem.atualizado_por = usuario
         ordem.save()
 
+        AtividadeOP.registrar(
+            ordem, TipoAtividadeOP.PRODUCAO, usuario, "Produção iniciada"
+        )
+
         pedido = ordem.pedido
         if pedido.status == StatusPedido.PROGRAMADO:
             pedido.transicionar(StatusPedido.EM_PRODUCAO, usuario)
@@ -188,14 +274,14 @@ class ExecucaoOP(ModeloAuditado):
         usuario,
         quantidade_produzida,
         perdas,
-        lote_codigo,
         validade,
         local_destino,
     ) -> None:
         """
         Conclui a produção: consome materiais (FEFO, fora da quarentena)
-        e dá entrada do produto acabado. Deve rodar dentro de uma
-        transação (a view garante transaction.atomic).
+        e dá entrada do produto acabado no lote interno reservado na
+        liberação da OP. Deve rodar dentro de uma transação (a view
+        garante transaction.atomic).
         """
         from apps.ordens.models import HistoricoOP
         from apps.recebimento.models import local_quarentena
@@ -217,15 +303,21 @@ class ExecucaoOP(ModeloAuditado):
             )
 
         produto = self.ordem.produto
-        lote_produto, _criado = Lote.objects.get_or_create(
-            produto=produto,
-            codigo=lote_codigo,
-            defaults={
-                "validade": validade,
-                "criado_por": usuario,
-                "atualizado_por": usuario,
-            },
-        )
+        # OPs liberadas antes da automação do lote interno não têm
+        # reserva — o lote é gerado agora, pela mesma sequência.
+        sem_lote_reservado = self.ordem.lote_produto_id is None
+        lote_produto = self.ordem.reservar_lote_produto(usuario)
+        if sem_lote_reservado:
+            AtividadeOP.registrar(
+                self.ordem,
+                TipoAtividadeOP.ATRIBUICAO_LOTE,
+                usuario,
+                f"Lote interno {lote_produto.codigo} atribuído na conclusão",
+            )
+        if validade and lote_produto.validade != validade:
+            lote_produto.validade = validade
+            lote_produto.salvar_com_usuario(usuario)
+        lote_codigo = lote_produto.codigo
 
         entrada = Movimentacao(
             tipo=TipoMovimentacao.ENTRADA,
@@ -252,6 +344,13 @@ class ExecucaoOP(ModeloAuditado):
         self.ordem.status = StatusOP.CONCLUIDA
         self.ordem.atualizado_por = usuario
         self.ordem.save()
+
+        AtividadeOP.registrar(
+            self.ordem,
+            TipoAtividadeOP.PRODUCAO,
+            usuario,
+            f"Produção concluída no lote {lote_codigo}",
+        )
 
         HistoricoOP.registrar(
             self.ordem,

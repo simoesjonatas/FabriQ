@@ -6,6 +6,7 @@ from django.views.decorators.http import require_GET
 from django.views.generic import CreateView, ListView, TemplateView, UpdateView
 
 from apps.accounts.mixins import AcessoModuloMixin
+from apps.auditoria.views import TrilhaAuditoriaMixin
 
 
 @require_GET
@@ -99,5 +100,5 @@ class CadastroCreateView(CadastroFormMixin, CreateView):
     success_message = "Registro cadastrado com sucesso."
 
 
-class CadastroUpdateView(CadastroFormMixin, UpdateView):
+class CadastroUpdateView(CadastroFormMixin, TrilhaAuditoriaMixin, UpdateView):
     success_message = "Registro atualizado com sucesso."

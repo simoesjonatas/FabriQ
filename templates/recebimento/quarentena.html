@@ -56,7 +56,17 @@
                                         <span class="identifier-cell">{{ item.item.codigo }}</span>
                                         · {{ item.item.nome }}
                                     </td>
-                                    <td>{{ item.lote.codigo }}</td>
+                                    <td>
+                                        {{ item.lote.codigo }}
+                                        <a href="{% url 'recebimento:etiqueta' item.pk %}" target="_blank" rel="noopener"
+                                           class="ms-1 text-decoration-none" data-no-page-loading
+                                           title="Imprimir etiqueta de identificação">
+                                            <i class="bi bi-printer"></i>
+                                        </a>
+                                        {% if item.lote.lote_fornecedor %}
+                                            <div class="small text-body-secondary">forn.: {{ item.lote.lote_fornecedor }}</div>
+                                        {% endif %}
+                                    </td>
                                     <td>{{ item.lote.validade|date:"d/m/Y"|default:"—" }}</td>
                                     <td class="text-end">{{ item.quantidade|floatformat:"-3" }}</td>
                                     <td>

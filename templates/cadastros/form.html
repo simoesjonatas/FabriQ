@@ -189,6 +189,10 @@ A view (CadastroCreateView/CadastroUpdateView) fornece: titulo, url_lista.
                 </div>
             {% endif %}
         </div>
+
+        {% if form.instance.pk %}
+            {% include "includes/trilha_auditoria.html" with registros=registros_auditoria %}
+        {% endif %}
     </div>
 </div>
 {% endblock %}

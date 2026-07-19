@@ -13,12 +13,13 @@ from apps.accounts.mixins import AcessoModuloMixin
 from apps.ordens.models import OrdemProducao, StatusOP
 
 from .forms import (
+    AtividadeOPForm,
     ConcluirProducaoForm,
     FotoProducaoForm,
     OcorrenciaForm,
     ParadaForm,
 )
-from .models import ExecucaoOP, Parada, ProducaoInsuficiente
+from .models import AtividadeOP, ExecucaoOP, Parada, ProducaoInsuficiente
 
 logger = logging.getLogger("fabriq")
 
@@ -91,9 +92,11 @@ class PainelView(AcessoModuloMixin, DetailView):
             "formula",
             "equipamento",
             "operador",
+            "lote_produto",
         ).prefetch_related(
             "materiais__materia_prima",
             "materiais__embalagem",
+            "atividades__funcionario",
             "execucao__paradas__registrado_por",
             "execucao__ocorrencias__registrado_por",
             "execucao__fotos",
@@ -109,6 +112,7 @@ class PainelView(AcessoModuloMixin, DetailView):
         context["parada_form"] = ParadaForm()
         context["ocorrencia_form"] = OcorrenciaForm()
         context["foto_form"] = FotoProducaoForm()
+        context["atividade_form"] = AtividadeOPForm()
         context["concluir_form"] = ConcluirProducaoForm(
             excluir_local=local_quarentena()
         )
@@ -225,6 +229,31 @@ class FotoView(_ExecucaoActionView):
         return redirect("producao:painel", pk=ordem.pk)
 
 
+class AtividadeView(_ExecucaoActionView):
+    """Registro manual de "quem fez o quê" durante a produção."""
+
+    def post(self, request, pk):
+        execucao, ordem = self.get_execucao_em_andamento(request, pk)
+        if execucao is None:
+            return redirect("producao:painel", pk=ordem.pk)
+
+        form = AtividadeOPForm(request.POST)
+        if form.is_valid():
+            atividade = AtividadeOP.registrar(
+                ordem,
+                form.cleaned_data["atividade"],
+                request.user,
+                form.cleaned_data["observacao"],
+            )
+            messages.success(
+                request,
+                f"Atividade “{atividade.get_atividade_display()}” registrada.",
+            )
+        else:
+            messages.error(request, "Selecione uma atividade válida.")
+        return redirect("producao:painel", pk=ordem.pk)
+
+
 class ConcluirView(_ExecucaoActionView):
     def post(self, request, pk):
         from apps.recebimento.models import local_quarentena
@@ -253,7 +282,6 @@ class ConcluirView(_ExecucaoActionView):
                     usuario=request.user,
                     quantidade_produzida=form.cleaned_data["quantidade_produzida"],
                     perdas=form.cleaned_data["perdas"],
-                    lote_codigo=form.cleaned_data["lote_codigo"].strip(),
                     validade=form.cleaned_data["lote_validade"],
                     local_destino=form.cleaned_data["local_destino"],
                 )

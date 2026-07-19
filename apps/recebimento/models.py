@@ -21,7 +21,7 @@ from django.db.models import Q
 from django.urls import reverse
 from django.utils import timezone
 
-from apps.cadastros.models import Embalagem, Fornecedor, MateriaPrima, Produto
+from apps.cadastros.models import Cliente, Embalagem, Fornecedor, MateriaPrima, Produto
 from apps.core.models import ModeloAuditado
 from apps.estoque.models import LocalEstoque, Lote
 
@@ -43,6 +43,15 @@ class Recebimento(ModeloAuditado):
         verbose_name="fornecedor",
         on_delete=models.PROTECT,
         related_name="recebimentos",
+    )
+    cliente = models.ForeignKey(
+        Cliente,
+        verbose_name="cliente (terceirização)",
+        on_delete=models.PROTECT,
+        related_name="recebimentos",
+        null=True,
+        blank=True,
+        help_text="Preencha quando o material pertence a um cliente — sai na etiqueta.",
     )
     nota_fiscal = models.CharField("nota fiscal", max_length=60)
     data_recebimento = models.DateField("data do recebimento", default=timezone.localdate)
@@ -66,14 +75,25 @@ class Recebimento(ModeloAuditado):
 
 class StatusQuarentena(models.TextChoices):
     EM_QUARENTENA = "EM_QUARENTENA", "Em quarentena"
+    EM_ANALISE = "EM_ANALISE", "Em análise"
     LIBERADO = "LIBERADO", "Liberado"
     REPROVADO = "REPROVADO", "Reprovado"
     BLOQUEADO = "BLOQUEADO", "Bloqueado"
+    DEVOLVIDO = "DEVOLVIDO", "Devolvido"
 
 
-# Decisões possíveis a partir de cada status
+# Decisões possíveis a partir de cada status. "Em análise" e "Devolvido"
+# entraram na Etapa 2b (etiqueta do Anexo A): a Qualidade sinaliza o
+# início da análise, e o material reprovado/bloqueado pode ser devolvido
+# ao fornecedor (a saída física é uma movimentação de estoque à parte).
 DECISOES_POSSIVEIS = {
     StatusQuarentena.EM_QUARENTENA: [
+        StatusQuarentena.EM_ANALISE,
+        StatusQuarentena.LIBERADO,
+        StatusQuarentena.BLOQUEADO,
+        StatusQuarentena.REPROVADO,
+    ],
+    StatusQuarentena.EM_ANALISE: [
         StatusQuarentena.LIBERADO,
         StatusQuarentena.BLOQUEADO,
         StatusQuarentena.REPROVADO,
@@ -82,15 +102,18 @@ DECISOES_POSSIVEIS = {
         StatusQuarentena.LIBERADO,
         StatusQuarentena.REPROVADO,
     ],
+    StatusQuarentena.REPROVADO: [StatusQuarentena.DEVOLVIDO],
     StatusQuarentena.LIBERADO: [],
-    StatusQuarentena.REPROVADO: [],
+    StatusQuarentena.DEVOLVIDO: [],
 }
 
 BADGE_POR_STATUS_QUARENTENA = {
     StatusQuarentena.EM_QUARENTENA: "text-bg-warning",
+    StatusQuarentena.EM_ANALISE: "text-bg-info",
     StatusQuarentena.LIBERADO: "text-bg-success",
     StatusQuarentena.REPROVADO: "text-bg-danger",
     StatusQuarentena.BLOQUEADO: "text-bg-dark",
+    StatusQuarentena.DEVOLVIDO: "text-bg-secondary",
 }
 
 

@@ -1,13 +1,14 @@
 from django import forms
 from django.forms import BaseInlineFormSet, inlineformset_factory
 
+from apps.auditoria.forms import JustificativaAuditoriaMixin
 from apps.cadastros.models import Cliente, Produto
 from apps.core.forms import BootstrapFormMixin
 
 from .models import ItemPedido, Pedido
 
 
-class PedidoForm(BootstrapFormMixin, forms.ModelForm):
+class PedidoForm(JustificativaAuditoriaMixin, BootstrapFormMixin, forms.ModelForm):
     class Meta:
         model = Pedido
         fields = ["cliente", "prazo", "observacoes"]

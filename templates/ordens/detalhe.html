@@ -93,6 +93,18 @@
                     </div>
                 </div>
 
+                <div class="card shadow-sm mb-4">
+                    <div class="card-body">
+                        <div class="section-heading">
+                            <div>
+                                <h2><i class="bi bi-people me-1 text-primary"></i>Quem fez o quê</h2>
+                                <p>Responsável por cada atividade da OP, com data e hora.</p>
+                            </div>
+                        </div>
+                        {% include "includes/atividades_op.html" with atividades=ordem.atividades.all %}
+                    </div>
+                </div>
+
                 <div class="card shadow-sm">
                     <div class="card-body">
                         <div class="section-heading">
@@ -171,6 +183,15 @@
                                 {{ ordem.formula.nome }}
                                 (rende {{ ordem.formula.rendimento|floatformat:"-3" }})
                             </dd>
+                            <dt class="col-5">Lote do produto</dt>
+                            <dd class="col-7">
+                                {% if ordem.lote_produto %}
+                                    {{ ordem.lote_produto.codigo }}
+                                    <span class="text-body-secondary small">(interno)</span>
+                                {% else %}
+                                    <span class="text-body-secondary">reservado na liberação</span>
+                                {% endif %}
+                            </dd>
                             <dt class="col-5">Equipamento</dt>
                             <dd class="col-7">{{ ordem.equipamento|default:"—" }}</dd>
                             <dt class="col-5">Operador</dt>
@@ -204,6 +225,8 @@
                 {% endif %}
             </div>
         </div>
+
+        {% include "includes/trilha_auditoria.html" with registros=registros_auditoria %}
     </div>
 </div>
 

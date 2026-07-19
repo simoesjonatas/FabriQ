@@ -10,6 +10,9 @@ from django.views import View
 from django.views.generic import CreateView, DetailView, ListView, UpdateView
 
 from apps.accounts.mixins import AcessoModuloMixin
+from apps.auditoria import servicos as auditoria
+from apps.auditoria.models import AcaoAuditoria
+from apps.auditoria.views import TrilhaAuditoriaMixin
 from apps.core import formatos
 from apps.core.views import SalvarComUsuarioMixin
 from apps.pedidos.models import HistoricoPedido
@@ -143,7 +146,7 @@ class OrdemEditarView(OrdemFormBase, UpdateView):
         return super().dispatch(request, *args, **kwargs)
 
 
-class OrdemDetalheView(AcessoModuloMixin, DetailView):
+class OrdemDetalheView(AcessoModuloMixin, TrilhaAuditoriaMixin, DetailView):
     modulo = MODULO
     model = OrdemProducao
     template_name = "ordens/detalhe.html"
@@ -158,10 +161,12 @@ class OrdemDetalheView(AcessoModuloMixin, DetailView):
             "operador",
             "criado_por",
             "liberado_por",
+            "lote_produto",
         ).prefetch_related(
             "materiais__materia_prima",
             "materiais__embalagem",
             "historico__usuario",
+            "atividades__funcionario",
         )
 
     def get_context_data(self, **kwargs):
@@ -196,6 +201,8 @@ class OrdemLiberarView(AcessoModuloMixin, View):
             )
             return redirect(ordem.get_absolute_url())
 
+        from apps.producao.models import AtividadeOP, TipoAtividadeOP
+
         with transaction.atomic():
             ordem.status = StatusOP.LIBERADA
             ordem.liberado_por = request.user
@@ -203,7 +210,31 @@ class OrdemLiberarView(AcessoModuloMixin, View):
             ordem.atualizado_por = request.user
             ordem.save()
 
-            HistoricoOP.registrar(ordem, request.user, "OP liberada para produção")
+            lote = ordem.reservar_lote_produto(request.user)
+
+            AtividadeOP.registrar(
+                ordem,
+                TipoAtividadeOP.LIBERACAO,
+                request.user,
+                "OP liberada para produção",
+            )
+            AtividadeOP.registrar(
+                ordem,
+                TipoAtividadeOP.ATRIBUICAO_LOTE,
+                request.user,
+                f"Lote interno {lote.codigo} reservado",
+            )
+            auditoria.registrar_evento(
+                ordem,
+                AcaoAuditoria.LIBERACAO,
+                request.user,
+                valor_novo="OP liberada para produção",
+            )
+            HistoricoOP.registrar(
+                ordem,
+                request.user,
+                f"OP liberada para produção — lote interno {lote.codigo} reservado",
+            )
             HistoricoPedido.registrar(
                 pedido=ordem.pedido,
                 usuario=request.user,
@@ -211,7 +242,9 @@ class OrdemLiberarView(AcessoModuloMixin, View):
             )
 
         messages.success(
-            request, f"OP {ordem.numero} liberada para produção."
+            request,
+            f"OP {ordem.numero} liberada para produção — "
+            f"lote interno {lote.codigo} reservado.",
         )
         logger.info("OP %s liberada por %s", ordem.numero, request.user)
         return redirect(ordem.get_absolute_url())
@@ -238,8 +271,15 @@ class OrdemCancelarView(AcessoModuloMixin, View):
             ordem.status = StatusOP.CANCELADA
             ordem.motivo_cancelamento = motivo
             ordem.atualizado_por = request.user
+            ordem._justificativa_auditoria = motivo
             ordem.save()
 
+            auditoria.registrar_evento(
+                ordem,
+                AcaoAuditoria.CANCELAMENTO,
+                request.user,
+                justificativa=motivo,
+            )
             HistoricoOP.registrar(
                 ordem, request.user, f"OP cancelada. Motivo: {motivo}"
             )
@@ -346,5 +386,5 @@ class FormulaCriarView(FormulaFormBase, CreateView):
     pass
 
 
-class FormulaEditarView(FormulaFormBase, UpdateView):
+class FormulaEditarView(TrilhaAuditoriaMixin, FormulaFormBase, UpdateView):
     pass

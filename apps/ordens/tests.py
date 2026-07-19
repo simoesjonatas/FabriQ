@@ -160,7 +160,12 @@ class EmissaoOPTests(BaseOrdens):
     def test_editar_recalcula_materiais(self):
         ordem = self.criar_op(quantidade="50")
         self.client.post(
-            reverse("ordens:editar", args=[ordem.pk]), self.dados_op(quantidade="100")
+            reverse("ordens:editar", args=[ordem.pk]),
+            # Quantidade é campo crítico: a edição exige justificativa
+            self.dados_op(
+                quantidade="100",
+                justificativa_alteracao="Cliente dobrou o pedido",
+            ),
         )
         material = ordem.materiais.get()
         self.assertEqual(material.quantidade_necessaria, Decimal("40"))
@@ -196,6 +201,31 @@ class LiberacaoTests(BaseOrdens):
         self.assertIsNotNone(ordem.liberado_em)
         descricoes = [h.descricao for h in ordem.historico.all()]
         self.assertTrue(any("liberada" in d for d in descricoes))
+
+    def test_liberacao_reserva_lote_interno_do_produto(self):
+        entrada_estoque({"materia_prima": self.mp}, "30", self.deposito)
+        ordem = self.criar_op(quantidade="50")
+        self.assertIsNone(ordem.lote_produto)
+
+        self.liberar(ordem)
+        ordem.refresh_from_db()
+        self.assertIsNotNone(ordem.lote_produto)
+        self.assertRegex(ordem.lote_produto.codigo, r"^PA-\d{4}-00001$")
+        self.assertEqual(ordem.lote_produto.produto, ordem.produto)
+
+        # A reserva aparece no histórico e na tela de detalhe
+        descricoes = [h.descricao for h in ordem.historico.all()]
+        self.assertTrue(any(ordem.lote_produto.codigo in d for d in descricoes))
+        response = self.client.get(reverse("ordens:detalhe", args=[ordem.pk]))
+        self.assertContains(response, ordem.lote_produto.codigo)
+
+        # E gera as atividades "Liberação" e "Atribuição de lote" (Etapa 2c)
+        from apps.producao.models import TipoAtividadeOP
+
+        atividades = list(ordem.atividades.values_list("atividade", flat=True))
+        self.assertIn(TipoAtividadeOP.LIBERACAO, atividades)
+        self.assertIn(TipoAtividadeOP.ATRIBUICAO_LOTE, atividades)
+        self.assertContains(response, "Quem fez o quê")
 
     def test_nao_libera_sem_estoque(self):
         entrada_estoque({"materia_prima": self.mp}, "10", self.deposito)  # < 20

@@ -86,7 +86,12 @@
                                         <span class="identifier-cell">{{ movimentacao.item.codigo }}</span>
                                         · {{ movimentacao.item.nome }}
                                     </td>
-                                    <td>{{ movimentacao.lote.codigo|default:"—" }}</td>
+                                    <td>
+                                        {{ movimentacao.lote.codigo|default:"—" }}
+                                        {% if movimentacao.lote.lote_fornecedor %}
+                                            <div class="small text-body-secondary">forn.: {{ movimentacao.lote.lote_fornecedor }}</div>
+                                        {% endif %}
+                                    </td>
                                     <td class="text-end">{{ movimentacao.quantidade|floatformat:"-3" }}</td>
                                     <td>
                                         {{ movimentacao.local_origem.nome|default:"—" }}

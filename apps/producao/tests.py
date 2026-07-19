@@ -95,7 +95,6 @@ class BaseProducao(TestCase):
         dados = {
             "quantidade_produzida": "50",
             "perdas": "2",
-            "lote_codigo": "PA-LOTE-01",
             "lote_validade": "",
             "local_destino": str(self.acabados.pk),
         }
@@ -152,7 +151,9 @@ class ConcluirTests(BaseProducao):
         self.assertEqual(saldo(self.mp), Decimal("10"))
         # Produto acabado entrou: 50 no local de acabados
         self.assertEqual(saldo(self.produto, local=self.acabados), Decimal("50"))
-        self.assertEqual(ordem.execucao.lote_produzido.codigo, "PA-LOTE-01")
+        # Lote interno gerado automaticamente pela sequência
+        self.assertRegex(ordem.execucao.lote_produzido.codigo, r"^PA-\d{4}-\d{5}$")
+        self.assertEqual(ordem.execucao.lote_produzido, ordem.lote_produto)
 
     def test_conclusao_bloqueada_por_estoque_insuficiente(self):
         entrada({"materia_prima": self.mp}, "10", self.deposito)  # < 20
@@ -166,6 +167,94 @@ class ConcluirTests(BaseProducao):
         # Nenhuma saída nem entrada de acabado foi criada
         self.assertEqual(saldo(self.mp), Decimal("10"))
         self.assertEqual(saldo(self.produto), Decimal("0"))
+
+
+class AtividadeOPTests(BaseProducao):
+    """Etapa 2c: quem fez o quê na OP."""
+
+    def iniciar(self, quantidade="50"):
+        ordem = self.criar_op_liberada(quantidade)
+        self.client.post(reverse("producao:iniciar", args=[ordem.pk]))
+        ordem.refresh_from_db()
+        return ordem
+
+    def test_iniciar_e_concluir_registram_atividades_automaticas(self):
+        from .models import TipoAtividadeOP
+
+        entrada({"materia_prima": self.mp}, "30", self.deposito)
+        ordem = self.iniciar()
+        atividades = list(ordem.atividades.values_list("atividade", flat=True))
+        self.assertIn(TipoAtividadeOP.PRODUCAO, atividades)
+
+        self.client.post(
+            reverse("producao:concluir", args=[ordem.pk]), self.dados_conclusao()
+        )
+        ordem.refresh_from_db()
+        atividades = list(
+            ordem.atividades.values_list("atividade", "observacao")
+        )
+        # OP de teste não tinha lote reservado → atribuição na conclusão
+        observacao_lote = (
+            f"Lote interno {ordem.lote_produto.codigo} atribuído na conclusão"
+        )
+        self.assertIn(
+            (TipoAtividadeOP.ATRIBUICAO_LOTE, observacao_lote), atividades
+        )
+        conclusoes = [
+            obs for tipo, obs in atividades
+            if tipo == TipoAtividadeOP.PRODUCAO and "concluída" in obs
+        ]
+        self.assertEqual(len(conclusoes), 1)
+        self.assertEqual(
+            ordem.atividades.last().funcionario, self.operador
+        )
+
+    def test_registro_manual_de_envase_aparece_no_painel(self):
+        from .models import TipoAtividadeOP
+
+        ordem = self.iniciar()
+        response = self.client.post(
+            reverse("producao:atividade", args=[ordem.pk]),
+            {"atividade": TipoAtividadeOP.ENVASE, "observacao": "Linha 2, frascos 250 ml"},
+        )
+        self.assertRedirects(response, reverse("producao:painel", args=[ordem.pk]))
+
+        envase = ordem.atividades.get(atividade=TipoAtividadeOP.ENVASE)
+        self.assertEqual(envase.funcionario, self.operador)
+        self.assertEqual(envase.observacao, "Linha 2, frascos 250 ml")
+
+        painel = self.client.get(reverse("producao:painel", args=[ordem.pk]))
+        self.assertContains(painel, "Quem fez o quê")
+        self.assertContains(painel, "Envase")
+        self.assertContains(painel, "Linha 2, frascos 250 ml")
+
+    def test_atividade_automatica_nao_e_opcao_manual(self):
+        from .models import TipoAtividadeOP
+
+        ordem = self.iniciar()
+        self.client.post(
+            reverse("producao:atividade", args=[ordem.pk]),
+            {"atividade": TipoAtividadeOP.LIBERACAO, "observacao": "forjada"},
+        )
+        self.assertFalse(
+            ordem.atividades.filter(observacao="forjada").exists()
+        )
+
+    def test_atividade_e_imutavel(self):
+        from apps.auditoria.models import TrilhaImutavelError
+
+        from .models import AtividadeOP, TipoAtividadeOP
+
+        ordem = self.iniciar()
+        atividade = ordem.atividades.get(atividade=TipoAtividadeOP.PRODUCAO)
+
+        atividade.observacao = "adulterada"
+        with self.assertRaises(TrilhaImutavelError):
+            atividade.save()
+        with self.assertRaises(TrilhaImutavelError):
+            atividade.delete()
+        with self.assertRaises(TrilhaImutavelError):
+            AtividadeOP.objects.all().delete()
 
     def test_estoque_em_quarentena_nao_e_consumido(self):
         entrada({"materia_prima": self.mp}, "30", local_quarentena())

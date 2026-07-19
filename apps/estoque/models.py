@@ -17,7 +17,7 @@ from decimal import Decimal
 
 from django.core.exceptions import ValidationError
 from django.core.validators import MinValueValidator
-from django.db import models
+from django.db import models, transaction
 from django.db.models import Q, Sum
 from django.utils import timezone
 
@@ -54,9 +54,19 @@ class Lote(ModeloAuditado):
     """
     Lote de um item, com validade opcional. O vínculo é com exatamente
     um item (produto, matéria-prima ou embalagem).
+
+    `codigo` é o LOTE INTERNO — para lotes novos ele é gerado
+    automaticamente pela sequência (`criar_lote_interno`); o lote
+    impresso pelo fornecedor fica em `lote_fornecedor`.
     """
 
-    codigo = models.CharField("código do lote", max_length=50)
+    codigo = models.CharField("lote interno", max_length=50)
+    lote_fornecedor = models.CharField(
+        "lote do fornecedor",
+        max_length=60,
+        blank=True,
+        help_text="Código impresso pelo fornecedor na embalagem/laudo.",
+    )
     validade = models.DateField("validade", null=True, blank=True)
     produto = models.ForeignKey(
         Produto,
@@ -142,6 +152,79 @@ class Lote(ModeloAuditado):
         if self.validade <= hoje + timedelta(days=DIAS_ALERTA_VALIDADE):
             return SituacaoValidade.VENCE_EM_BREVE
         return SituacaoValidade.OK
+
+
+class SequenciaLote(models.Model):
+    """
+    Sequência do lote interno por tipo de item e ano (Etapa 2a do plano
+    de correções). O próximo número é obtido com `select_for_update`
+    dentro da transação — dois recebimentos simultâneos nunca geram o
+    mesmo lote interno.
+    """
+
+    tipo = models.CharField("tipo", max_length=3)
+    ano = models.PositiveIntegerField("ano")
+    ultimo_numero = models.PositiveIntegerField("último número", default=0)
+
+    class Meta:
+        verbose_name = "sequência de lote interno"
+        verbose_name_plural = "sequências de lote interno"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["tipo", "ano"], name="sequencia_lote_unica_por_tipo_ano"
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.tipo}-{self.ano} → {self.ultimo_numero}"
+
+
+# Prefixo do lote interno por tipo de item
+PREFIXO_LOTE_POR_MODELO = {
+    Produto: "PA",
+    MateriaPrima: "MP",
+    Embalagem: "EMB",
+}
+
+
+def gerar_lote_interno(item) -> str:
+    """
+    Próximo código de lote interno para o tipo do item — alfanumérico e
+    sequencial, ex.: MP-2026-00001, EMB-2026-00001, PA-2026-00001.
+    """
+    prefixo = PREFIXO_LOTE_POR_MODELO[type(item)]
+    ano = timezone.localdate().year
+    with transaction.atomic():
+        sequencia, _ = SequenciaLote.objects.select_for_update().get_or_create(
+            tipo=prefixo, ano=ano
+        )
+        sequencia.ultimo_numero += 1
+        sequencia.save(update_fields=["ultimo_numero"])
+        return f"{prefixo}-{ano}-{sequencia.ultimo_numero:05d}"
+
+
+def criar_lote_interno(item, usuario, validade=None, lote_fornecedor="") -> Lote:
+    """
+    Cria um Lote com o código interno gerado pela sequência.
+
+    Se um lote antigo (código digitado antes da automação) coincidir com
+    o número gerado, avança a sequência até um código livre.
+    """
+    campo = campo_do_item(item)
+    codigo = gerar_lote_interno(item)
+    while Lote.objects.filter(**{campo: item}, codigo=codigo).exists():
+        codigo = gerar_lote_interno(item)
+
+    lote = Lote(
+        codigo=codigo,
+        lote_fornecedor=lote_fornecedor.strip(),
+        validade=validade,
+        criado_por=usuario,
+        atualizado_por=usuario,
+    )
+    setattr(lote, campo, item)
+    lote.save()
+    return lote
 
 
 class TipoMovimentacao(models.TextChoices):
@@ -443,6 +526,42 @@ def saldos_detalhados():
         )
     )
     return linhas
+
+
+def locais_do_lote(lote) -> list[dict]:
+    """
+    Locais onde o lote tem saldo positivo: [{"local", "saldo"}, ...].
+    Usado na etiqueta de identificação (localização atual do material).
+    """
+    entradas = (
+        Movimentacao.objects.filter(lote=lote, tipo__in=TIPOS_COM_DESTINO)
+        .values("local_destino_id")
+        .annotate(total=Sum("quantidade"))
+    )
+    saidas = (
+        Movimentacao.objects.filter(lote=lote, tipo__in=TIPOS_COM_ORIGEM)
+        .values("local_origem_id")
+        .annotate(total=Sum("quantidade"))
+    )
+
+    acumulado: dict[int, Decimal] = {}
+    for linha in entradas:
+        chave = linha["local_destino_id"]
+        acumulado[chave] = acumulado.get(chave, Decimal("0")) + linha["total"]
+    for linha in saidas:
+        chave = linha["local_origem_id"]
+        acumulado[chave] = acumulado.get(chave, Decimal("0")) - linha["total"]
+
+    locais = LocalEstoque.objects.in_bulk(
+        {chave for chave in acumulado if chave is not None}
+    )
+    posicoes = [
+        {"local": locais[local_id], "saldo": saldo_local}
+        for local_id, saldo_local in acumulado.items()
+        if saldo_local > 0 and local_id is not None
+    ]
+    posicoes.sort(key=lambda posicao: posicao["local"].nome)
+    return posicoes
 
 
 def posicoes_para_consumo(item, excluir_local=None) -> list[dict]:

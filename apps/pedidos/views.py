@@ -7,6 +7,7 @@ from django.views import View
 from django.views.generic import CreateView, DetailView, ListView, UpdateView
 
 from apps.accounts.mixins import AcessoModuloMixin
+from apps.auditoria.views import TrilhaAuditoriaMixin
 
 from .forms import ItemPedidoFormSet, PedidoForm
 from .models import HistoricoPedido, Pedido, StatusPedido, TransicaoInvalida
@@ -162,7 +163,7 @@ class PedidoEditarView(PedidoFormBase, UpdateView):
         return f"Pedido {self.object.numero} atualizado com sucesso."
 
 
-class PedidoDetalheView(AcessoModuloMixin, DetailView):
+class PedidoDetalheView(AcessoModuloMixin, TrilhaAuditoriaMixin, DetailView):
     modulo = MODULO
     model = Pedido
     template_name = "pedidos/pedido_detalhe.html"

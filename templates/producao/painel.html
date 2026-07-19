@@ -25,6 +25,7 @@
                     {{ ordem.produto.codigo }} · {{ ordem.produto.nome }} ·
                     prevista {{ ordem.quantidade|floatformat:"-3" }} {{ ordem.produto.get_unidade_display }} ·
                     {{ ordem.pedido.cliente }}
+                    {% if ordem.lote_produto %} · lote interno <strong>{{ ordem.lote_produto.codigo }}</strong>{% endif %}
                 </p>
             </div>
             <div class="d-flex gap-2 align-items-center flex-wrap">
@@ -163,6 +164,39 @@
                                     </tbody>
                                 </table>
                             </div>
+                        </div>
+                    </div>
+
+                    <div class="card shadow-sm mb-4">
+                        <div class="card-body">
+                            <div class="section-heading">
+                                <div>
+                                    <h2><i class="bi bi-people me-1 text-primary"></i>Quem fez o quê</h2>
+                                    <p>Responsável por cada atividade da OP, com data e hora.</p>
+                                </div>
+                            </div>
+
+                            {% if em_producao %}
+                                <form method="post" action="{% url 'producao:atividade' ordem.pk %}"
+                                      class="row g-2 align-items-end mb-3">
+                                    {% csrf_token %}
+                                    <div class="col-12 col-md-4">
+                                        <label class="form-label small mb-1" for="{{ atividade_form.atividade.id_for_label }}">Atividade</label>
+                                        {{ atividade_form.atividade }}
+                                    </div>
+                                    <div class="col-12 col-md-5">
+                                        <label class="form-label small mb-1" for="{{ atividade_form.observacao.id_for_label }}">Observação</label>
+                                        {{ atividade_form.observacao }}
+                                    </div>
+                                    <div class="col-12 col-md-3 d-grid">
+                                        <button type="submit" class="btn btn-outline-primary">
+                                            <i class="bi bi-person-check me-1"></i>Registrar
+                                        </button>
+                                    </div>
+                                </form>
+                            {% endif %}
+
+                            {% include "includes/atividades_op.html" with atividades=ordem.atividades.all %}
                         </div>
                     </div>
 
@@ -319,11 +353,11 @@
                 <div class="modal-body">
                     <p class="text-body-secondary small mb-3">
                         Os materiais serão baixados do estoque (FEFO) e {{ ordem.produto.codigo }}
-                        entrará como produto acabado no lote informado.
+                        entrará como produto acabado no lote interno
+                        <strong>{{ ordem.lote_produto.codigo|default:"gerado automaticamente" }}</strong>.
                     </p>
                     {% include "includes/campo.html" with campo=concluir_form.quantidade_produzida %}
                     {% include "includes/campo.html" with campo=concluir_form.perdas %}
-                    {% include "includes/campo.html" with campo=concluir_form.lote_codigo %}
                     {% include "includes/campo.html" with campo=concluir_form.lote_validade %}
                     {% include "includes/campo.html" with campo=concluir_form.local_destino %}
                 </div>

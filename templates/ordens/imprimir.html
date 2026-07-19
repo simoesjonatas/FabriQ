@@ -67,6 +67,7 @@
         <div><span>Produto</span>{{ ordem.produto.codigo }} · {{ ordem.produto.nome }}</div>
         <div><span>Quantidade prevista</span>{{ ordem.quantidade|floatformat:"-3" }} {{ ordem.produto.get_unidade_display }}</div>
         <div><span>Fórmula</span>{{ ordem.formula.nome }} (rendimento {{ ordem.formula.rendimento|floatformat:"-3" }})</div>
+        <div><span>Lote interno do produto</span>{{ ordem.lote_produto.codigo|default:"— (reservado na liberação)" }}</div>
         <div><span>Data programada</span>{{ ordem.data_programada|date:"d/m/Y" }}</div>
         <div><span>Equipamento</span>{{ ordem.equipamento|default:"—" }}</div>
         <div><span>Operador</span>{{ ordem.operador|default:"—" }}</div>
@@ -97,6 +98,30 @@
             {% endfor %}
         </tbody>
     </table>
+
+    {% if ordem.atividades.all %}
+        <h2>Quem fez o quê</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Atividade</th>
+                    <th>Funcionário</th>
+                    <th>Data/hora</th>
+                    <th>Observação</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for atividade in ordem.atividades.all %}
+                    <tr>
+                        <td>{{ atividade.get_atividade_display }}</td>
+                        <td>{{ atividade.funcionario }}</td>
+                        <td>{{ atividade.data|date:"d/m/Y H:i" }}</td>
+                        <td>{{ atividade.observacao }}</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% endif %}
 
     <h2>Observações</h2>
     <div class="obs">{{ ordem.observacoes|linebreaksbr }}</div>

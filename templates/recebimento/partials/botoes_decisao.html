@@ -4,14 +4,16 @@ Espera: item (com decisoes_possiveis), descrição via item.
 {% endcomment %}
 {% for valor, rotulo in item.decisoes_possiveis %}
     <button type="button"
-            class="btn btn-sm {% if valor == 'LIBERADO' %}btn-success{% elif valor == 'BLOQUEADO' %}btn-outline-dark{% else %}btn-outline-danger{% endif %}"
+            class="btn btn-sm {% if valor == 'LIBERADO' %}btn-success{% elif valor == 'EM_ANALISE' %}btn-outline-info{% elif valor == 'BLOQUEADO' %}btn-outline-dark{% elif valor == 'DEVOLVIDO' %}btn-outline-secondary{% else %}btn-outline-danger{% endif %}"
             data-bs-toggle="modal" data-bs-target="#modalDecisao"
             data-decidir-url="{% url 'recebimento:decidir' item.pk %}"
             data-decisao="{{ valor }}"
-            data-decisao-rotulo="{% if valor == 'LIBERADO' %}Liberar{% elif valor == 'BLOQUEADO' %}Bloquear{% else %}Reprovar{% endif %}"
+            data-decisao-rotulo="{% if valor == 'LIBERADO' %}Liberar{% elif valor == 'EM_ANALISE' %}Em análise{% elif valor == 'BLOQUEADO' %}Bloquear{% elif valor == 'DEVOLVIDO' %}Devolver{% else %}Reprovar{% endif %}"
             data-item-descricao="{{ item.item }} · lote {{ item.lote.codigo }} · {{ item.quantidade|floatformat:'-3' }} {{ item.item.get_unidade_display }}">
         {% if valor == 'LIBERADO' %}<i class="bi bi-check-circle me-1"></i>Liberar
+        {% elif valor == 'EM_ANALISE' %}<i class="bi bi-clipboard2-pulse me-1"></i>Em análise
         {% elif valor == 'BLOQUEADO' %}<i class="bi bi-slash-circle me-1"></i>Bloquear
+        {% elif valor == 'DEVOLVIDO' %}<i class="bi bi-arrow-return-left me-1"></i>Devolver
         {% else %}<i class="bi bi-x-circle me-1"></i>Reprovar{% endif %}
     </button>
 {% endfor %}

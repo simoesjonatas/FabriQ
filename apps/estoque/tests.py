@@ -15,8 +15,11 @@ from .models import (
     LocalEstoque,
     Lote,
     Movimentacao,
+    SequenciaLote,
     SituacaoValidade,
     TipoMovimentacao,
+    criar_lote_interno,
+    gerar_lote_interno,
     saldo,
 )
 
@@ -217,6 +220,45 @@ class LoteTests(BaseEstoque):
         self.assertEqual(vencido.situacao_validade, SituacaoValidade.VENCIDO)
         self.assertEqual(vence_breve.situacao_validade, SituacaoValidade.VENCE_EM_BREVE)
         self.assertEqual(ok.situacao_validade, SituacaoValidade.OK)
+
+
+class LoteInternoTests(BaseEstoque):
+    """Etapa 2a do plano de correções: lote interno automático e sequencial."""
+
+    def test_codigos_sequenciais_por_tipo_sem_repeticao(self):
+        ano = timezone.localdate().year
+        produto = Produto.objects.create(codigo="PA-9", nome="Produto teste")
+
+        self.assertEqual(gerar_lote_interno(self.mp), f"MP-{ano}-00001")
+        self.assertEqual(gerar_lote_interno(self.mp), f"MP-{ano}-00002")
+        # A sequência do produto acabado é independente da sequência de MP
+        self.assertEqual(gerar_lote_interno(produto), f"PA-{ano}-00001")
+
+    def test_criar_lote_interno_grava_fornecedor_validade_e_auditoria(self):
+        usuario = criar_usuario("almoxarife.lote", perfil=ALMOXARIFADO)
+        validade = timezone.localdate() + timedelta(days=180)
+        lote = criar_lote_interno(
+            self.mp, usuario, validade=validade, lote_fornecedor="  FAB-778 "
+        )
+        self.assertRegex(lote.codigo, r"^MP-\d{4}-00001$")
+        self.assertEqual(lote.lote_fornecedor, "FAB-778")
+        self.assertEqual(lote.validade, validade)
+        self.assertEqual(lote.materia_prima, self.mp)
+        self.assertEqual(lote.criado_por, usuario)
+
+    def test_colisao_com_lote_antigo_avanca_a_sequencia(self):
+        usuario = criar_usuario("almoxarife.lote", perfil=ALMOXARIFADO)
+        ano = timezone.localdate().year
+        # Lote antigo digitado à mão com o mesmo formato do gerador
+        Lote.objects.create(codigo=f"MP-{ano}-00001", materia_prima=self.mp)
+
+        lote = criar_lote_interno(self.mp, usuario)
+        self.assertEqual(lote.codigo, f"MP-{ano}-00002")
+
+    def test_sequencia_reinicia_por_ano(self):
+        ano = timezone.localdate().year
+        SequenciaLote.objects.create(tipo="MP", ano=ano - 1, ultimo_numero=42)
+        self.assertEqual(gerar_lote_interno(self.mp), f"MP-{ano}-00001")
 
 
 class MovimentarViewTests(BaseEstoque):

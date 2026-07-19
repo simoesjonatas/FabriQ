@@ -60,6 +60,11 @@
                         <div class="col-12">
                             {% include "includes/campo.html" with campo=form.observacoes %}
                         </div>
+                        {% if form.justificativa_alteracao %}
+                            <div class="col-12">
+                                {% include "includes/campo.html" with campo=form.justificativa_alteracao %}
+                            </div>
+                        {% endif %}
                     </div>
 
                     <p class="small text-body-secondary mt-2 mb-0">

@@ -18,4 +18,9 @@ urlpatterns = [
         views.DecidirItemView.as_view(),
         name="decidir",
     ),
+    path(
+        "recebimento/itens/<int:pk>/etiqueta/",
+        views.EtiquetaItemView.as_view(),
+        name="etiqueta",
+    ),
 ]

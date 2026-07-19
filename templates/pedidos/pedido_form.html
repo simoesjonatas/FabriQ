@@ -86,6 +86,12 @@
                         </template>
                     </div>
 
+                    {% if form.justificativa_alteracao %}
+                        <div class="form-section-panel mb-3">
+                            {% include "includes/campo.html" with campo=form.justificativa_alteracao %}
+                        </div>
+                    {% endif %}
+
                     <div class="form-actions-bar">
                         {% if form.instance.pk %}
                             <a href="{% url 'pedidos:detalhe' form.instance.pk %}" class="btn btn-outline-secondary">Cancelar</a>

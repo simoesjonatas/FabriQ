@@ -4,20 +4,29 @@ from django.contrib import messages
 from django.db import transaction
 from django.db.models import Count, Q
 from django.shortcuts import get_object_or_404, redirect
+from django.utils import timezone
 from django.views import View
 from django.views.generic import CreateView, DetailView, ListView
 
 from apps.accounts.mixins import AcessoModuloMixin
 from apps.accounts.perfis import usuario_acessa_modulo
+from apps.auditoria import servicos as auditoria
+from apps.auditoria.models import AcaoAuditoria
+from apps.auditoria.views import TrilhaAuditoriaMixin
 from apps.core import formatos
 from apps.core.views import SalvarComUsuarioMixin
-from apps.estoque.models import LocalEstoque, Movimentacao, TipoMovimentacao
+from apps.estoque.models import (
+    LocalEstoque,
+    Movimentacao,
+    TipoMovimentacao,
+    criar_lote_interno,
+    locais_do_lote,
+)
 
 from .forms import (
     AnexoRecebimentoFormSet,
     ItemRecebimentoFormSet,
     RecebimentoForm,
-    obter_ou_criar_lote,
 )
 from .models import (
     DecisaoQuarentena,
@@ -50,6 +59,7 @@ class RecebimentoListView(AcessoModuloMixin, ListView):
                     filter=Q(
                         itens__status__in=[
                             StatusQuarentena.EM_QUARENTENA,
+                            StatusQuarentena.EM_ANALISE,
                             StatusQuarentena.BLOQUEADO,
                         ]
                     ),
@@ -137,11 +147,11 @@ class RecebimentoCriarView(AcessoModuloMixin, SalvarComUsuarioMixin, CreateView)
                     continue
                 item_recebido = item_form.save(commit=False)
                 item_recebido.recebimento = self.object
-                item_recebido.lote = obter_ou_criar_lote(
+                item_recebido.lote = criar_lote_interno(
                     item_recebido.item,
-                    item_form.cleaned_data["lote_codigo"],
-                    item_form.cleaned_data.get("lote_validade"),
                     self.request.user,
+                    validade=item_form.cleaned_data.get("lote_validade"),
+                    lote_fornecedor=item_form.cleaned_data["lote_fornecedor"],
                 )
                 item_recebido.save()
 
@@ -192,7 +202,7 @@ class RecebimentoCriarView(AcessoModuloMixin, SalvarComUsuarioMixin, CreateView)
         return "embalagem"
 
 
-class RecebimentoDetalheView(AcessoModuloMixin, DetailView):
+class RecebimentoDetalheView(AcessoModuloMixin, TrilhaAuditoriaMixin, DetailView):
     modulo = MODULO_RECEBIMENTO
     model = Recebimento
     template_name = "recebimento/detalhe.html"
@@ -232,7 +242,11 @@ class QuarentenaFilaView(AcessoModuloMixin, ListView):
     def get_queryset(self):
         queryset = (
             ItemRecebimento.objects.filter(
-                status__in=[StatusQuarentena.EM_QUARENTENA, StatusQuarentena.BLOQUEADO]
+                status__in=[
+                    StatusQuarentena.EM_QUARENTENA,
+                    StatusQuarentena.EM_ANALISE,
+                    StatusQuarentena.BLOQUEADO,
+                ]
             )
             .select_related(
                 "recebimento__fornecedor",
@@ -286,7 +300,12 @@ class DecidirItemView(AcessoModuloMixin, View):
             )
             return redirect(proxima)
 
-        if decisao in {StatusQuarentena.REPROVADO, StatusQuarentena.BLOQUEADO} and not observacoes:
+        exigem_observacao = {
+            StatusQuarentena.REPROVADO,
+            StatusQuarentena.BLOQUEADO,
+            StatusQuarentena.DEVOLVIDO,
+        }
+        if decisao in exigem_observacao and not observacoes:
             messages.error(request, "Informe as observações da decisão.")
             return redirect(proxima)
 
@@ -320,6 +339,7 @@ class DecidirItemView(AcessoModuloMixin, View):
                 movimentacao.full_clean()
                 movimentacao.save()
 
+            status_anterior = item.get_status_display()
             item.status = decisao
             item.save()
 
@@ -329,6 +349,20 @@ class DecidirItemView(AcessoModuloMixin, View):
                 responsavel=request.user,
                 observacoes=observacoes,
                 local_destino=local_destino,
+            )
+
+            # A decisão da quarentena fica na trilha do LOTE — é ele o
+            # objeto rastreado pelo estoque, produção e qualidade.
+            auditoria.registrar_evento(
+                item.lote,
+                AcaoAuditoria.LIBERACAO
+                if decisao == StatusQuarentena.LIBERADO
+                else AcaoAuditoria.ALTERACAO,
+                request.user,
+                justificativa=observacoes,
+                campo="situação na quarentena",
+                valor_anterior=status_anterior,
+                valor_novo=rotulos[decisao],
             )
 
         quantidade = formatos.quantidade_com_unidade(
@@ -343,3 +377,65 @@ class DecidirItemView(AcessoModuloMixin, View):
             "Quarentena: item %s -> %s por %s", item.pk, decisao, request.user
         )
         return redirect(proxima)
+
+
+class EtiquetaItemView(AcessoModuloMixin, DetailView):
+    """
+    Etiqueta de identificação da matéria-prima/material recebido
+    (Etapa 2b — modelo do Anexo A do plano de correções).
+
+    Cada visualização/impressão fica registrada na trilha do LOTE, o que
+    permite identificar etiquetas impressas antes de uma decisão do CQ.
+    """
+
+    modulo = MODULO_RECEBIMENTO
+    model = ItemRecebimento
+    template_name = "recebimento/etiqueta.html"
+    context_object_name = "item"
+
+    def get_queryset(self):
+        return ItemRecebimento.objects.select_related(
+            "recebimento__fornecedor",
+            "recebimento__cliente",
+            "produto",
+            "materia_prima",
+            "embalagem",
+            "lote",
+        ).prefetch_related("decisoes__responsavel")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        item = self.object
+        liberacao = (
+            item.decisoes.filter(decisao=StatusQuarentena.LIBERADO)
+            .order_by("-data")
+            .first()
+        )
+        context.update(
+            {
+                "status_choices": StatusQuarentena.choices,
+                "liberacao": liberacao,
+                "locais": locais_do_lote(item.lote),
+                "gerada_em": timezone.now(),
+            }
+        )
+        return context
+
+    def get(self, request, *args, **kwargs):
+        response = super().get(request, *args, **kwargs)
+        auditoria.registrar_evento(
+            self.object.lote,
+            AcaoAuditoria.IMPRESSAO,
+            request.user,
+            campo="etiqueta de identificação",
+            valor_novo=(
+                f"Etiqueta impressa com situação "
+                f"“{self.object.get_status_display()}”"
+            ),
+        )
+        logger.info(
+            "Etiqueta do lote %s impressa por %s",
+            self.object.lote.codigo,
+            request.user,
+        )
+        return response

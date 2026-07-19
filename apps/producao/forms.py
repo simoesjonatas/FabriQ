@@ -3,9 +3,30 @@ from django import forms
 from apps.core.forms import BootstrapFormMixin
 from apps.estoque.models import LocalEstoque
 
-from .models import FotoProducao, MotivoParada, Ocorrencia
+from .models import (
+    ATIVIDADES_MANUAIS,
+    FotoProducao,
+    MotivoParada,
+    Ocorrencia,
+    TipoAtividadeOP,
+)
 
 TAMANHO_MAXIMO_FOTO_MB = 10
+
+
+class AtividadeOPForm(BootstrapFormMixin, forms.Form):
+    """Registro manual de "quem fez o quê" (envase, separação, conferência...)."""
+
+    atividade = forms.ChoiceField(
+        label="Atividade",
+        choices=[
+            (valor, dict(TipoAtividadeOP.choices)[valor])
+            for valor in ATIVIDADES_MANUAIS
+        ],
+    )
+    observacao = forms.CharField(
+        label="Observação", max_length=200, required=False
+    )
 
 
 class ConcluirProducaoForm(BootstrapFormMixin, forms.Form):
@@ -25,7 +46,6 @@ class ConcluirProducaoForm(BootstrapFormMixin, forms.Form):
         initial=0,
         widget=forms.NumberInput(attrs={"step": "any", "min": "0"}),
     )
-    lote_codigo = forms.CharField(label="Lote do produto acabado", max_length=50)
     lote_validade = forms.DateField(
         label="Validade do lote",
         required=False,

@@ -83,7 +83,12 @@
                                         <span class="identifier-cell">{{ linha.item.codigo }}</span>
                                         · {{ linha.item.nome }}
                                     </td>
-                                    <td>{{ linha.lote.codigo|default:"—" }}</td>
+                                    <td>
+                                        {{ linha.lote.codigo|default:"—" }}
+                                        {% if linha.lote.lote_fornecedor %}
+                                            <div class="small text-body-secondary">forn.: {{ linha.lote.lote_fornecedor }}</div>
+                                        {% endif %}
+                                    </td>
                                     <td>
                                         {% if linha.lote and linha.lote.validade %}
                                             {{ linha.lote.validade|date:"d/m/Y" }}

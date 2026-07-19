@@ -49,6 +49,8 @@ Espera no contexto: locais_liberacao.
 
         const decisao = botao.dataset.decisao;
         const liberar = decisao === "LIBERADO";
+        // Em análise e liberação dispensam observação; as demais exigem
+        const exigeObservacao = ["REPROVADO", "BLOQUEADO", "DEVOLVIDO"].includes(decisao);
 
         document.getElementById("formDecisao").action = botao.dataset.decidirUrl;
         document.getElementById("decisaoValor").value = decisao;
@@ -56,12 +58,14 @@ Espera no contexto: locais_liberacao.
         document.getElementById("modalDecisaoTitulo").textContent = botao.dataset.decisaoRotulo;
         document.getElementById("grupoLocalDestino").hidden = !liberar;
         document.getElementById("decisaoLocalDestino").required = liberar;
-        document.getElementById("decisaoObservacoes").required = !liberar;
-        document.getElementById("observacoesObrigatorias").hidden = liberar;
+        document.getElementById("decisaoObservacoes").required = exigeObservacao;
+        document.getElementById("observacoesObrigatorias").hidden = !exigeObservacao;
         document.getElementById("decisaoObservacoes").value = "";
 
         const confirmar = document.getElementById("decisaoConfirmar");
-        confirmar.className = liberar ? "btn btn-success" : "btn btn-danger";
+        confirmar.className = liberar
+            ? "btn btn-success"
+            : (exigeObservacao ? "btn btn-danger" : "btn btn-info");
         confirmar.textContent = botao.dataset.decisaoRotulo;
     });
 </script>

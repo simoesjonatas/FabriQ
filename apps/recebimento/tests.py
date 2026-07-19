@@ -56,7 +56,7 @@ class BaseRecebimento(TestCase):
             "itens-MAX_NUM_FORMS": "1000",
             "itens-0-item": f"MP-{self.mp.pk}",
             "itens-0-quantidade": "100",
-            "itens-0-lote_codigo": "LOTE-001",
+            "itens-0-lote_fornecedor": "LOTE-001",
             "itens-0-lote_validade": "",
             "anexos-TOTAL_FORMS": "0",
             "anexos-INITIAL_FORMS": "0",
@@ -83,7 +83,9 @@ class RegistroTests(BaseRecebimento):
 
         item = recebimento.itens.get()
         self.assertEqual(item.status, StatusQuarentena.EM_QUARENTENA)
-        self.assertEqual(item.lote.codigo, "LOTE-001")
+        # Lote interno gerado automaticamente; o código do fornecedor fica à parte
+        self.assertRegex(item.lote.codigo, r"^MP-\d{4}-00001$")
+        self.assertEqual(item.lote.lote_fornecedor, "LOTE-001")
         self.assertEqual(item.lote.materia_prima, self.mp)
 
         movimentacao = Movimentacao.objects.get()
@@ -99,13 +101,13 @@ class RegistroTests(BaseRecebimento):
 
     def test_recebimento_sem_itens_e_rejeitado(self):
         response = self.registrar(**{"itens-0-item": "", "itens-0-quantidade": "",
-                                     "itens-0-lote_codigo": ""})
+                                     "itens-0-lote_fornecedor": ""})
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "pelo menos um item")
         self.assertEqual(Recebimento.objects.count(), 0)
 
-    def test_lote_e_obrigatorio(self):
-        response = self.registrar(**{"itens-0-lote_codigo": ""})
+    def test_lote_do_fornecedor_e_obrigatorio(self):
+        response = self.registrar(**{"itens-0-lote_fornecedor": ""})
         self.assertEqual(response.status_code, 200)
         self.assertEqual(Recebimento.objects.count(), 0)
 
@@ -238,6 +240,97 @@ class QuarentenaTests(BaseRecebimento):
         self.decidir(StatusQuarentena.LIBERADO, local_destino=str(self.deposito.pk))
         response = self.client.get(reverse("recebimento:quarentena"))
         self.assertContains(response, "Nenhum material aguardando decisão")
+
+    def test_em_analise_dispensa_observacao_e_permanece_na_fila(self):
+        self.entrar_como_qualidade()
+        self.decidir(StatusQuarentena.EM_ANALISE)
+        self.item.refresh_from_db()
+        self.assertEqual(self.item.status, StatusQuarentena.EM_ANALISE)
+
+        response = self.client.get(reverse("recebimento:quarentena"))
+        self.assertContains(response, "Em análise")
+
+        # Da análise ainda é possível liberar
+        self.decidir(StatusQuarentena.LIBERADO, local_destino=str(self.deposito.pk))
+        self.item.refresh_from_db()
+        self.assertEqual(self.item.status, StatusQuarentena.LIBERADO)
+
+    def test_devolucao_so_apos_reprovacao_e_com_observacao(self):
+        self.entrar_como_qualidade()
+        # Direto da quarentena não é permitido
+        self.decidir(StatusQuarentena.DEVOLVIDO, observacoes="Devolver ao fornecedor")
+        self.item.refresh_from_db()
+        self.assertEqual(self.item.status, StatusQuarentena.EM_QUARENTENA)
+
+        self.decidir(StatusQuarentena.REPROVADO, observacoes="Fora de especificação")
+        # Sem observação a devolução é recusada
+        self.decidir(StatusQuarentena.DEVOLVIDO)
+        self.item.refresh_from_db()
+        self.assertEqual(self.item.status, StatusQuarentena.REPROVADO)
+
+        self.decidir(StatusQuarentena.DEVOLVIDO, observacoes="Devolvido na NF 981")
+        self.item.refresh_from_db()
+        self.assertEqual(self.item.status, StatusQuarentena.DEVOLVIDO)
+        self.assertEqual(self.item.decisoes.count(), 2)
+
+
+class EtiquetaTests(BaseRecebimento):
+    """Etapa 2b: etiqueta de identificação da MP (Anexo A do plano)."""
+
+    def setUp(self):
+        super().setUp()
+        self.registrar()
+        self.item = ItemRecebimento.objects.get()
+
+    def etiqueta(self):
+        return self.client.get(reverse("recebimento:etiqueta", args=[self.item.pk]))
+
+    def test_etiqueta_em_quarentena_sem_dados_de_liberacao(self):
+        response = self.etiqueta()
+        self.assertContains(response, "Essência de lavanda")
+        self.assertContains(response, self.item.lote.codigo)
+        self.assertContains(response, "LOTE-001")
+        self.assertContains(response, "EM QUARENTENA")
+        # Sem liberação do CQ: data em branco
+        self.assertContains(response, "___/___/______")
+
+    def test_etiqueta_de_lote_liberado_mostra_responsavel_e_localizacao(self):
+        self.client.login(username="analista", password="senha-forte-123")
+        self.client.post(
+            reverse("recebimento:decidir", args=[self.item.pk]),
+            {
+                "decisao": StatusQuarentena.LIBERADO,
+                "observacoes": "",
+                "local_destino": str(self.deposito.pk),
+            },
+        )
+        self.client.login(username="almoxarife", password="senha-forte-123")
+
+        response = self.etiqueta()
+        self.assertContains(response, "ANALISTA")
+        self.assertContains(response, "Almoxarifado MP")
+        self.assertNotContains(response, "___/___/______")
+
+    def test_impressao_registra_na_trilha_do_lote(self):
+        from apps.auditoria.models import AcaoAuditoria
+        from apps.auditoria.servicos import trilha_de
+
+        self.etiqueta()
+        self.etiqueta()
+        impressoes = trilha_de(self.item.lote).filter(acao=AcaoAuditoria.IMPRESSAO)
+        self.assertEqual(impressoes.count(), 2)
+        self.assertEqual(impressoes.first().usuario, self.almoxarife)
+
+    def test_etiqueta_mostra_cliente_da_terceirizacao(self):
+        from apps.cadastros.models import Cliente
+
+        cliente = Cliente.objects.create(razao_social="Corpo & Cheiro")
+        recebimento = self.item.recebimento
+        recebimento.cliente = cliente
+        recebimento.salvar_com_usuario(self.almoxarife)
+
+        response = self.etiqueta()
+        self.assertContains(response, "Corpo &amp; Cheiro")
 
 
 class PermissoesTests(BaseRecebimento):

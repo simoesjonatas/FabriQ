@@ -38,6 +38,7 @@ DJANGO_APPS = [
 
 LOCAL_APPS = [
     "apps.core",
+    "apps.auditoria",
     "apps.accounts",
     "apps.cadastros",
     "apps.pedidos",

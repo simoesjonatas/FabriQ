@@ -1,0 +1,32 @@
+{% comment %}
+Painel "Quem fez o quê" da OP (Etapa 2c do plano de correções).
+Uso: {% include "includes/atividades_op.html" with atividades=ordem.atividades.all %}
+{% endcomment %}
+<div class="table-responsive">
+    <table class="table table-sm align-middle mb-0">
+        <thead>
+            <tr>
+                <th>Atividade</th>
+                <th>Funcionário</th>
+                <th>Data/hora</th>
+                <th>Observação</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for atividade in atividades %}
+                <tr>
+                    <td>{{ atividade.get_atividade_display }}</td>
+                    <td>{{ atividade.funcionario }}</td>
+                    <td class="text-nowrap small">{{ atividade.data|date:"d/m/Y H:i" }}</td>
+                    <td class="small text-body-secondary">{{ atividade.observacao|default:"—" }}</td>
+                </tr>
+            {% empty %}
+                <tr>
+                    <td colspan="4" class="text-body-secondary">
+                        Nenhuma atividade registrada ainda.
+                    </td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>

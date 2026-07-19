@@ -1,0 +1,66 @@
+{% comment %}
+Trilha de auditoria de um registro (imutável — apps/auditoria).
+Uso: {% include "includes/trilha_auditoria.html" with registros=registros_auditoria %}
+A view precisa do TrilhaAuditoriaMixin (apps/auditoria/views.py) para
+colocar `registros_auditoria` no contexto.
+{% endcomment %}
+<div class="accordion mt-4" id="acordeaoTrilhaAuditoria">
+    <div class="accordion-item">
+        <h2 class="accordion-header">
+            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse"
+                    data-bs-target="#painelTrilhaAuditoria" aria-expanded="false"
+                    aria-controls="painelTrilhaAuditoria">
+                <i class="bi bi-shield-lock me-2 text-primary" aria-hidden="true"></i>
+                Trilha de auditoria
+                <span class="badge text-bg-secondary ms-2">{{ registros|length }}</span>
+            </button>
+        </h2>
+        <div id="painelTrilhaAuditoria" class="accordion-collapse collapse"
+             data-bs-parent="#acordeaoTrilhaAuditoria">
+            <div class="accordion-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-sm align-middle mb-0">
+                        <thead>
+                            <tr>
+                                <th class="ps-3">Data</th>
+                                <th>Usuário</th>
+                                <th>Ação</th>
+                                <th>Campo</th>
+                                <th>Valor anterior</th>
+                                <th>Valor novo</th>
+                                <th class="pe-3">Justificativa</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for registro in registros %}
+                                <tr>
+                                    <td class="ps-3 text-nowrap small">{{ registro.data|date:"d/m/Y H:i:s" }}</td>
+                                    <td class="small">{{ registro.usuario|default:"Sistema" }}</td>
+                                    <td>
+                                        <span class="badge {{ registro.badge_acao }}">
+                                            {{ registro.get_acao_display }}
+                                        </span>
+                                    </td>
+                                    <td class="small">{{ registro.campo|default:"—" }}</td>
+                                    <td class="small text-body-secondary">{{ registro.valor_anterior|default:"—" }}</td>
+                                    <td class="small">{{ registro.valor_novo|default:"—" }}</td>
+                                    <td class="pe-3 small text-body-secondary">{{ registro.justificativa|default:"—" }}</td>
+                                </tr>
+                            {% empty %}
+                                <tr>
+                                    <td colspan="7" class="ps-3 text-body-secondary">
+                                        Sem registros — a trilha passa a gravar a partir das próximas ações.
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                <p class="small text-body-secondary px-3 py-2 mb-0">
+                    <i class="bi bi-lock me-1" aria-hidden="true"></i>
+                    Registros gerados automaticamente pelo sistema — não podem ser alterados nem excluídos.
+                </p>
+            </div>
+        </div>
+    </div>
+</div>

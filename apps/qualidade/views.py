@@ -10,6 +10,9 @@ from django.views import View
 from django.views.generic import CreateView, DetailView, ListView, UpdateView
 
 from apps.accounts.mixins import AcessoModuloMixin
+from apps.auditoria import servicos as auditoria
+from apps.auditoria.models import AcaoAuditoria
+from apps.auditoria.views import TrilhaAuditoriaMixin
 from apps.core.views import (
     CadastroCreateView,
     CadastroListView,
@@ -186,7 +189,7 @@ class AnaliseEditarView(AnaliseFormBase, UpdateView):
         return super().dispatch(request, *args, **kwargs)
 
 
-class AnaliseDetalheView(AcessoModuloMixin, DetailView):
+class AnaliseDetalheView(AcessoModuloMixin, TrilhaAuditoriaMixin, DetailView):
     modulo = MODULO
     model = Analise
     template_name = "qualidade/detalhe.html"
@@ -239,7 +242,17 @@ class DecidirAnaliseView(AcessoModuloMixin, View):
         analise.decidido_em = timezone.now()
         analise.parecer = parecer
         analise.atualizado_por = request.user
+        analise._justificativa_auditoria = parecer
         analise.save()
+
+        if decisao == StatusAnalise.APROVADA:
+            auditoria.registrar_evento(
+                analise,
+                AcaoAuditoria.APROVACAO,
+                request.user,
+                justificativa=parecer,
+                valor_novo=f"Lote {analise.lote.codigo} aprovado na análise",
+            )
 
         rotulo = dict(StatusAnalise.choices)[decisao]
         messages.success(
