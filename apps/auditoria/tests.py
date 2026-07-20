@@ -68,6 +68,10 @@ class BaseAuditoria(TestCase):
             "componentes-0-id": str(componente.pk),
             "componentes-0-item": f"MP-{self.mp.pk}",
             "componentes-0-quantidade": "2",
+            "etapas-TOTAL_FORMS": "0",
+            "etapas-INITIAL_FORMS": "0",
+            "etapas-MIN_NUM_FORMS": "0",
+            "etapas-MAX_NUM_FORMS": "1000",
         }
         dados.update(kwargs)
         return dados

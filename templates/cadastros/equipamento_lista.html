@@ -8,6 +8,13 @@
     <td>{{ objeto.nome }}</td>
     <td>{{ objeto.setor|default:"—" }}</td>
     <td>
+        <span class="badge {{ objeto.badge_status }}">{{ objeto.get_status_display }}</span>
+        {% if objeto.motivo_impedimento_uso %}
+            <i class="bi bi-exclamation-triangle text-danger ms-1"
+               title="{{ objeto.motivo_impedimento_uso }}"></i>
+        {% endif %}
+    </td>
+    <td>
         {% if objeto.capacidade %}
             {{ objeto.capacidade|floatformat:"-3" }} {{ objeto.unidade_capacidade }}
         {% else %}

@@ -18,17 +18,26 @@ from apps.ordens.models import OrdemProducao, StatusOP
 from .forms import (
     AtividadeOPForm,
     ConcluirProducaoForm,
+    ControleProcessoForm,
+    EtapaOPForm,
     FotoProducaoForm,
     OcorrenciaForm,
     ParadaForm,
+    PesagemForm,
 )
 from .models import (
     AtividadeOP,
     ConsumoMaterialOP,
+    ControleProcessoOP,
+    EtapaOP,
     ExecucaoOP,
     Parada,
+    PesagemOP,
     apontar_consumos,
     posicoes_para_apontamento,
+    registrar_controle,
+    registrar_etapa,
+    registrar_pesagem,
     sugerir_consumos_fefo,
 )
 
@@ -360,6 +369,175 @@ class ConsumosView(_ExecucaoActionView):
                 "blocos": blocos,
                 "pode_excecao": pode_autorizar_excecao(request.user),
             },
+        )
+
+
+class PesagemView(_ExecucaoActionView):
+    """Pesagem com dupla conferência (Etapa 6b)."""
+
+    def _usuarios(self):
+        from django.contrib.auth import get_user_model
+
+        return get_user_model().objects.filter(is_active=True).order_by(
+            "first_name", "username"
+        )
+
+    def get(self, request, pk):
+        execucao, ordem = self.get_execucao_em_andamento(request, pk)
+        if execucao is None:
+            return redirect("producao:painel", pk=ordem.pk)
+        form = PesagemForm(ordem=ordem, usuarios=self._usuarios())
+        return self._render_tela(request, ordem, form)
+
+    def post(self, request, pk):
+        execucao, ordem = self.get_execucao_em_andamento(request, pk)
+        if execucao is None:
+            return redirect("producao:painel", pk=ordem.pk)
+
+        form = PesagemForm(request.POST, ordem=ordem, usuarios=self._usuarios())
+        if form.is_valid():
+            try:
+                registrar_pesagem(
+                    material=form.cleaned_data["material"],
+                    lote=form.cleaned_data["lote"],
+                    balanca=form.cleaned_data["balanca"],
+                    quantidade_pesada=form.cleaned_data["quantidade_pesada"],
+                    tolerancia_percentual=form.cleaned_data["tolerancia_percentual"],
+                    operador=request.user,
+                    conferente=form.cleaned_data["conferente"],
+                    etiqueta=form.cleaned_data["etiqueta"],
+                )
+            except ValidationError as erro:
+                for mensagem in erro.messages:
+                    form.add_error(None, mensagem)
+            else:
+                messages.success(request, "Pesagem registrada.")
+                return redirect("producao:pesagem", pk=ordem.pk)
+        return self._render_tela(request, ordem, form)
+
+    def _render_tela(self, request, ordem, form):
+        pesagens = PesagemOP.objects.filter(
+            material__ordem=ordem
+        ).select_related("material__materia_prima", "material__embalagem",
+                         "lote", "balanca", "operador", "conferente")
+        return render(
+            request,
+            "producao/pesagem.html",
+            {"ordem": ordem, "form": form, "pesagens": pesagens},
+        )
+
+
+class EtapasView(_ExecucaoActionView):
+    """Registro das etapas do processo, na sequência da fórmula (Etapa 6d)."""
+
+    def _usuarios(self):
+        from django.contrib.auth import get_user_model
+
+        return get_user_model().objects.filter(is_active=True).order_by(
+            "first_name", "username"
+        )
+
+    def get(self, request, pk):
+        execucao, ordem = self.get_execucao_em_andamento(request, pk)
+        if execucao is None:
+            return redirect("producao:painel", pk=ordem.pk)
+        return self._render_tela(request, ordem, self._form(ordem))
+
+    def _form(self, ordem, data=None):
+        snapshot = getattr(ordem, "snapshot_formula", None)
+        return EtapaOPForm(data, snapshot=snapshot, usuarios=self._usuarios())
+
+    def post(self, request, pk):
+        execucao, ordem = self.get_execucao_em_andamento(request, pk)
+        if execucao is None:
+            return redirect("producao:painel", pk=ordem.pk)
+
+        form = self._form(ordem, request.POST)
+        if form.is_valid():
+            try:
+                registrar_etapa(
+                    ordem=ordem,
+                    etapa=form.cleaned_data["etapa"],
+                    operador=request.user,
+                    conferente=form.cleaned_data["conferente"],
+                    temperatura_real=form.cleaned_data["temperatura_real"],
+                    tempo_real_min=form.cleaned_data["tempo_real_min"],
+                    velocidade_real=form.cleaned_data["velocidade_real"],
+                    pulada=form.cleaned_data["pulada"],
+                    justificativa=form.cleaned_data["justificativa"],
+                    observacoes=form.cleaned_data["observacoes"],
+                )
+            except ValidationError as erro:
+                for mensagem in erro.messages:
+                    form.add_error(None, mensagem)
+            else:
+                messages.success(request, "Etapa registrada.")
+                return redirect("producao:etapas", pk=ordem.pk)
+        return self._render_tela(request, ordem, form)
+
+    def _render_tela(self, request, ordem, form):
+        snapshot = getattr(ordem, "snapshot_formula", None)
+        execucoes = {
+            e.etapa_id: e
+            for e in EtapaOP.objects.filter(ordem=ordem).select_related(
+                "operador", "conferente"
+            )
+        }
+        etapas = [
+            {"etapa": etapa, "exec": execucoes.get(etapa.pk)}
+            for etapa in (snapshot.etapas.all() if snapshot else [])
+        ]
+        return render(
+            request,
+            "producao/etapas.html",
+            {"ordem": ordem, "form": form, "etapas": etapas},
+        )
+
+
+class ControlesView(_ExecucaoActionView):
+    """Controle em processo contra a especificação do produto (Etapa 6e)."""
+
+    def get(self, request, pk):
+        execucao, ordem = self.get_execucao_em_andamento(request, pk)
+        if execucao is None:
+            return redirect("producao:painel", pk=ordem.pk)
+        return self._render_tela(request, ordem, ControleProcessoForm())
+
+    def post(self, request, pk):
+        execucao, ordem = self.get_execucao_em_andamento(request, pk)
+        if execucao is None:
+            return redirect("producao:painel", pk=ordem.pk)
+
+        form = ControleProcessoForm(request.POST)
+        if form.is_valid():
+            controle = registrar_controle(
+                ordem=ordem,
+                tipo=form.cleaned_data["tipo"],
+                analista=request.user,
+                resultado=form.cleaned_data["resultado"],
+                resultado_texto=form.cleaned_data["resultado_texto"],
+                metodo=form.cleaned_data["metodo"],
+                equipamento=form.cleaned_data["equipamento"],
+            )
+            if controle.fora_especificacao:
+                messages.warning(
+                    request,
+                    "Resultado FORA da especificação — etapa bloqueada até "
+                    "regularização/avaliação da Qualidade.",
+                )
+            else:
+                messages.success(request, "Controle registrado (dentro da especificação).")
+            return redirect("producao:controles", pk=ordem.pk)
+        return self._render_tela(request, ordem, form)
+
+    def _render_tela(self, request, ordem, form):
+        controles = ControleProcessoOP.objects.filter(
+            ordem=ordem
+        ).select_related("tipo", "analista", "equipamento")
+        return render(
+            request,
+            "producao/controles.html",
+            {"ordem": ordem, "form": form, "controles": controles},
         )
 
 

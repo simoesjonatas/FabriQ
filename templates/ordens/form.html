@@ -48,14 +48,23 @@
                         <div class="col-12 col-md-5">
                             {% include "includes/campo.html" with campo=form.quantidade %}
                         </div>
-                        <div class="col-12 col-md-5">
+                        <div class="col-12 col-md-6">
                             {% include "includes/campo.html" with campo=form.equipamento %}
                         </div>
-                        <div class="col-12 col-md-4">
+                        <div class="col-12 col-md-6">
+                            {% include "includes/campo.html" with campo=form.linha %}
+                        </div>
+                        <div class="col-12 col-md-6">
                             {% include "includes/campo.html" with campo=form.operador %}
                         </div>
-                        <div class="col-12 col-md-3">
+                        <div class="col-12 col-md-6">
+                            {% include "includes/campo.html" with campo=form.supervisor %}
+                        </div>
+                        <div class="col-12 col-md-6">
                             {% include "includes/campo.html" with campo=form.data_programada %}
+                        </div>
+                        <div class="col-12 col-md-6">
+                            {% include "includes/campo.html" with campo=form.prazo %}
                         </div>
                         <div class="col-12">
                             {% include "includes/campo.html" with campo=form.observacoes %}

@@ -145,6 +145,7 @@ class Command(BaseCommand):
             self._locais()
             self._tipos_analise()
             self._formulas()
+            self._execucao_detalhada()
             self._recebimentos_e_quarentena()
             self._estoque_extra()
             self._pedidos_e_fluxo()
@@ -244,6 +245,83 @@ class Command(BaseCommand):
                 },
             )
         self.stdout.write("✓ Tipos de análise")
+
+    def _execucao_detalhada(self):
+        """Etapa 6: balanças, material crítico, equipamentos, especificação, etapas."""
+        from apps.cadastros.models import (
+            Balanca,
+            Equipamento,
+            StatusEquipamento,
+        )
+        from apps.ordens.models import EtapaFormula
+        from apps.qualidade.models import EspecificacaoProduto
+
+        Balanca.objects.update_or_create(
+            codigo="BAL-01",
+            defaults={
+                "descricao": "Balança de precisão 6 kg",
+                "capacidade": Decimal("6"),
+                "unidade_capacidade": "kg",
+                "calibracao_validade": self.hoje + timedelta(days=120),
+                "localizacao": "Sala de pesagem",
+            },
+        )
+        Balanca.objects.update_or_create(
+            codigo="BAL-02",
+            defaults={
+                "descricao": "Balança industrial 60 kg (calibração vencida)",
+                "capacidade": Decimal("60"),
+                "unidade_capacidade": "kg",
+                "calibracao_validade": self.hoje - timedelta(days=10),
+                "localizacao": "Almoxarifado",
+            },
+        )
+
+        # Fragrância é material crítico (exige dupla conferência)
+        MateriaPrima.objects.filter(codigo="MP-FRAG-LAV").update(critico=True)
+
+        # Equipamentos: limpeza e calibração registradas (aptos ao uso)
+        Equipamento.objects.all().update(
+            status=StatusEquipamento.LIBERADO,
+            ultima_limpeza=self.hoje,
+            calibracao_validade=self.hoje + timedelta(days=90),
+        )
+
+        # Especificação do produto (mais restrita que o tipo genérico)
+        ph = TipoAnalise.objects.get(nome="pH")
+        for codigo in ["PA-001", "PA-002"]:
+            produto = Produto.objects.filter(codigo=codigo).first()
+            if produto:
+                EspecificacaoProduto.objects.update_or_create(
+                    produto=produto, tipo=ph,
+                    defaults={
+                        "valor_minimo": Decimal("6.0"),
+                        "valor_maximo": Decimal("6.8"),
+                    },
+                )
+
+        # Etapas do processo na fórmula do sabonete
+        formula = self.formulas.get("PA-001")
+        if formula and not formula.etapas.exists():
+            EtapaFormula.objects.create(
+                formula=formula, sequencia=1,
+                instrucao="Aquecer a base a 60 °C sob agitação.",
+                temperatura_prevista=Decimal("60"),
+                tempo_previsto_min=Decimal("15"),
+                velocidade_prevista=Decimal("300"),
+            )
+            EtapaFormula.objects.create(
+                formula=formula, sequencia=2,
+                instrucao="Adicionar tensoativo e homogeneizar.",
+                tempo_previsto_min=Decimal("10"),
+                velocidade_prevista=Decimal("200"),
+            )
+            EtapaFormula.objects.create(
+                formula=formula, sequencia=3,
+                instrucao="Resfriar a 30 °C e ajustar pH.",
+                temperatura_prevista=Decimal("30"),
+            )
+        self.stdout.write("✓ Execução detalhada (balanças, equipamentos, especificação, etapas)")
 
     def _formulas(self):
         item = self._itens_de_cadastro()
@@ -628,13 +706,17 @@ class Command(BaseCommand):
 
     def _op_liberada(self, item_pedido, codigo_equipamento, operador, dias):
         ana = self.usuarios["ana.pcp"]
+        equipamento = Equipamento.objects.get(codigo=codigo_equipamento)
         ordem = OrdemProducao.objects.create(
             item_pedido=item_pedido,
             formula=self.formulas[item_pedido.produto.codigo],
             quantidade=item_pedido.quantidade,
-            equipamento=Equipamento.objects.get(codigo=codigo_equipamento),
+            equipamento=equipamento,
+            linha=equipamento.setor,
             operador=operador,
+            supervisor=self.usuarios["diretor"],
             data_programada=self.hoje - timedelta(days=dias),
+            prazo=self.hoje - timedelta(days=dias) + timedelta(days=5),
             status=StatusOP.LIBERADA,
             liberado_por=ana,
             liberado_em=self.agora - timedelta(days=dias, hours=2),

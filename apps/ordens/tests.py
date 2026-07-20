@@ -8,7 +8,13 @@ from django.urls import reverse
 from django.utils import timezone
 
 from apps.accounts.perfis import PCP, PRODUCAO
-from apps.cadastros.models import Cliente, Equipamento, MateriaPrima, Produto
+from apps.cadastros.models import (
+    Cliente,
+    Equipamento,
+    MateriaPrima,
+    Produto,
+    Setor,
+)
 from apps.estoque.models import LocalEstoque, Movimentacao, TipoMovimentacao
 from apps.pedidos.models import ItemPedido, Pedido, StatusPedido
 from apps.recebimento.models import local_quarentena
@@ -58,7 +64,11 @@ class BaseOrdens(TestCase):
         self.mp = MateriaPrima.objects.create(
             codigo="MP-1", nome="Essência de lavanda", unidade="L"
         )
-        self.equipamento = Equipamento.objects.create(codigo="EQ-1", nome="Envasadora")
+        self.equipamento = Equipamento.objects.create(
+            codigo="EQ-1",
+            nome="Envasadora",
+            ultima_limpeza=timezone.localdate(),
+        )
         self.deposito = LocalEstoque.objects.create(nome="Almoxarifado MP")
 
         self.pedido = Pedido.objects.create(
@@ -108,6 +118,10 @@ class FormulaTests(BaseOrdens):
             "componentes-INITIAL_FORMS": "0",
             "componentes-MIN_NUM_FORMS": "0",
             "componentes-MAX_NUM_FORMS": "1000",
+            "etapas-TOTAL_FORMS": "0",
+            "etapas-INITIAL_FORMS": "0",
+            "etapas-MIN_NUM_FORMS": "0",
+            "etapas-MAX_NUM_FORMS": "1000",
             "componentes-0-item": f"MP-{self.mp.pk}",
             "componentes-0-quantidade": "40",
         }
@@ -146,6 +160,43 @@ class FormulaTests(BaseOrdens):
         self.assertContains(response, "já está na fórmula")
 
 
+class IdentificacaoOPTests(BaseOrdens):
+    """Etapa 6a: linha, supervisor, prazo e regra de cliente/produto ativos."""
+
+    def test_op_grava_linha_supervisor_prazo(self):
+        setor = Setor.objects.create(nome="Linha 1")
+        prazo = (timezone.localdate() + timedelta(days=10)).isoformat()
+        self.criar_op(
+            linha=str(setor.pk),
+            supervisor=str(self.usuario.pk),
+            prazo=prazo,
+        )
+        ordem = OrdemProducao.objects.latest("id")
+        self.assertEqual(ordem.linha, setor)
+        self.assertEqual(ordem.supervisor, self.usuario)
+        self.assertEqual(ordem.prazo.isoformat(), prazo)
+
+        response = self.client.get(reverse("ordens:detalhe", args=[ordem.pk]))
+        self.assertContains(response, "Linha 1")
+        self.assertContains(response, "Supervisor")
+
+    def test_produto_inativo_impede_emitir_op(self):
+        self.produto.ativo = False
+        self.produto.save()
+        response = self.client.post(reverse("ordens:criar"), self.dados_op())
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "está inativo")
+        self.assertEqual(OrdemProducao.objects.count(), 0)
+
+    def test_cliente_inativo_impede_emitir_op(self):
+        self.cliente.ativo = False
+        self.cliente.save()
+        response = self.client.post(reverse("ordens:criar"), self.dados_op())
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "está inativo")
+        self.assertEqual(OrdemProducao.objects.count(), 0)
+
+
 class VersionamentoFormulaTests(BaseOrdens):
     """Etapa 3: editar fórmula com OP emitida gera nova versão."""
 
@@ -162,6 +213,10 @@ class VersionamentoFormulaTests(BaseOrdens):
             "componentes-INITIAL_FORMS": "1",
             "componentes-MIN_NUM_FORMS": "0",
             "componentes-MAX_NUM_FORMS": "1000",
+            "etapas-TOTAL_FORMS": "0",
+            "etapas-INITIAL_FORMS": "0",
+            "etapas-MIN_NUM_FORMS": "0",
+            "etapas-MAX_NUM_FORMS": "1000",
             "componentes-0-id": str(componente.pk),
             "componentes-0-item": f"MP-{self.mp.pk}",
             "componentes-0-quantidade": "40",
@@ -336,6 +391,10 @@ class SnapshotFormulaTests(BaseOrdens):
                 "componentes-INITIAL_FORMS": "1",
                 "componentes-MIN_NUM_FORMS": "0",
                 "componentes-MAX_NUM_FORMS": "1000",
+                "etapas-TOTAL_FORMS": "0",
+                "etapas-INITIAL_FORMS": "0",
+                "etapas-MIN_NUM_FORMS": "0",
+                "etapas-MAX_NUM_FORMS": "1000",
                 "componentes-0-id": str(componente.pk),
                 "componentes-0-item": f"MP-{self.mp.pk}",
                 "componentes-0-quantidade": "10",
@@ -500,6 +559,34 @@ class LiberacaoTests(BaseOrdens):
 
         response = self.client.get(reverse("ordens:editar", args=[ordem.pk]))
         self.assertRedirects(response, reverse("ordens:detalhe", args=[ordem.pk]))
+
+    def test_equipamento_em_manutencao_impede_liberacao(self):
+        """Etapa 6c: equipamento inapto bloqueia a liberação."""
+        from apps.cadastros.models import StatusEquipamento
+
+        entrada_estoque({"materia_prima": self.mp}, "30", self.deposito)
+        ordem = self.criar_op(quantidade="50")
+        self.equipamento.status = StatusEquipamento.MANUTENCAO
+        self.equipamento.save()
+
+        self.liberar(ordem)
+        ordem.refresh_from_db()
+        self.assertEqual(ordem.status, StatusOP.RASCUNHO)
+
+        condicoes = {c["rotulo"]: c for c in ordem.condicoes_liberacao()}
+        cond = condicoes["Equipamento em condição de uso"]
+        self.assertFalse(cond["ok"])
+        self.assertIn("manutenção", cond["detalhe"])
+
+    def test_equipamento_sem_limpeza_impede_liberacao(self):
+        entrada_estoque({"materia_prima": self.mp}, "30", self.deposito)
+        ordem = self.criar_op(quantidade="50")
+        self.equipamento.ultima_limpeza = None
+        self.equipamento.save()
+
+        self.liberar(ordem)
+        ordem.refresh_from_db()
+        self.assertEqual(ordem.status, StatusOP.RASCUNHO)
 
 
 class CancelamentoTests(BaseOrdens):

@@ -323,9 +323,40 @@ Tentar selecionar um lote vencido ou em quarentena e confirmar que o sistema imp
 
 ---
 
-## Etapa 6 — Execução detalhada: identificação, pesagem, equipamentos, etapas e controle em processo (P1)
+## Etapa 6 — Execução detalhada: identificação, pesagem, equipamentos, etapas e controle em processo (P1) ✅ CONCLUÍDA (20/07/2026)
 
 **Objetivo (PDF 5.1, 5.3–5.6):** a OP comprova **como** o processo foi executado, não apenas início e fim.
+
+> **Status:** implementada e testada (247 testes do projeto passando; critérios de aceite
+> de 6a–6e verificados, com telas conferidas na base de demonstração).
+> - **6a:** `OrdemProducao` ganhou `linha` (FK Setor), `supervisor` (FK user) e `prazo`;
+>   form/detalhe/impressão exibem. Regra: cliente e produto **ativos** para emitir OP.
+> - **6b:** cadastro `Balanca` (com `calibracao_vencida`); `MateriaPrima.critico`;
+>   `PesagemOP` + serviço `registrar_pesagem` com bloqueios: balança vencida, dupla
+>   conferência de material crítico (conferente ≠ operador) e resultado fora da
+>   tolerância. Tela `producao/<pk>/pesagem/`.
+> - **6c:** `Equipamento` estendido (status liberado/manutenção/interditado,
+>   ultima_limpeza/sanitizacao, manutencao_validade, calibracao_validade, localizacao)
+>   com `motivo_impedimento_uso()`/`pode_ser_usado()`; a liberação da OP bloqueia
+>   equipamento em manutenção/interditado/sem limpeza/calibração vencida (nova condição
+>   em `condicoes_liberacao`). `ChecklistEquipamentoOP` registrado no modelo (para o
+>   dossiê); UI de preenchimento fica para depois.
+> - **6d:** `EtapaFormula` (na fórmula, com formset editável) congelada em
+>   `EtapaSnapshotOP` na liberação; `EtapaOP` (execução) via tela `producao/<pk>/etapas/`
+>   com `registrar_etapa` que exige sequência e **justificativa para pular** (evento na
+>   trilha).
+> - **6e:** `EspecificacaoProduto` (qualidade: limite por produto+parâmetro) e
+>   `ControleProcessoOP` + `registrar_controle` — usa o limite da especificação do
+>   produto (não do tipo genérico), marca `fora_especificacao` e **acumula** (nova
+>   medição não apaga a anterior). Tela `producao/<pk>/controles/`.
+> - Cadastro de Balanças no módulo Cadastros; badge de situação do equipamento na lista.
+> - `carregar_demo._execucao_detalhada`: balanças (uma com calibração vencida), MP
+>   crítica, equipamentos aptos, especificação de pH por produto e etapas na fórmula do
+>   sabonete.
+> - Pendências assumidas (documentadas): UI do `ChecklistEquipamentoOP`; painel de
+>   pesagens/etapas/controles no detalhe da OP e no dossiê (virá na Etapa 12); o
+>   bloqueio "fora da especificação bloqueia a etapa" hoje é sinalizado (badge/aviso) e
+>   acumula — o travamento rígido da etapa se conecta aos desvios da Etapa 7c.
 
 ### 6a. Identificação completa da OP (PDF 5.1)
 1. Adicionar à `OrdemProducao`: `linha` (FK opcional para novo cadastro ou usar `Setor`), `supervisor` (FK usuário), `prazo` (data limite).

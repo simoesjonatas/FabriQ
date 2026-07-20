@@ -13,6 +13,7 @@ from django.core.validators import FileExtensionValidator
 from django.db import models
 from django.urls import reverse
 
+from apps.cadastros.models import Produto
 from apps.core import formatos
 from apps.core.models import ModeloAuditado, ModeloBase
 from apps.estoque.models import Lote
@@ -69,6 +70,60 @@ class TipoAnalise(ModeloBase):
         if maximo:
             return f"≤ {maximo} {self.unidade}".strip()
         return self.referencia_texto
+
+
+class EspecificacaoProduto(ModeloBase):
+    """
+    Limite de um parâmetro na especificação DO PRODUTO (Etapa 6e, PDF 5.6).
+    Os limites vêm daqui — não do tipo genérico — e valem para o controle
+    em processo e o CQ final.
+    """
+
+    produto = models.ForeignKey(
+        Produto,
+        verbose_name="produto",
+        on_delete=models.PROTECT,
+        related_name="especificacoes",
+    )
+    tipo = models.ForeignKey(
+        "TipoAnalise",
+        verbose_name="parâmetro",
+        on_delete=models.PROTECT,
+        related_name="especificacoes",
+    )
+    valor_minimo = models.DecimalField(
+        "valor mínimo", max_digits=12, decimal_places=4, null=True, blank=True
+    )
+    valor_maximo = models.DecimalField(
+        "valor máximo", max_digits=12, decimal_places=4, null=True, blank=True
+    )
+    referencia_texto = models.CharField(
+        "referência descritiva", max_length=200, blank=True
+    )
+
+    class Meta:
+        verbose_name = "especificação do produto"
+        verbose_name_plural = "especificações do produto"
+        ordering = ["produto__nome", "tipo__nome"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["produto", "tipo"],
+                name="especificacao_unica_por_produto_tipo",
+                violation_error_message="Este produto já tem limite para este parâmetro.",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.produto.codigo} · {self.tipo.nome}"
+
+    def fora_do_limite(self, valor) -> bool:
+        if valor is None:
+            return False
+        if self.valor_minimo is not None and valor < self.valor_minimo:
+            return True
+        if self.valor_maximo is not None and valor > self.valor_maximo:
+            return True
+        return False
 
 
 class StatusAnalise(models.TextChoices):

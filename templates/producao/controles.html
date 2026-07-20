@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+
+{% block title %}Controle em processo · {{ ordem.numero }}{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-12 col-xxl-10">
+
+        <nav class="app-breadcrumb" aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item">
+                    <a href="{% url 'producao:painel' ordem.pk %}">
+                        <i class="bi bi-arrow-left-short" aria-hidden="true"></i>{{ ordem.numero }}
+                    </a>
+                </li>
+                <li class="breadcrumb-item active" aria-current="page">Controle em processo</li>
+            </ol>
+        </nav>
+
+        <div class="page-header mb-4">
+            <div>
+                <span class="eyebrow"><i class="bi bi-clipboard2-pulse me-1"></i>Controle em processo</span>
+                <h1>Controle em processo · {{ ordem.numero }}</h1>
+                <p>
+                    Medições comparadas com a especificação do produto. Resultado fora do
+                    limite bloqueia a etapa; medições acumulam (a nova não apaga a anterior).
+                </p>
+            </div>
+        </div>
+
+        <div class="row g-4">
+            <div class="col-12 col-lg-5">
+                <div class="card shadow-sm form-panel">
+                    <div class="card-body">
+                        <h2 class="h6 mb-3"><i class="bi bi-plus-circle me-1 text-primary"></i>Nova medição</h2>
+                        <form method="post">
+                            {% csrf_token %}
+                            {% include "includes/campo.html" with campo=form.tipo %}
+                            {% include "includes/campo.html" with campo=form.resultado %}
+                            {% include "includes/campo.html" with campo=form.resultado_texto %}
+                            {% include "includes/campo.html" with campo=form.metodo %}
+                            {% include "includes/campo.html" with campo=form.equipamento %}
+                            <button type="submit" class="btn btn-primary w-100">
+                                <i class="bi bi-check-lg me-1"></i>Registrar medição
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-12 col-lg-7">
+                <div class="card shadow-sm data-panel">
+                    <div class="card-body">
+                        <h2 class="h6 mb-3"><i class="bi bi-list-check me-1 text-primary"></i>Medições registradas</h2>
+                        <div class="table-responsive">
+                            <table class="table align-middle mb-0">
+                                <thead>
+                                    <tr>
+                                        <th>Parâmetro</th>
+                                        <th>Limite</th>
+                                        <th>Resultado</th>
+                                        <th>Situação</th>
+                                        <th>Analista</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for c in controles %}
+                                        <tr>
+                                            <td>{{ c.tipo.nome }}</td>
+                                            <td class="small text-body-secondary">
+                                                {{ c.valor_minimo|default:"—" }} a {{ c.valor_maximo|default:"—" }}
+                                            </td>
+                                            <td>{{ c.resultado|default:c.resultado_texto|default:"—" }}</td>
+                                            <td>
+                                                {% if c.fora_especificacao %}
+                                                    <span class="badge text-bg-danger">Fora</span>
+                                                {% else %}
+                                                    <span class="badge text-bg-success">OK</span>
+                                                {% endif %}
+                                            </td>
+                                            <td class="small">{{ c.analista }}</td>
+                                        </tr>
+                                    {% empty %}
+                                        <tr>
+                                            <td colspan="5" class="text-center text-body-secondary py-4">
+                                                Nenhuma medição registrada ainda.
+                                            </td>
+                                        </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

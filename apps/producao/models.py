@@ -637,6 +637,420 @@ class ExecucaoOP(ModeloAuditado):
         )
 
 
+class EtapaOP(models.Model):
+    """
+    Execução de uma etapa do processo (Etapa 6d, PDF 5.5): valores reais
+    contra os previstos no snapshot, responsáveis e horários. Pular uma
+    etapa exige justificativa (registrada aqui e na trilha).
+    """
+
+    ordem = models.ForeignKey(
+        OrdemProducao,
+        verbose_name="ordem de produção",
+        on_delete=models.PROTECT,
+        related_name="etapas_execucao",
+    )
+    etapa = models.ForeignKey(
+        "ordens.EtapaSnapshotOP",
+        verbose_name="etapa da fórmula",
+        on_delete=models.PROTECT,
+        related_name="execucoes",
+    )
+    temperatura_real = models.DecimalField(
+        "temperatura real (°C)", max_digits=7, decimal_places=2, null=True, blank=True
+    )
+    tempo_real_min = models.DecimalField(
+        "tempo real (min)", max_digits=7, decimal_places=1, null=True, blank=True
+    )
+    velocidade_real = models.DecimalField(
+        "velocidade real (rpm)", max_digits=8, decimal_places=1, null=True, blank=True
+    )
+    inicio = models.DateTimeField("início", null=True, blank=True)
+    termino = models.DateTimeField("término", null=True, blank=True)
+    operador = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        verbose_name="operador",
+        on_delete=models.PROTECT,
+        related_name="+",
+    )
+    conferente = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        verbose_name="conferente",
+        on_delete=models.PROTECT,
+        related_name="+",
+        null=True,
+        blank=True,
+    )
+    pulada = models.BooleanField("etapa pulada", default=False)
+    justificativa = models.TextField("justificativa", blank=True)
+    observacoes = models.TextField("observações", blank=True)
+    registrado_em = models.DateTimeField("registrado em", auto_now_add=True)
+
+    class Meta:
+        verbose_name = "etapa executada da OP"
+        verbose_name_plural = "etapas executadas da OP"
+        ordering = ["etapa__sequencia", "id"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["ordem", "etapa"],
+                name="etapa_op_unica_por_ordem",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.ordem.numero} · etapa {self.etapa.sequencia}"
+
+
+def registrar_etapa(
+    *, ordem, etapa, operador, conferente=None, temperatura_real=None,
+    tempo_real_min=None, velocidade_real=None, pulada=False,
+    justificativa="", observacoes="",
+) -> EtapaOP:
+    """
+    Registra a execução de uma etapa (Etapa 6d). Regras:
+    - as etapas seguem a sequência da fórmula: só registra a próxima
+      etapa ainda não executada;
+    - pular uma etapa exige justificativa.
+    Deve rodar em transaction.atomic.
+    """
+    ja_registradas = set(
+        EtapaOP.objects.filter(ordem=ordem).values_list("etapa__sequencia", flat=True)
+    )
+    if etapa.sequencia in ja_registradas:
+        raise ValidationError(f"A etapa {etapa.sequencia} já foi registrada.")
+
+    pendentes_antes = [
+        e.sequencia
+        for e in ordem.snapshot_formula.etapas.all()
+        if e.sequencia < etapa.sequencia and e.sequencia not in ja_registradas
+    ]
+    if pendentes_antes and not (pulada and justificativa.strip()):
+        raise ValidationError(
+            "Há etapas anteriores não executadas: "
+            + ", ".join(str(s) for s in pendentes_antes)
+            + ". Registre-as em ordem ou justifique o salto."
+        )
+    if pulada and not justificativa.strip():
+        raise ValidationError("Pular uma etapa exige justificativa.")
+
+    execucao = EtapaOP.objects.create(
+        ordem=ordem,
+        etapa=etapa,
+        operador=operador,
+        conferente=conferente,
+        temperatura_real=temperatura_real,
+        tempo_real_min=tempo_real_min,
+        velocidade_real=velocidade_real,
+        pulada=pulada,
+        justificativa=justificativa.strip(),
+        observacoes=observacoes,
+    )
+    if pulada or justificativa.strip():
+        from apps.auditoria import servicos as auditoria
+        from apps.auditoria.models import AcaoAuditoria
+
+        auditoria.registrar_evento(
+            ordem,
+            AcaoAuditoria.ALTERACAO,
+            operador,
+            justificativa=justificativa.strip(),
+            campo=f"etapa {etapa.sequencia}",
+            valor_novo="etapa pulada" if pulada else "etapa fora de ordem",
+        )
+    return execucao
+
+
+class ControleProcessoOP(models.Model):
+    """
+    Controle em processo (Etapa 6e, PDF 5.6): medição de um parâmetro
+    durante a produção, comparada com a especificação DO PRODUTO. Fora da
+    especificação bloqueia a etapa; nova medição não apaga a anterior
+    (registros acumulam — a correção é uma nova medição).
+    """
+
+    ordem = models.ForeignKey(
+        OrdemProducao,
+        verbose_name="ordem de produção",
+        on_delete=models.PROTECT,
+        related_name="controles_processo",
+    )
+    etapa = models.ForeignKey(
+        "ordens.EtapaSnapshotOP",
+        verbose_name="etapa",
+        on_delete=models.PROTECT,
+        related_name="controles",
+        null=True,
+        blank=True,
+    )
+    tipo = models.ForeignKey(
+        "qualidade.TipoAnalise",
+        verbose_name="parâmetro",
+        on_delete=models.PROTECT,
+        related_name="+",
+    )
+    valor_minimo = models.DecimalField(
+        "limite mínimo aplicado", max_digits=12, decimal_places=4,
+        null=True, blank=True,
+    )
+    valor_maximo = models.DecimalField(
+        "limite máximo aplicado", max_digits=12, decimal_places=4,
+        null=True, blank=True,
+    )
+    resultado = models.DecimalField(
+        "resultado", max_digits=12, decimal_places=4, null=True, blank=True
+    )
+    resultado_texto = models.CharField("resultado descritivo", max_length=200, blank=True)
+    metodo = models.CharField("método", max_length=120, blank=True)
+    equipamento = models.ForeignKey(
+        "cadastros.Equipamento",
+        verbose_name="equipamento",
+        on_delete=models.PROTECT,
+        related_name="+",
+        null=True,
+        blank=True,
+    )
+    analista = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        verbose_name="analista",
+        on_delete=models.PROTECT,
+        related_name="+",
+    )
+    fora_especificacao = models.BooleanField("fora da especificação", default=False)
+    data = models.DateTimeField("data", auto_now_add=True)
+
+    class Meta:
+        verbose_name = "controle em processo da OP"
+        verbose_name_plural = "controles em processo da OP"
+        ordering = ["data", "id"]
+
+    def __str__(self) -> str:
+        return f"{self.ordem.numero} · {self.tipo.nome}"
+
+
+def registrar_controle(
+    *, ordem, tipo, analista, etapa=None, resultado=None, resultado_texto="",
+    metodo="", equipamento=None,
+) -> ControleProcessoOP:
+    """
+    Registra um controle em processo (Etapa 6e). O limite vem da
+    especificação DO PRODUTO; se não houver, cai na referência do tipo.
+    Não bloqueia o registro (acumula), mas marca `fora_especificacao`.
+    """
+    from apps.qualidade.models import EspecificacaoProduto
+
+    espec = EspecificacaoProduto.objects.filter(
+        produto=ordem.produto, tipo=tipo
+    ).first()
+    if espec is not None:
+        minimo, maximo = espec.valor_minimo, espec.valor_maximo
+    else:
+        minimo, maximo = tipo.valor_minimo, tipo.valor_maximo
+
+    fora = False
+    if resultado is not None:
+        if minimo is not None and resultado < minimo:
+            fora = True
+        if maximo is not None and resultado > maximo:
+            fora = True
+
+    return ControleProcessoOP.objects.create(
+        ordem=ordem,
+        etapa=etapa,
+        tipo=tipo,
+        valor_minimo=minimo,
+        valor_maximo=maximo,
+        resultado=resultado,
+        resultado_texto=resultado_texto,
+        metodo=metodo,
+        equipamento=equipamento,
+        analista=analista,
+        fora_especificacao=fora,
+    )
+
+
+class TipoChecklistEquipamento(models.TextChoices):
+    PRE_USO = "PRE_USO", "Pré-uso"
+    POS_USO = "POS_USO", "Pós-uso"
+
+
+class ChecklistEquipamentoOP(models.Model):
+    """Checklist de limpeza/condição do equipamento na OP (Etapa 6c, PDF 5.4)."""
+
+    ordem = models.ForeignKey(
+        OrdemProducao,
+        verbose_name="ordem de produção",
+        on_delete=models.PROTECT,
+        related_name="checklists_equipamento",
+    )
+    equipamento = models.ForeignKey(
+        "cadastros.Equipamento",
+        verbose_name="equipamento",
+        on_delete=models.PROTECT,
+        related_name="+",
+    )
+    tipo = models.CharField(
+        "tipo", max_length=10, choices=TipoChecklistEquipamento.choices
+    )
+    itens_verificados = models.TextField("itens verificados", blank=True)
+    condicao_final = models.CharField("condição final", max_length=120, blank=True)
+    danos = models.TextField("danos identificados", blank=True)
+    responsavel = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        verbose_name="responsável pela liberação",
+        on_delete=models.PROTECT,
+        related_name="+",
+    )
+    data = models.DateTimeField("data", auto_now_add=True)
+
+    class Meta:
+        verbose_name = "checklist de equipamento da OP"
+        verbose_name_plural = "checklists de equipamento da OP"
+        ordering = ["data", "id"]
+
+    def __str__(self) -> str:
+        return f"{self.get_tipo_display()} · {self.equipamento.codigo}"
+
+
+class PesagemOP(models.Model):
+    """
+    Pesagem de um material da OP com dupla conferência (Etapa 6b, PDF 5.3).
+
+    Registro acumulativo (correção = nova pesagem, nunca edição). As
+    regras (balança calibrada, dupla conferência de material crítico,
+    tolerância) são aplicadas em `registrar_pesagem`.
+    """
+
+    material = models.ForeignKey(
+        MaterialOP,
+        verbose_name="material da OP",
+        on_delete=models.PROTECT,
+        related_name="pesagens",
+    )
+    lote = models.ForeignKey(
+        Lote,
+        verbose_name="lote pesado",
+        on_delete=models.PROTECT,
+        related_name="pesagens",
+    )
+    quantidade_prevista = models.DecimalField(
+        "quantidade prevista", max_digits=12, decimal_places=3
+    )
+    quantidade_pesada = models.DecimalField(
+        "quantidade pesada",
+        max_digits=12,
+        decimal_places=3,
+        validators=[MinValueValidator(Decimal("0"))],
+    )
+    tolerancia_percentual = models.DecimalField(
+        "tolerância (%)", max_digits=6, decimal_places=3, default=Decimal("1")
+    )
+    balanca = models.ForeignKey(
+        "cadastros.Balanca",
+        verbose_name="balança",
+        on_delete=models.PROTECT,
+        related_name="pesagens",
+    )
+    operador = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        verbose_name="operador",
+        on_delete=models.PROTECT,
+        related_name="+",
+    )
+    conferente = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        verbose_name="conferente",
+        on_delete=models.PROTECT,
+        related_name="+",
+        null=True,
+        blank=True,
+    )
+    etiqueta = models.CharField("identificação da etiqueta", max_length=60, blank=True)
+    data = models.DateTimeField("data", auto_now_add=True)
+
+    class Meta:
+        verbose_name = "pesagem da OP"
+        verbose_name_plural = "pesagens da OP"
+        ordering = ["data", "id"]
+
+    def __str__(self) -> str:
+        return (
+            f"{self.material.item.codigo} · "
+            f"{formatos.quantidade(self.quantidade_pesada)}"
+        )
+
+    @property
+    def diferenca(self) -> Decimal:
+        return self.quantidade_pesada - self.quantidade_prevista
+
+    @property
+    def diferenca_percentual(self) -> Decimal:
+        if self.quantidade_prevista == 0:
+            return Decimal("0")
+        return (abs(self.diferenca) / self.quantidade_prevista * 100).quantize(
+            Decimal("0.01")
+        )
+
+    @property
+    def dentro_tolerancia(self) -> bool:
+        return self.diferenca_percentual <= self.tolerancia_percentual
+
+
+def registrar_pesagem(
+    *, material, lote, balanca, quantidade_pesada, tolerancia_percentual,
+    operador, conferente=None, etiqueta="",
+) -> PesagemOP:
+    """
+    Valida e registra uma pesagem (Etapa 6b). Levanta ValidationError se:
+    - a balança está com calibração vencida;
+    - o material é crítico e falta dupla conferência (conferente ≠ operador);
+    - o resultado está fora da tolerância.
+    """
+    erros = []
+    if balanca.calibracao_vencida:
+        erros.append(
+            f"Balança {balanca.codigo} com calibração vencida em "
+            f"{balanca.calibracao_validade:%d/%m/%Y} — use outra balança."
+        )
+
+    critico = bool(
+        material.materia_prima_id and material.materia_prima.critico
+    )
+    if critico:
+        if conferente is None:
+            erros.append(
+                f"{material.item.codigo} é material crítico: exige dupla "
+                "conferência (informe o conferente)."
+            )
+        elif conferente == operador:
+            erros.append(
+                "Na dupla conferência o conferente deve ser diferente do operador."
+            )
+
+    pesagem = PesagemOP(
+        material=material,
+        lote=lote,
+        quantidade_prevista=material.quantidade_necessaria,
+        quantidade_pesada=quantidade_pesada,
+        tolerancia_percentual=tolerancia_percentual,
+        balanca=balanca,
+        operador=operador,
+        conferente=conferente,
+        etiqueta=etiqueta,
+    )
+    if not pesagem.dentro_tolerancia:
+        erros.append(
+            f"Pesagem fora da tolerância ({pesagem.diferenca_percentual}% > "
+            f"{formatos.quantidade(tolerancia_percentual)}%): pese novamente "
+            "ou registre um desvio."
+        )
+
+    if erros:
+        raise ValidationError(erros)
+
+    pesagem.save()
+    return pesagem
+
+
 class MotivoParada(models.TextChoices):
     MANUTENCAO = "MANUTENCAO", "Manutenção"
     FALTA_MATERIAL = "FALTA_MATERIAL", "Falta de material"

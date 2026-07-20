@@ -104,6 +104,33 @@
                         </template>
                     </div>
 
+                    <div class="repeatable-section mt-3" data-formset data-formset-prefix="etapas">
+                        <div class="repeatable-section-header">
+                            <div>
+                                <h2><i class="bi bi-list-ol me-1" aria-hidden="true"></i>Etapas do processo</h2>
+                                <p>Opcional: sequência, instrução e parâmetros previstos (temperatura, tempo, velocidade).</p>
+                            </div>
+                            <button type="button" class="btn btn-outline-primary" data-formset-add="etapas">
+                                <i class="bi bi-plus-lg me-1" aria-hidden="true"></i>Adicionar etapa
+                            </button>
+                        </div>
+
+                        {{ etapas_formset.management_form }}
+                        {% if etapas_formset.non_form_errors %}
+                            <div class="alert alert-danger" role="alert">
+                                {% for erro in etapas_formset.non_form_errors %}{{ erro }}{% endfor %}
+                            </div>
+                        {% endif %}
+                        <div class="repeatable-list" data-formset-list="etapas">
+                            {% for subform in etapas_formset %}
+                                {% include "ordens/partials/etapa_formset_item.html" with subform=subform %}
+                            {% endfor %}
+                        </div>
+                        <template data-formset-template="etapas">
+                            {% include "ordens/partials/etapa_formset_item.html" with subform=etapas_formset.empty_form %}
+                        </template>
+                    </div>
+
                     {% if form.justificativa_alteracao %}
                         <div class="form-section-panel mb-3">
                             {% include "includes/campo.html" with campo=form.justificativa_alteracao %}

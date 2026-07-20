@@ -1,0 +1,35 @@
+<div class="repeatable-item" data-formset-item>
+    {% for hidden in subform.hidden_fields %}{{ hidden }}{% endfor %}
+
+    <div class="repeatable-item-bar">
+        <span><i class="bi bi-list-ol me-1" aria-hidden="true"></i>Etapa</span>
+        <button type="button" class="btn btn-sm btn-outline-secondary"
+                data-formset-remove aria-label="Remover etapa" title="Remover etapa">
+            <i class="bi bi-trash" aria-hidden="true"></i>
+        </button>
+    </div>
+
+    {% if subform.non_field_errors %}
+        <div class="alert alert-danger py-2" role="alert">
+            {% for erro in subform.non_field_errors %}{{ erro }}{% endfor %}
+        </div>
+    {% endif %}
+
+    <div class="row g-3">
+        <div class="col-6 col-md-2">
+            {% include "includes/campo.html" with campo=subform.sequencia %}
+        </div>
+        <div class="col-12 col-md-10">
+            {% include "includes/campo.html" with campo=subform.instrucao %}
+        </div>
+        <div class="col-6 col-md-4">
+            {% include "includes/campo.html" with campo=subform.temperatura_prevista %}
+        </div>
+        <div class="col-6 col-md-4">
+            {% include "includes/campo.html" with campo=subform.tempo_previsto_min %}
+        </div>
+        <div class="col-6 col-md-4">
+            {% include "includes/campo.html" with campo=subform.velocidade_prevista %}
+        </div>
+    </div>
+</div>

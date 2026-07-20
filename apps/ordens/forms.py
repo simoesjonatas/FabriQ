@@ -3,13 +3,14 @@ from django.forms import BaseInlineFormSet, inlineformset_factory
 
 from apps.auditoria.forms import JustificativaAuditoriaMixin
 from apps.cadastros.itens import atribuir_item, opcoes_de_itens, resolver_item
-from apps.cadastros.models import Equipamento, Produto
+from apps.cadastros.models import Equipamento, Produto, Setor
 from apps.core.forms import BootstrapFormMixin
 from apps.pedidos.models import ItemPedido
 
 from .models import (
     STATUS_PEDIDO_APTO_PARA_OP,
     ComponenteFormula,
+    EtapaFormula,
     Formula,
     OrdemProducao,
     StatusFormula,
@@ -109,6 +110,49 @@ ComponenteFormSet = inlineformset_factory(
 )
 
 
+class EtapaFormulaForm(BootstrapFormMixin, forms.ModelForm):
+    class Meta:
+        model = EtapaFormula
+        fields = [
+            "sequencia",
+            "instrucao",
+            "temperatura_prevista",
+            "tempo_previsto_min",
+            "velocidade_prevista",
+        ]
+        widgets = {
+            "instrucao": forms.Textarea(attrs={"rows": 2}),
+            "temperatura_prevista": forms.NumberInput(attrs={"step": "any"}),
+            "tempo_previsto_min": forms.NumberInput(attrs={"step": "any"}),
+            "velocidade_prevista": forms.NumberInput(attrs={"step": "any"}),
+        }
+
+
+class EtapasFormSet(BaseInlineFormSet):
+    def clean(self):
+        super().clean()
+        if any(self.errors):
+            return
+        sequencias = set()
+        for form in self.forms:
+            if not form.cleaned_data or form.cleaned_data.get("DELETE"):
+                continue
+            seq = form.cleaned_data.get("sequencia")
+            if seq in sequencias:
+                form.add_error("sequencia", "Sequência repetida.")
+            sequencias.add(seq)
+
+
+EtapaFormulaFormSet = inlineformset_factory(
+    Formula,
+    EtapaFormula,
+    form=EtapaFormulaForm,
+    formset=EtapasFormSet,
+    extra=1,
+    can_delete=True,
+)
+
+
 class ItemPedidoOPChoiceField(forms.ModelChoiceField):
     def label_from_instance(self, item):
         return (
@@ -131,8 +175,11 @@ class OrdemProducaoForm(JustificativaAuditoriaMixin, BootstrapFormMixin, forms.M
             "formula",
             "quantidade",
             "equipamento",
+            "linha",
             "operador",
+            "supervisor",
             "data_programada",
+            "prazo",
             "observacoes",
         ]
         widgets = {
@@ -140,6 +187,7 @@ class OrdemProducaoForm(JustificativaAuditoriaMixin, BootstrapFormMixin, forms.M
             "data_programada": forms.DateInput(
                 attrs={"type": "date"}, format="%Y-%m-%d"
             ),
+            "prazo": forms.DateInput(attrs={"type": "date"}, format="%Y-%m-%d"),
             "observacoes": forms.Textarea(attrs={"rows": 3}),
         }
 
@@ -171,10 +219,16 @@ class OrdemProducaoForm(JustificativaAuditoriaMixin, BootstrapFormMixin, forms.M
             )
         self.fields["equipamento"].queryset = equipamentos.distinct()
 
-        operadores = self.fields["operador"].queryset.filter(is_active=True)
-        self.fields["operador"].queryset = operadores.order_by(
+        linhas = Setor.objects.filter(ativo=True)
+        if self.instance.pk and self.instance.linha_id:
+            linhas = linhas | Setor.objects.filter(pk=self.instance.linha_id)
+        self.fields["linha"].queryset = linhas.distinct()
+
+        ativos = self.fields["operador"].queryset.filter(is_active=True).order_by(
             "first_name", "username"
         )
+        self.fields["operador"].queryset = ativos
+        self.fields["supervisor"].queryset = ativos
 
     def clean(self):
         cleaned = super().clean()
@@ -189,4 +243,19 @@ class OrdemProducaoForm(JustificativaAuditoriaMixin, BootstrapFormMixin, forms.M
                 f"A fórmula é de “{formula.produto}”, mas o item do pedido é "
                 f"“{item_pedido.produto}”.",
             )
+
+        # Cliente e produto devem estar ativos para emitir OP (PDF 5.1)
+        if item_pedido and not self.instance.pk:
+            if not item_pedido.produto.ativo:
+                self.add_error(
+                    "item_pedido",
+                    f"O produto “{item_pedido.produto}” está inativo — "
+                    "não é possível emitir OP.",
+                )
+            if not item_pedido.pedido.cliente.ativo:
+                self.add_error(
+                    "item_pedido",
+                    f"O cliente “{item_pedido.pedido.cliente}” está inativo — "
+                    "não é possível emitir OP.",
+                )
         return cleaned

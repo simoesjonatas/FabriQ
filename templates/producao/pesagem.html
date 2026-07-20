@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+
+{% block title %}Pesagem · {{ ordem.numero }}{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-12 col-xxl-10">
+
+        <nav class="app-breadcrumb" aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item">
+                    <a href="{% url 'producao:painel' ordem.pk %}">
+                        <i class="bi bi-arrow-left-short" aria-hidden="true"></i>{{ ordem.numero }}
+                    </a>
+                </li>
+                <li class="breadcrumb-item active" aria-current="page">Pesagem</li>
+            </ol>
+        </nav>
+
+        <div class="page-header mb-4">
+            <div>
+                <span class="eyebrow"><i class="bi bi-speedometer2 me-1"></i>Pesagem e dupla conferência</span>
+                <h1>Pesagem · {{ ordem.numero }}</h1>
+                <p>
+                    {{ ordem.produto.codigo }} · {{ ordem.produto.nome }} —
+                    materiais críticos exigem conferente diferente do operador; a balança
+                    precisa estar com a calibração em dia.
+                </p>
+            </div>
+        </div>
+
+        <div class="row g-4">
+            <div class="col-12 col-lg-5">
+                <div class="card shadow-sm form-panel">
+                    <div class="card-body">
+                        <h2 class="h6 mb-3"><i class="bi bi-plus-circle me-1 text-primary"></i>Nova pesagem</h2>
+                        {% if form.non_field_errors %}
+                            <div class="alert alert-danger" role="alert">
+                                {% for erro in form.non_field_errors %}<div>{{ erro }}</div>{% endfor %}
+                            </div>
+                        {% endif %}
+                        <form method="post">
+                            {% csrf_token %}
+                            {% include "includes/campo.html" with campo=form.material %}
+                            {% include "includes/campo.html" with campo=form.lote %}
+                            {% include "includes/campo.html" with campo=form.balanca %}
+                            {% include "includes/campo.html" with campo=form.quantidade_pesada %}
+                            {% include "includes/campo.html" with campo=form.tolerancia_percentual %}
+                            {% include "includes/campo.html" with campo=form.conferente %}
+                            {% include "includes/campo.html" with campo=form.etiqueta %}
+                            <button type="submit" class="btn btn-primary w-100">
+                                <i class="bi bi-check-lg me-1"></i>Registrar pesagem
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-12 col-lg-7">
+                <div class="card shadow-sm data-panel">
+                    <div class="card-body">
+                        <h2 class="h6 mb-3"><i class="bi bi-list-check me-1 text-primary"></i>Pesagens registradas</h2>
+                        <div class="table-responsive">
+                            <table class="table align-middle mb-0">
+                                <thead>
+                                    <tr>
+                                        <th>Material · lote</th>
+                                        <th class="text-end">Prevista</th>
+                                        <th class="text-end">Pesada</th>
+                                        <th class="text-end">Dif.</th>
+                                        <th>Conferência</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for p in pesagens %}
+                                        <tr>
+                                            <td>
+                                                {{ p.material.item.codigo }}
+                                                <div class="small text-body-secondary">lote {{ p.lote.codigo }}</div>
+                                            </td>
+                                            <td class="text-end">{{ p.quantidade_prevista|floatformat:"-3" }}</td>
+                                            <td class="text-end">{{ p.quantidade_pesada|floatformat:"-3" }}</td>
+                                            <td class="text-end">
+                                                {% if p.dentro_tolerancia %}
+                                                    <span class="badge text-bg-success">{{ p.diferenca_percentual }}%</span>
+                                                {% else %}
+                                                    <span class="badge text-bg-danger">{{ p.diferenca_percentual }}%</span>
+                                                {% endif %}
+                                            </td>
+                                            <td class="small">
+                                                {{ p.operador }}
+                                                {% if p.conferente %}
+                                                    <div class="text-body-secondary">confere: {{ p.conferente }}</div>
+                                                {% endif %}
+                                            </td>
+                                        </tr>
+                                    {% empty %}
+                                        <tr>
+                                            <td colspan="5" class="text-center text-body-secondary py-4">
+                                                Nenhuma pesagem registrada ainda.
+                                            </td>
+                                        </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

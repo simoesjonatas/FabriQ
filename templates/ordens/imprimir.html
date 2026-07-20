@@ -75,8 +75,11 @@
         </div>
         <div><span>Lote interno do produto</span>{{ ordem.lote_produto.codigo|default:"— (reservado na liberação)" }}</div>
         <div><span>Data programada</span>{{ ordem.data_programada|date:"d/m/Y" }}</div>
+        <div><span>Prazo</span>{{ ordem.prazo|date:"d/m/Y"|default:"—" }}</div>
         <div><span>Equipamento</span>{{ ordem.equipamento|default:"—" }}</div>
+        <div><span>Linha</span>{{ ordem.linha|default:"—" }}</div>
         <div><span>Operador</span>{{ ordem.operador|default:"—" }}</div>
+        <div><span>Supervisor</span>{{ ordem.supervisor|default:"—" }}</div>
         <div><span>Pedido</span>{{ ordem.pedido.numero }} · {{ ordem.pedido.cliente }}</div>
         <div><span>Prazo do pedido</span>{{ ordem.pedido.prazo|date:"d/m/Y" }}</div>
     </div>

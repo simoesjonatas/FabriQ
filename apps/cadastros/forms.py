@@ -5,6 +5,7 @@ from django.forms import BaseInlineFormSet
 from apps.core.forms import BootstrapFormMixin
 
 from .models import (
+    Balanca,
     Cliente,
     ClienteEndereco,
     ClienteTelefone,
@@ -98,12 +99,30 @@ class EquipamentoForm(BootstrapFormMixin, forms.ModelForm):
             "codigo",
             "nome",
             "setor",
+            "status",
+            "ultima_limpeza",
+            "ultima_sanitizacao",
+            "manutencao_validade",
+            "calibracao_validade",
+            "localizacao",
             "capacidade",
             "unidade_capacidade",
             "observacoes",
             "ativo",
         ]
-        widgets = {"observacoes": _TEXTAREA_CURTA}
+        widgets = {
+            "observacoes": _TEXTAREA_CURTA,
+            "ultima_limpeza": forms.DateInput(attrs={"type": "date"}, format="%Y-%m-%d"),
+            "ultima_sanitizacao": forms.DateInput(
+                attrs={"type": "date"}, format="%Y-%m-%d"
+            ),
+            "manutencao_validade": forms.DateInput(
+                attrs={"type": "date"}, format="%Y-%m-%d"
+            ),
+            "calibracao_validade": forms.DateInput(
+                attrs={"type": "date"}, format="%Y-%m-%d"
+            ),
+        }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -278,8 +297,36 @@ class ProdutoForm(BootstrapFormMixin, forms.ModelForm):
 class MateriaPrimaForm(BootstrapFormMixin, forms.ModelForm):
     class Meta:
         model = MateriaPrima
-        fields = ["codigo", "nome", "unidade", "estoque_minimo", "observacoes", "ativo"]
+        fields = [
+            "codigo",
+            "nome",
+            "unidade",
+            "estoque_minimo",
+            "critico",
+            "observacoes",
+            "ativo",
+        ]
         widgets = {"observacoes": _TEXTAREA_CURTA}
+
+
+class BalancaForm(BootstrapFormMixin, forms.ModelForm):
+    class Meta:
+        model = Balanca
+        fields = [
+            "codigo",
+            "descricao",
+            "capacidade",
+            "unidade_capacidade",
+            "calibracao_validade",
+            "localizacao",
+            "ativo",
+        ]
+        widgets = {
+            "capacidade": forms.NumberInput(attrs={"step": "any"}),
+            "calibracao_validade": forms.DateInput(
+                attrs={"type": "date"}, format="%Y-%m-%d"
+            ),
+        }
 
 
 class EmbalagemForm(BootstrapFormMixin, forms.ModelForm):

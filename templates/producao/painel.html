@@ -143,10 +143,24 @@
                                     <p>A baixa usa os lotes apontados pelo operador.</p>
                                 </div>
                                 {% if em_producao %}
-                                    <a href="{% url 'producao:consumos' ordem.pk %}"
-                                       class="btn btn-outline-primary">
-                                        <i class="bi bi-upc-scan me-1"></i>Apontar lotes
-                                    </a>
+                                    <div class="d-flex gap-2">
+                                        <a href="{% url 'producao:consumos' ordem.pk %}"
+                                           class="btn btn-outline-primary">
+                                            <i class="bi bi-upc-scan me-1"></i>Apontar lotes
+                                        </a>
+                                        <a href="{% url 'producao:pesagem' ordem.pk %}"
+                                           class="btn btn-outline-primary">
+                                            <i class="bi bi-speedometer2 me-1"></i>Pesagem
+                                        </a>
+                                        <a href="{% url 'producao:etapas' ordem.pk %}"
+                                           class="btn btn-outline-primary">
+                                            <i class="bi bi-list-ol me-1"></i>Etapas
+                                        </a>
+                                        <a href="{% url 'producao:controles' ordem.pk %}"
+                                           class="btn btn-outline-primary">
+                                            <i class="bi bi-clipboard2-pulse me-1"></i>Controles
+                                        </a>
+                                    </div>
                                 {% endif %}
                             </div>
                             <div class="table-responsive">

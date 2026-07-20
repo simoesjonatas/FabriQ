@@ -41,6 +41,12 @@ class Setor(ModeloBase):
         return self.nome
 
 
+class StatusEquipamento(models.TextChoices):
+    LIBERADO = "LIBERADO", "Liberado"
+    MANUTENCAO = "MANUTENCAO", "Em manutenção"
+    INTERDITADO = "INTERDITADO", "Interditado"
+
+
 class Equipamento(ModeloBase):
     codigo = models.CharField("código", max_length=30, unique=True)
     nome = models.CharField("nome", max_length=100)
@@ -52,6 +58,21 @@ class Equipamento(ModeloBase):
         null=True,
         blank=True,
     )
+    status = models.CharField(
+        "situação",
+        max_length=15,
+        choices=StatusEquipamento.choices,
+        default=StatusEquipamento.LIBERADO,
+    )
+    ultima_limpeza = models.DateField("última limpeza", null=True, blank=True)
+    ultima_sanitizacao = models.DateField("última sanitização", null=True, blank=True)
+    manutencao_validade = models.DateField(
+        "validade da manutenção", null=True, blank=True
+    )
+    calibracao_validade = models.DateField(
+        "validade da calibração", null=True, blank=True
+    )
+    localizacao = models.CharField("localização", max_length=100, blank=True)
     capacidade = models.DecimalField(
         "capacidade",
         max_digits=12,
@@ -75,6 +96,43 @@ class Equipamento(ModeloBase):
 
     def __str__(self) -> str:
         return f"{self.codigo} · {self.nome}"
+
+    @property
+    def badge_status(self) -> str:
+        return {
+            StatusEquipamento.LIBERADO: "text-bg-success",
+            StatusEquipamento.MANUTENCAO: "text-bg-warning",
+            StatusEquipamento.INTERDITADO: "text-bg-danger",
+        }.get(self.status, "text-bg-secondary")
+
+    def motivo_impedimento_uso(self) -> str:
+        """
+        Motivo pelo qual o equipamento NÃO pode ser usado na OP, ou ""
+        se está apto (Etapa 6c). Mensagem pronta para a tela.
+        """
+        from django.utils import timezone
+
+        if self.status == StatusEquipamento.MANUTENCAO:
+            return f"{self.codigo} está em manutenção"
+        if self.status == StatusEquipamento.INTERDITADO:
+            return f"{self.codigo} está interditado"
+        if self.ultima_limpeza is None:
+            return f"{self.codigo} sem limpeza registrada"
+        hoje = timezone.localdate()
+        if self.calibracao_validade and self.calibracao_validade < hoje:
+            return (
+                f"{self.codigo} com calibração vencida em "
+                f"{self.calibracao_validade:%d/%m/%Y}"
+            )
+        if self.manutencao_validade and self.manutencao_validade < hoje:
+            return (
+                f"{self.codigo} com manutenção vencida em "
+                f"{self.manutencao_validade:%d/%m/%Y}"
+            )
+        return ""
+
+    def pode_ser_usado(self) -> bool:
+        return self.motivo_impedimento_uso() == ""
 
 
 class PessoaBase(ModeloBase):
@@ -355,6 +413,12 @@ class Produto(ItemBase):
 
 
 class MateriaPrima(ItemBase):
+    critico = models.BooleanField(
+        "material crítico",
+        default=False,
+        help_text="Exige dupla conferência na pesagem (conferente ≠ operador).",
+    )
+
     class Meta(ItemBase.Meta):
         verbose_name = "matéria-prima"
         verbose_name_plural = "matérias-primas"
@@ -377,3 +441,45 @@ class Embalagem(ItemBase):
     class Meta(ItemBase.Meta):
         verbose_name = "embalagem"
         verbose_name_plural = "embalagens"
+
+
+class Balanca(ModeloBase):
+    """
+    Balança usada na pesagem dos materiais (Etapa 6b). Uma balança com
+    calibração vencida não pode ser usada na produção.
+    """
+
+    codigo = models.CharField("código", max_length=30, unique=True)
+    descricao = models.CharField("descrição", max_length=120)
+    capacidade = models.DecimalField(
+        "capacidade",
+        max_digits=12,
+        decimal_places=3,
+        null=True,
+        blank=True,
+        help_text="Capacidade máxima, na unidade de pesagem.",
+    )
+    unidade_capacidade = models.CharField(
+        "unidade da capacidade", max_length=20, blank=True, help_text="Ex.: kg, g."
+    )
+    calibracao_validade = models.DateField(
+        "validade da calibração", null=True, blank=True
+    )
+    localizacao = models.CharField("localização", max_length=100, blank=True)
+
+    class Meta:
+        verbose_name = "balança"
+        verbose_name_plural = "balanças"
+        ordering = ["codigo"]
+
+    def __str__(self) -> str:
+        return f"{self.codigo} · {self.descricao}"
+
+    @property
+    def calibracao_vencida(self) -> bool:
+        from django.utils import timezone
+
+        return (
+            self.calibracao_validade is not None
+            and self.calibracao_validade < timezone.localdate()
+        )

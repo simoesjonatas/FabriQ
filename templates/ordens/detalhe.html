@@ -232,8 +232,14 @@
                             </dd>
                             <dt class="col-5">Equipamento</dt>
                             <dd class="col-7">{{ ordem.equipamento|default:"—" }}</dd>
+                            <dt class="col-5">Linha</dt>
+                            <dd class="col-7">{{ ordem.linha|default:"—" }}</dd>
                             <dt class="col-5">Operador</dt>
                             <dd class="col-7">{{ ordem.operador|default:"—" }}</dd>
+                            <dt class="col-5">Supervisor</dt>
+                            <dd class="col-7">{{ ordem.supervisor|default:"—" }}</dd>
+                            <dt class="col-5">Prazo</dt>
+                            <dd class="col-7">{{ ordem.prazo|date:"d/m/Y"|default:"—" }}</dd>
                             <dt class="col-5">Observações</dt>
                             <dd class="col-7">{{ ordem.observacoes|linebreaksbr|default:"—" }}</dd>
                             {% if ordem.liberado_em %}

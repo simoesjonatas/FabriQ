@@ -17,9 +17,15 @@ from apps.core import formatos
 from apps.core.views import SalvarComUsuarioMixin
 from apps.pedidos.models import HistoricoPedido
 
-from .forms import ComponenteFormSet, FormulaForm, OrdemProducaoForm
+from .forms import (
+    ComponenteFormSet,
+    EtapaFormulaFormSet,
+    FormulaForm,
+    OrdemProducaoForm,
+)
 from .models import (
     ComponenteFormula,
+    EtapaFormula,
     Formula,
     HistoricoOP,
     OrdemProducao,
@@ -166,7 +172,9 @@ class OrdemDetalheView(AcessoModuloMixin, TrilhaAuditoriaMixin, DetailView):
             "item_pedido__produto",
             "formula",
             "equipamento",
+            "linha",
             "operador",
+            "supervisor",
             "criado_por",
             "liberado_por",
             "lote_produto",
@@ -371,10 +379,22 @@ class FormulaFormBase(AcessoModuloMixin, SalvarComUsuarioMixin):
             kwargs["data"] = self.request.POST
         return ComponenteFormSet(**kwargs)
 
+    def get_etapas_formset(self, instance=None):
+        kwargs = {
+            "instance": instance if instance is not None else getattr(self, "object", None),
+            "prefix": "etapas",
+        }
+        if self.request.method in {"POST", "PUT"}:
+            kwargs["data"] = self.request.POST
+        return EtapaFormulaFormSet(**kwargs)
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context["componentes_formset"] = (
             kwargs.get("componentes_formset") or self.get_formset()
+        )
+        context["etapas_formset"] = (
+            kwargs.get("etapas_formset") or self.get_etapas_formset()
         )
         return context
 
@@ -386,35 +406,48 @@ class FormulaFormBase(AcessoModuloMixin, SalvarComUsuarioMixin):
         self.object = form.save(commit=False)
 
         formset = self.get_formset(instance=self.object)
-        if not formset.is_valid():
+        etapas_formset = self.get_etapas_formset(instance=self.object)
+        if not formset.is_valid() or not etapas_formset.is_valid():
             return self.render_to_response(
-                self.get_context_data(form=form, componentes_formset=formset)
+                self.get_context_data(
+                    form=form,
+                    componentes_formset=formset,
+                    etapas_formset=etapas_formset,
+                )
             )
 
         # Fórmula com OP emitida nunca é alterada no lugar: a edição gera
         # uma NOVA VERSÃO e a atual vira histórica (PDF 2.4/4.2).
         versionar = (
             not criando
-            and (form.has_changed() or formset.has_changed())
+            and (
+                form.has_changed()
+                or formset.has_changed()
+                or etapas_formset.has_changed()
+            )
             and OrdemProducao.objects.filter(formula_id=form.instance.pk).exists()
         )
 
         if versionar and not (
             form.cleaned_data.get("justificativa_alteracao") or ""
         ).strip():
-            # Alterações só nos componentes não passam pelo mixin de
-            # justificativa — mas toda nova versão precisa de motivo.
+            # Alterações só nos componentes/etapas não passam pelo mixin
+            # de justificativa — mas toda nova versão precisa de motivo.
             form.add_error(
                 "justificativa_alteracao",
                 "Informe a justificativa para gerar a nova versão da fórmula.",
             )
             return self.render_to_response(
-                self.get_context_data(form=form, componentes_formset=formset)
+                self.get_context_data(
+                    form=form,
+                    componentes_formset=formset,
+                    etapas_formset=etapas_formset,
+                )
             )
 
         if versionar:
             with transaction.atomic():
-                self.object = self._criar_nova_versao(form, formset)
+                self.object = self._criar_nova_versao(form, formset, etapas_formset)
             messages.success(
                 self.request,
                 f"A fórmula tinha OP emitida: criada a versão "
@@ -433,10 +466,12 @@ class FormulaFormBase(AcessoModuloMixin, SalvarComUsuarioMixin):
             with transaction.atomic():
                 self.object.save()
                 formset.save()
+                etapas_formset.instance = self.object
+                etapas_formset.save()
             messages.success(self.request, f"Fórmula “{self.object}” salva.")
         return redirect("ordens:formula_lista")
 
-    def _criar_nova_versao(self, form, formset) -> Formula:
+    def _criar_nova_versao(self, form, formset, etapas_formset) -> Formula:
         """Congela a versão atual como histórica e grava a nova como vigente."""
         usuario = self.request.user
         justificativa = (
@@ -473,6 +508,19 @@ class FormulaFormBase(AcessoModuloMixin, SalvarComUsuarioMixin):
                 materia_prima=componente_form.instance.materia_prima,
                 embalagem=componente_form.instance.embalagem,
                 quantidade=dados["quantidade"],
+            )
+
+        for etapa_form in etapas_formset.forms:
+            dados = etapa_form.cleaned_data
+            if not dados or dados.get("DELETE"):
+                continue
+            EtapaFormula.objects.create(
+                formula=nova,
+                sequencia=dados["sequencia"],
+                instrucao=dados["instrucao"],
+                temperatura_prevista=dados.get("temperatura_prevista"),
+                tempo_previsto_min=dados.get("tempo_previsto_min"),
+                velocidade_prevista=dados.get("velocidade_prevista"),
             )
 
         auditoria.registrar_evento(

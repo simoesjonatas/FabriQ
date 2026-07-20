@@ -1,0 +1,17 @@
+{% extends "cadastros/base_lista.html" %}
+
+{% block icone %}bi-speedometer2{% endblock %}
+{% block rotulo_novo %}Nova balança{% endblock %}
+
+{% block celulas %}
+    <td><span class="identifier-cell">{{ objeto.codigo }}</span></td>
+    <td>{{ objeto.descricao }}</td>
+    <td>{{ objeto.calibracao_validade|date:"d/m/Y"|default:"—" }}</td>
+    <td>
+        {% if objeto.calibracao_vencida %}
+            <span class="badge text-bg-danger">Calibração vencida</span>
+        {% else %}
+            <span class="badge text-bg-success">Em dia</span>
+        {% endif %}
+    </td>
+{% endblock %}

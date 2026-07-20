@@ -8,6 +8,7 @@ from apps.accounts.mixins import AcessoModuloMixin
 from apps.core.views import CadastroCreateView, CadastroListView, CadastroUpdateView
 
 from .forms import (
+    BalancaForm,
     ClienteEnderecoForm,
     ClienteForm,
     ClienteTelefoneForm,
@@ -23,6 +24,7 @@ from .forms import (
     TelefoneFormSet,
 )
 from .models import (
+    Balanca,
     Cliente,
     ClienteEndereco,
     ClienteTelefone,
@@ -81,6 +83,12 @@ CADASTROS = [
         "descricao": "Setores da fábrica",
         "icone": "bi-diagram-3",
         "url_name": "cadastros:setor_lista",
+    },
+    {
+        "titulo": "Balanças",
+        "descricao": "Balanças de pesagem e validade da calibração",
+        "icone": "bi-speedometer2",
+        "url_name": "cadastros:balanca_lista",
     },
 ]
 
@@ -261,6 +269,33 @@ class SetorEditarView(SetorConfig, EditarBase):
     pass
 
 
+# Balanças
+
+
+class BalancaConfig:
+    model = Balanca
+    form_class = BalancaForm
+    titulo = "Balanças"
+    url_lista = "cadastros:balanca_lista"
+    success_url = reverse_lazy("cadastros:balanca_lista")
+
+
+class BalancaListView(BalancaConfig, ListaBase):
+    template_name = "cadastros/balanca_lista.html"
+    campos_pesquisa = ["codigo", "descricao", "localizacao"]
+    colunas = ["Código", "Descrição", "Calibração", "Situação"]
+    url_criar = "cadastros:balanca_criar"
+    url_editar = "cadastros:balanca_editar"
+
+
+class BalancaCriarView(BalancaConfig, CriarBase):
+    pass
+
+
+class BalancaEditarView(BalancaConfig, EditarBase):
+    pass
+
+
 # Equipamentos
 
 
@@ -275,7 +310,7 @@ class EquipamentoConfig:
 class EquipamentoListView(EquipamentoConfig, ListaBase):
     template_name = "cadastros/equipamento_lista.html"
     campos_pesquisa = ["codigo", "nome", "setor__nome"]
-    colunas = ["Código", "Nome", "Setor", "Capacidade"]
+    colunas = ["Código", "Nome", "Setor", "Situação", "Capacidade"]
     url_criar = "cadastros:equipamento_criar"
     url_editar = "cadastros:equipamento_editar"
 

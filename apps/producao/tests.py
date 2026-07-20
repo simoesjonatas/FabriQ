@@ -66,7 +66,9 @@ class BaseProducao(TestCase):
         self.cliente = Cliente.objects.create(razao_social="Loja Bela Pele LTDA")
         self.produto = Produto.objects.create(codigo="PA-1", nome="Perfume", unidade="UN")
         self.mp = MateriaPrima.objects.create(codigo="MP-1", nome="Essência", unidade="L")
-        self.equipamento = Equipamento.objects.create(codigo="EQ-1", nome="Envasadora")
+        self.equipamento = Equipamento.objects.create(
+            codigo="EQ-1", nome="Envasadora", ultima_limpeza=timezone.localdate()
+        )
         self.deposito = LocalEstoque.objects.create(nome="Almoxarifado")
         self.acabados = LocalEstoque.objects.create(nome="Produtos acabados")
 
@@ -518,6 +520,246 @@ class SituacaoLoteBloqueioTests(BaseProducao):
         self.assertEqual(
             ordem.lote_produto.situacao, SituacaoLote.AGUARDANDO_CQ
         )
+
+
+class PesagemTests(BaseProducao):
+    """Etapa 6b: pesagem com balança calibrada, dupla conferência e tolerância."""
+
+    def setUp(self):
+        super().setUp()
+        from apps.cadastros.models import Balanca
+
+        self.conferente = criar_usuario("conferente", perfil=PRODUCAO)
+        self.balanca = Balanca.objects.create(
+            codigo="BAL-1",
+            descricao="Balança de bancada",
+            calibracao_validade=timezone.localdate() + timedelta(days=30),
+        )
+        self.balanca_vencida = Balanca.objects.create(
+            codigo="BAL-VENC",
+            descricao="Balança vencida",
+            calibracao_validade=timezone.localdate() - timedelta(days=1),
+        )
+
+    def iniciar(self):
+        ordem = self.criar_op_liberada("50")
+        self.client.post(reverse("producao:iniciar", args=[ordem.pk]))
+        ordem.refresh_from_db()
+        return ordem
+
+    def registrar(self, ordem, **extra):
+        material = ordem.materiais.get()
+        lote, _ = Lote.objects.get_or_create(codigo="MP-P1", materia_prima=self.mp)
+        dados = {
+            "material": str(material.pk),
+            "lote": str(lote.pk),
+            "balanca": str(self.balanca.pk),
+            "quantidade_pesada": "20",
+            "tolerancia_percentual": "1",
+            "conferente": "",
+            "etiqueta": "ETQ-1",
+        }
+        dados.update(extra)
+        return self.client.post(
+            reverse("producao:pesagem", args=[ordem.pk]), dados, follow=True
+        )
+
+    def test_pesagem_dentro_da_tolerancia_registra(self):
+        from .models import PesagemOP
+
+        ordem = self.iniciar()  # necessário 20
+        response = self.registrar(ordem, quantidade_pesada="20.1")
+        self.assertContains(response, "Pesagem registrada")
+        pesagem = PesagemOP.objects.get()
+        self.assertTrue(pesagem.dentro_tolerancia)
+
+    def test_fora_da_tolerancia_bloqueia(self):
+        from .models import PesagemOP
+
+        ordem = self.iniciar()
+        response = self.registrar(ordem, quantidade_pesada="25")  # 25% > 1%
+        self.assertContains(response, "fora da tolerância")
+        self.assertEqual(PesagemOP.objects.count(), 0)
+
+    def test_balanca_vencida_bloqueia(self):
+        from .models import PesagemOP
+
+        ordem = self.iniciar()
+        response = self.registrar(ordem, balanca=str(self.balanca_vencida.pk))
+        self.assertContains(response, "calibração vencida")
+        self.assertEqual(PesagemOP.objects.count(), 0)
+
+    def test_material_critico_exige_conferente_diferente(self):
+        from .models import PesagemOP
+
+        self.mp.critico = True
+        self.mp.save()
+        ordem = self.iniciar()
+
+        # Sem conferente: bloqueia
+        response = self.registrar(ordem)
+        self.assertContains(response, "dupla conferência")
+        self.assertEqual(PesagemOP.objects.count(), 0)
+
+        # Conferente = operador: bloqueia
+        response = self.registrar(ordem, conferente=str(self.operador.pk))
+        self.assertContains(response, "diferente do operador")
+        self.assertEqual(PesagemOP.objects.count(), 0)
+
+        # Conferente distinto: registra
+        response = self.registrar(ordem, conferente=str(self.conferente.pk))
+        self.assertContains(response, "Pesagem registrada")
+        self.assertEqual(PesagemOP.objects.get().conferente, self.conferente)
+
+
+class EtapaProcessoTests(BaseProducao):
+    """Etapa 6d: etapas seguem a sequência; pular exige justificativa."""
+
+    def setUp(self):
+        super().setUp()
+        from apps.ordens.models import EtapaFormula
+
+        EtapaFormula.objects.create(
+            formula=self.formula, sequencia=1, instrucao="Aquecer base",
+            temperatura_prevista=Decimal("60"),
+        )
+        EtapaFormula.objects.create(
+            formula=self.formula, sequencia=2, instrucao="Adicionar essência",
+        )
+
+    def op_em_producao_com_snapshot(self):
+        from apps.ordens.models import SnapshotFormulaOP
+
+        ordem = self.criar_op_liberada("50")
+        SnapshotFormulaOP.congelar(ordem, self.operador)
+        self.client.post(reverse("producao:iniciar", args=[ordem.pk]))
+        ordem.refresh_from_db()
+        return ordem
+
+    def test_etapas_congeladas_no_snapshot(self):
+        ordem = self.op_em_producao_com_snapshot()
+        etapas = ordem.snapshot_formula.etapas.all()
+        self.assertEqual(etapas.count(), 2)
+        self.assertEqual(etapas[0].sequencia, 1)
+        self.assertEqual(etapas[0].temperatura_prevista, Decimal("60"))
+
+    def registrar(self, ordem, sequencia, **extra):
+        etapa = ordem.snapshot_formula.etapas.get(sequencia=sequencia)
+        dados = {
+            "etapa": str(etapa.pk),
+            "temperatura_real": "",
+            "tempo_real_min": "",
+            "velocidade_real": "",
+            "conferente": "",
+            "justificativa": "",
+            "observacoes": "",
+        }
+        dados.update(extra)
+        return self.client.post(
+            reverse("producao:etapas", args=[ordem.pk]), dados, follow=True
+        )
+
+    def test_registra_etapas_na_sequencia(self):
+        from .models import EtapaOP
+
+        ordem = self.op_em_producao_com_snapshot()
+        response = self.registrar(ordem, 1, temperatura_real="61")
+        self.assertContains(response, "Etapa registrada")
+        self.assertEqual(EtapaOP.objects.count(), 1)
+
+        response = self.registrar(ordem, 2)
+        self.assertContains(response, "Etapa registrada")
+        self.assertEqual(EtapaOP.objects.count(), 2)
+
+    def test_pular_etapa_anterior_bloqueia_sem_justificativa(self):
+        from .models import EtapaOP
+
+        ordem = self.op_em_producao_com_snapshot()
+        # Registrar a etapa 2 antes da 1 sem justificar
+        response = self.registrar(ordem, 2)
+        self.assertContains(response, "etapas anteriores não executadas")
+        self.assertEqual(EtapaOP.objects.count(), 0)
+
+    def test_pular_etapa_com_justificativa_registra_e_audita(self):
+        from apps.auditoria.models import AcaoAuditoria
+        from apps.auditoria.servicos import trilha_de
+
+        from .models import EtapaOP
+
+        ordem = self.op_em_producao_com_snapshot()
+        response = self.registrar(
+            ordem, 2, pulada="on",
+            justificativa="Etapa 1 não se aplica a este lote",
+        )
+        self.assertContains(response, "Etapa registrada")
+        self.assertTrue(EtapaOP.objects.get().pulada)
+
+        evento = trilha_de(ordem).filter(
+            acao=AcaoAuditoria.ALTERACAO, campo="etapa 2"
+        ).get()
+        self.assertEqual(
+            evento.justificativa, "Etapa 1 não se aplica a este lote"
+        )
+
+
+class ControleProcessoTests(BaseProducao):
+    """Etapa 6e: controle em processo contra a especificação do produto."""
+
+    def setUp(self):
+        super().setUp()
+        from apps.qualidade.models import EspecificacaoProduto, TipoAnalise
+
+        self.ph = TipoAnalise.objects.create(
+            nome="pH", unidade="pH",
+            valor_minimo=Decimal("5.5"), valor_maximo=Decimal("7.0"),
+        )
+        # Especificação do PRODUTO (mais restrita que o tipo genérico)
+        EspecificacaoProduto.objects.create(
+            produto=self.produto, tipo=self.ph,
+            valor_minimo=Decimal("6.0"), valor_maximo=Decimal("6.5"),
+        )
+
+    def iniciar(self):
+        ordem = self.criar_op_liberada("50")
+        self.client.post(reverse("producao:iniciar", args=[ordem.pk]))
+        ordem.refresh_from_db()
+        return ordem
+
+    def medir(self, ordem, resultado):
+        return self.client.post(
+            reverse("producao:controles", args=[ordem.pk]),
+            {
+                "tipo": str(self.ph.pk),
+                "resultado": resultado,
+                "resultado_texto": "",
+                "metodo": "Potenciômetro",
+                "equipamento": "",
+            },
+            follow=True,
+        )
+
+    def test_usa_limite_da_especificacao_do_produto(self):
+        from .models import ControleProcessoOP
+
+        ordem = self.iniciar()
+        # 6.8 passa no tipo genérico (5.5–7.0) mas FALHA na espec do produto (6.0–6.5)
+        response = self.medir(ordem, "6.8")
+        self.assertContains(response, "FORA da especificação")
+        controle = ControleProcessoOP.objects.get()
+        self.assertTrue(controle.fora_especificacao)
+        self.assertEqual(controle.valor_maximo, Decimal("6.5"))
+
+    def test_medicoes_acumulam_sem_apagar_a_anterior(self):
+        from .models import ControleProcessoOP
+
+        ordem = self.iniciar()
+        self.medir(ordem, "6.8")   # fora
+        self.medir(ordem, "6.3")   # dentro
+
+        controles = ControleProcessoOP.objects.filter(ordem=ordem).order_by("id")
+        self.assertEqual(controles.count(), 2)
+        self.assertTrue(controles[0].fora_especificacao)   # a primeira foi preservada
+        self.assertFalse(controles[1].fora_especificacao)
 
 
 class AtividadeOPTests(BaseProducao):

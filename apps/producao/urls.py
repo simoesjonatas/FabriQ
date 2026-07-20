@@ -17,6 +17,9 @@ urlpatterns = [
     path("<int:pk>/ocorrencia/", views.OcorrenciaView.as_view(), name="ocorrencia"),
     path("<int:pk>/foto/", views.FotoView.as_view(), name="foto"),
     path("<int:pk>/lotes/", views.ConsumosView.as_view(), name="consumos"),
+    path("<int:pk>/pesagem/", views.PesagemView.as_view(), name="pesagem"),
+    path("<int:pk>/etapas/", views.EtapasView.as_view(), name="etapas"),
+    path("<int:pk>/controles/", views.ControlesView.as_view(), name="controles"),
     path("<int:pk>/atividade/", views.AtividadeView.as_view(), name="atividade"),
     path("<int:pk>/concluir/", views.ConcluirView.as_view(), name="concluir"),
 ]

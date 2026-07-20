@@ -24,7 +24,13 @@ from django.db import models
 from django.db.models import Q
 from django.urls import reverse
 
-from apps.cadastros.models import Embalagem, Equipamento, MateriaPrima, Produto
+from apps.cadastros.models import (
+    Embalagem,
+    Equipamento,
+    MateriaPrima,
+    Produto,
+    Setor,
+)
 from apps.core import formatos
 from apps.core.models import ModeloAuditado, ModeloBase
 from apps.estoque.models import (
@@ -183,6 +189,59 @@ class ComponenteFormula(models.Model):
         return self.materia_prima or self.embalagem
 
 
+class EtapaFormula(models.Model):
+    """
+    Etapa do processo produtivo definida na fórmula (Etapa 6d, PDF 5.5):
+    sequência, instrução e parâmetros previstos. Congelada no snapshot da
+    OP (Etapa 3) para comparação previsto × real.
+    """
+
+    formula = models.ForeignKey(
+        Formula,
+        verbose_name="fórmula",
+        on_delete=models.CASCADE,
+        related_name="etapas",
+    )
+    sequencia = models.PositiveIntegerField("sequência")
+    instrucao = models.TextField("instrução")
+    materia_prima = models.ForeignKey(
+        MateriaPrima,
+        verbose_name="material adicionado",
+        on_delete=models.PROTECT,
+        related_name="+",
+        null=True,
+        blank=True,
+        help_text="Opcional: material adicionado nesta etapa.",
+    )
+    temperatura_prevista = models.DecimalField(
+        "temperatura prevista (°C)", max_digits=7, decimal_places=2,
+        null=True, blank=True,
+    )
+    tempo_previsto_min = models.DecimalField(
+        "tempo previsto (min)", max_digits=7, decimal_places=1,
+        null=True, blank=True,
+    )
+    velocidade_prevista = models.DecimalField(
+        "velocidade prevista (rpm)", max_digits=8, decimal_places=1,
+        null=True, blank=True,
+    )
+
+    class Meta:
+        verbose_name = "etapa da fórmula"
+        verbose_name_plural = "etapas da fórmula"
+        ordering = ["formula_id", "sequencia", "id"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["formula", "sequencia"],
+                name="etapa_sequencia_unica_por_formula",
+                violation_error_message="Já existe uma etapa com essa sequência.",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.formula} · etapa {self.sequencia}"
+
+
 class StatusOP(models.TextChoices):
     RASCUNHO = "RASCUNHO", "Rascunho"
     LIBERADA = "LIBERADA", "Liberada"
@@ -228,6 +287,15 @@ class OrdemProducao(ModeloAuditado):
         blank=True,
         help_text="Obrigatório para liberar a OP.",
     )
+    linha = models.ForeignKey(
+        Setor,
+        verbose_name="linha de produção",
+        on_delete=models.PROTECT,
+        related_name="ordens",
+        null=True,
+        blank=True,
+        help_text="Setor/linha onde a OP será executada.",
+    )
     operador = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         verbose_name="operador",
@@ -237,7 +305,21 @@ class OrdemProducao(ModeloAuditado):
         blank=True,
         help_text="Obrigatório para liberar a OP.",
     )
+    supervisor = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        verbose_name="supervisor",
+        on_delete=models.PROTECT,
+        related_name="ordens_como_supervisor",
+        null=True,
+        blank=True,
+    )
     data_programada = models.DateField("data programada")
+    prazo = models.DateField(
+        "prazo",
+        null=True,
+        blank=True,
+        help_text="Data limite para concluir a produção.",
+    )
     status = models.CharField(
         "status",
         max_length=20,
@@ -363,6 +445,16 @@ class OrdemProducao(ModeloAuditado):
                 "detalhe": str(self.equipamento) if self.equipamento_id else "—",
             }
         )
+        # Bloqueio: equipamento apto — liberado, limpo e calibrado (Etapa 6c)
+        if self.equipamento_id is not None:
+            impedimento = self.equipamento.motivo_impedimento_uso()
+            condicoes.append(
+                {
+                    "rotulo": "Equipamento em condição de uso",
+                    "ok": impedimento == "",
+                    "detalhe": impedimento or "liberado, limpo e calibrado",
+                }
+            )
         condicoes.append(
             {
                 "rotulo": "Operador definido",
@@ -575,6 +667,19 @@ class SnapshotFormulaOP(SnapshotImutavelMixin):
                 quantidade_teorica=componente.quantidade,
                 quantidade_escalada=escalada,
             )
+        # Congela também as etapas do processo (Etapa 6d)
+        for etapa in formula.etapas.all():
+            EtapaSnapshotOP.objects.create(
+                snapshot=snapshot,
+                sequencia=etapa.sequencia,
+                instrucao=etapa.instrucao,
+                material_codigo=(
+                    etapa.materia_prima.codigo if etapa.materia_prima_id else ""
+                ),
+                temperatura_prevista=etapa.temperatura_prevista,
+                tempo_previsto_min=etapa.tempo_previsto_min,
+                velocidade_prevista=etapa.velocidade_prevista,
+            )
         return snapshot
 
 
@@ -638,6 +743,40 @@ class ItemSnapshotFormulaOP(SnapshotImutavelMixin):
     @property
     def item(self):
         return self.materia_prima or self.embalagem
+
+
+class EtapaSnapshotOP(SnapshotImutavelMixin):
+    """Etapa da fórmula congelada na liberação da OP (Etapa 6d)."""
+
+    snapshot = models.ForeignKey(
+        SnapshotFormulaOP,
+        verbose_name="snapshot",
+        on_delete=models.CASCADE,
+        related_name="etapas",
+    )
+    sequencia = models.PositiveIntegerField("sequência")
+    instrucao = models.TextField("instrução")
+    material_codigo = models.CharField("material adicionado", max_length=30, blank=True)
+    temperatura_prevista = models.DecimalField(
+        "temperatura prevista (°C)", max_digits=7, decimal_places=2,
+        null=True, blank=True,
+    )
+    tempo_previsto_min = models.DecimalField(
+        "tempo previsto (min)", max_digits=7, decimal_places=1,
+        null=True, blank=True,
+    )
+    velocidade_prevista = models.DecimalField(
+        "velocidade prevista (rpm)", max_digits=8, decimal_places=1,
+        null=True, blank=True,
+    )
+
+    class Meta:
+        verbose_name = "etapa do snapshot da OP"
+        verbose_name_plural = "etapas do snapshot da OP"
+        ordering = ["sequencia", "id"]
+
+    def __str__(self) -> str:
+        return f"{self.snapshot.ordem.numero} · etapa {self.sequencia}"
 
 
 class HistoricoOP(models.Model):

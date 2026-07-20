@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+
+{% block title %}Etapas · {{ ordem.numero }}{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-12 col-xxl-10">
+
+        <nav class="app-breadcrumb" aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item">
+                    <a href="{% url 'producao:painel' ordem.pk %}">
+                        <i class="bi bi-arrow-left-short" aria-hidden="true"></i>{{ ordem.numero }}
+                    </a>
+                </li>
+                <li class="breadcrumb-item active" aria-current="page">Etapas</li>
+            </ol>
+        </nav>
+
+        <div class="page-header mb-4">
+            <div>
+                <span class="eyebrow"><i class="bi bi-list-ol me-1"></i>Etapas do processo</span>
+                <h1>Etapas · {{ ordem.numero }}</h1>
+                <p>Registre cada etapa na sequência da fórmula (previsto × real). Pular exige justificativa.</p>
+            </div>
+        </div>
+
+        <div class="row g-4">
+            <div class="col-12 col-lg-7">
+                <div class="card shadow-sm data-panel">
+                    <div class="card-body">
+                        <h2 class="h6 mb-3"><i class="bi bi-list-check me-1 text-primary"></i>Etapas da fórmula</h2>
+                        {% if etapas %}
+                            <div class="table-responsive">
+                                <table class="table align-middle mb-0">
+                                    <thead>
+                                        <tr>
+                                            <th>#</th>
+                                            <th>Instrução / previsto</th>
+                                            <th>Real</th>
+                                            <th>Responsável</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for linha in etapas %}
+                                            <tr>
+                                                <td>{{ linha.etapa.sequencia }}</td>
+                                                <td>
+                                                    {{ linha.etapa.instrucao }}
+                                                    <div class="small text-body-secondary">
+                                                        {% if linha.etapa.temperatura_prevista %}T {{ linha.etapa.temperatura_prevista }}°C · {% endif %}
+                                                        {% if linha.etapa.tempo_previsto_min %}{{ linha.etapa.tempo_previsto_min }} min · {% endif %}
+                                                        {% if linha.etapa.velocidade_prevista %}{{ linha.etapa.velocidade_prevista }} rpm{% endif %}
+                                                    </div>
+                                                </td>
+                                                <td class="small">
+                                                    {% if linha.exec %}
+                                                        {% if linha.exec.pulada %}<span class="badge text-bg-warning">pulada</span>{% endif %}
+                                                        {% if linha.exec.temperatura_real %}T {{ linha.exec.temperatura_real }}°C<br>{% endif %}
+                                                        {% if linha.exec.tempo_real_min %}{{ linha.exec.tempo_real_min }} min<br>{% endif %}
+                                                        {% if linha.exec.velocidade_real %}{{ linha.exec.velocidade_real }} rpm{% endif %}
+                                                    {% else %}
+                                                        <span class="text-body-secondary">pendente</span>
+                                                    {% endif %}
+                                                </td>
+                                                <td class="small">{{ linha.exec.operador|default:"—" }}</td>
+                                            </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        {% else %}
+                            <p class="text-body-secondary mb-0">A fórmula desta OP não definiu etapas.</p>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-12 col-lg-5">
+                <div class="card shadow-sm form-panel">
+                    <div class="card-body">
+                        <h2 class="h6 mb-3"><i class="bi bi-plus-circle me-1 text-primary"></i>Registrar etapa</h2>
+                        {% if form.non_field_errors %}
+                            <div class="alert alert-danger" role="alert">
+                                {% for erro in form.non_field_errors %}<div>{{ erro }}</div>{% endfor %}
+                            </div>
+                        {% endif %}
+                        {% if etapas %}
+                            <form method="post">
+                                {% csrf_token %}
+                                {% include "includes/campo.html" with campo=form.etapa %}
+                                {% include "includes/campo.html" with campo=form.temperatura_real %}
+                                {% include "includes/campo.html" with campo=form.tempo_real_min %}
+                                {% include "includes/campo.html" with campo=form.velocidade_real %}
+                                {% include "includes/campo.html" with campo=form.conferente %}
+                                {% include "includes/campo.html" with campo=form.pulada %}
+                                {% include "includes/campo.html" with campo=form.justificativa %}
+                                {% include "includes/campo.html" with campo=form.observacoes %}
+                                <button type="submit" class="btn btn-primary w-100">
+                                    <i class="bi bi-check-lg me-1"></i>Registrar etapa
+                                </button>
+                            </form>
+                        {% else %}
+                            <p class="text-body-secondary mb-0">Sem etapas para registrar.</p>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

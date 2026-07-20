@@ -10,6 +10,14 @@ urlpatterns = [
     path("setores/", views.SetorListView.as_view(), name="setor_lista"),
     path("setores/novo/", views.SetorCriarView.as_view(), name="setor_criar"),
     path("setores/<int:pk>/editar/", views.SetorEditarView.as_view(), name="setor_editar"),
+    # Balanças
+    path("balancas/", views.BalancaListView.as_view(), name="balanca_lista"),
+    path("balancas/nova/", views.BalancaCriarView.as_view(), name="balanca_criar"),
+    path(
+        "balancas/<int:pk>/editar/",
+        views.BalancaEditarView.as_view(),
+        name="balanca_editar",
+    ),
     # Equipamentos
     path("equipamentos/", views.EquipamentoListView.as_view(), name="equipamento_lista"),
     path("equipamentos/novo/", views.EquipamentoCriarView.as_view(), name="equipamento_criar"),
