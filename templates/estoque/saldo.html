@@ -71,6 +71,7 @@
                                 <th>Item</th>
                                 <th>Lote</th>
                                 <th>Validade</th>
+                                <th>Situação</th>
                                 <th>Local</th>
                                 <th class="text-end">Saldo</th>
                             </tr>
@@ -101,6 +102,13 @@
                                             —
                                         {% endif %}
                                     </td>
+                                    <td>
+                                        {% if linha.lote %}
+                                            <span class="badge {{ linha.lote.badge_situacao }}">
+                                                {{ linha.lote.get_situacao_display }}
+                                            </span>
+                                        {% else %}—{% endif %}
+                                    </td>
                                     <td>{{ linha.local.nome|default:"—" }}</td>
                                     <td class="text-end fw-bold {% if linha.saldo < 0 %}text-danger{% endif %}">
                                         {{ linha.saldo|floatformat:"-3" }}
@@ -111,7 +119,7 @@
                                 </tr>
                             {% empty %}
                                 <tr>
-                                    <td colspan="6" class="text-center text-body-secondary py-4">
+                                    <td colspan="7" class="text-center text-body-secondary py-4">
                                         Nenhum saldo encontrado. Registre a primeira movimentação
                                         em “Movimentar”.
                                     </td>

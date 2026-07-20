@@ -56,6 +56,15 @@ class ConcluirProducaoForm(BootstrapFormMixin, forms.Form):
         queryset=LocalEstoque.objects.none(),
         help_text="Onde o produto acabado será estocado.",
     )
+    justificativa_divergencia = forms.CharField(
+        label="Justificativa da divergência de consumo",
+        required=False,
+        widget=forms.Textarea(attrs={"rows": 2}),
+        help_text=(
+            "Obrigatória quando a soma dos lotes apontados difere do "
+            "necessário (fica na trilha de auditoria)."
+        ),
+    )
 
     def __init__(self, *args, excluir_local=None, **kwargs):
         super().__init__(*args, **kwargs)

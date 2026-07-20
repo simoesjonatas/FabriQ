@@ -7,12 +7,13 @@ from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
 
-from apps.accounts.perfis import COMPRAS, PCP, PRODUCAO
+from apps.accounts.perfis import COMPRAS, DIRETORIA, PCP, PRODUCAO
 from apps.cadastros.models import Cliente, Equipamento, MateriaPrima, Produto
 from apps.estoque.models import (
     LocalEstoque,
     Lote,
     Movimentacao,
+    SituacaoLote,
     TipoMovimentacao,
     saldo,
 )
@@ -25,7 +26,13 @@ from apps.ordens.models import (
 from apps.pedidos.models import ItemPedido, Pedido, StatusPedido
 from apps.recebimento.models import local_quarentena
 
-from .models import ExecucaoOP, Parada, ProducaoInsuficiente
+from .models import (
+    ConsumoMaterialOP,
+    ExecucaoOP,
+    Parada,
+    apontar_consumos_fefo,
+    sugerir_consumos_fefo,
+)
 
 User = get_user_model()
 
@@ -133,9 +140,18 @@ class ConcluirTests(BaseProducao):
         ordem.refresh_from_db()
         return ordem
 
+    def lote_mp(self, codigo, dias_validade=180):
+        return Lote.objects.create(
+            codigo=codigo,
+            materia_prima=self.mp,
+            validade=timezone.localdate() + timedelta(days=dias_validade),
+        )
+
     def test_conclusao_consome_material_e_estoca_acabado(self):
-        entrada({"materia_prima": self.mp}, "30", self.deposito)  # precisa de 20
-        ordem = self.iniciar(quantidade="50")
+        lote = self.lote_mp("MP-L1")
+        entrada({"materia_prima": self.mp}, "30", self.deposito, lote=lote)
+        ordem = self.iniciar(quantidade="50")  # precisa de 20
+        apontar_consumos_fefo(ordem, self.operador)
 
         response = self.client.post(
             reverse("producao:concluir", args=[ordem.pk]), self.dados_conclusao()
@@ -155,8 +171,9 @@ class ConcluirTests(BaseProducao):
         self.assertRegex(ordem.execucao.lote_produzido.codigo, r"^PA-\d{4}-\d{5}$")
         self.assertEqual(ordem.execucao.lote_produzido, ordem.lote_produto)
 
-    def test_conclusao_bloqueada_por_estoque_insuficiente(self):
-        entrada({"materia_prima": self.mp}, "10", self.deposito)  # < 20
+    def test_conclusao_bloqueada_sem_apontamento_de_lotes(self):
+        lote = self.lote_mp("MP-L1")
+        entrada({"materia_prima": self.mp}, "30", self.deposito, lote=lote)
         ordem = self.iniciar(quantidade="50")
 
         self.client.post(
@@ -165,8 +182,342 @@ class ConcluirTests(BaseProducao):
         ordem.refresh_from_db()
         self.assertEqual(ordem.status, StatusOP.EM_PRODUCAO)
         # Nenhuma saída nem entrada de acabado foi criada
-        self.assertEqual(saldo(self.mp), Decimal("10"))
+        self.assertEqual(saldo(self.mp), Decimal("30"))
         self.assertEqual(saldo(self.produto), Decimal("0"))
+
+
+class ConsumoPorLoteTests(BaseProducao):
+    """Etapa 4: consumo real apontado por lote (PDF 2.1/5.2)."""
+
+    def iniciar(self, quantidade="50"):
+        ordem = self.criar_op_liberada(quantidade)
+        self.client.post(reverse("producao:iniciar", args=[ordem.pk]))
+        ordem.refresh_from_db()
+        return ordem
+
+    def lote_mp(self, codigo, dias_validade=180):
+        return Lote.objects.create(
+            codigo=codigo,
+            materia_prima=self.mp,
+            validade=timezone.localdate() + timedelta(days=dias_validade),
+        )
+
+    def dados_conclusao(self, **kwargs):
+        dados = {
+            "quantidade_produzida": "50",
+            "perdas": "0",
+            "lote_validade": "",
+            "local_destino": str(self.acabados.pk),
+            "justificativa_divergencia": "",
+        }
+        dados.update(kwargs)
+        return dados
+
+    def test_concluir_com_dois_lotes_do_mesmo_material(self):
+        """Critério de aceite do PDF: dois lotes, consumo individual e baixa correta."""
+        lote_a = self.lote_mp("MP-LA", dias_validade=90)   # vence depois
+        lote_b = self.lote_mp("MP-LB", dias_validade=30)   # vence antes → FEFO
+        entrada({"materia_prima": self.mp}, "15", self.deposito, lote=lote_a)
+        entrada({"materia_prima": self.mp}, "15", self.deposito, lote=lote_b)
+        ordem = self.iniciar(quantidade="50")  # necessário: 20 L
+
+        # Apontamento pela tela: FEFO sugere B (15) + A (5); operador confirma
+        material = ordem.materiais.get()
+        response = self.client.post(
+            reverse("producao:consumos", args=[ordem.pk]),
+            {
+                f"qtd-{material.pk}-{lote_b.pk}-{self.deposito.pk}": "15",
+                f"qtd-{material.pk}-{lote_a.pk}-{self.deposito.pk}": "5",
+            },
+        )
+        self.assertRedirects(response, reverse("producao:painel", args=[ordem.pk]))
+        self.assertEqual(material.consumos.count(), 2)
+
+        self.client.post(
+            reverse("producao:concluir", args=[ordem.pk]), self.dados_conclusao()
+        )
+        ordem.refresh_from_db()
+        self.assertEqual(ordem.status, StatusOP.CONCLUIDA)
+
+        # Consumo individual por lote, cada um vinculado à sua saída
+        consumos = {c.lote_id: c for c in material.consumos.all()}
+        self.assertEqual(consumos[lote_b.pk].quantidade, Decimal("15"))
+        self.assertEqual(consumos[lote_a.pk].quantidade, Decimal("5"))
+        for consumo in consumos.values():
+            self.assertTrue(consumo.confirmado)
+            self.assertEqual(
+                consumo.movimentacao.tipo, TipoMovimentacao.SAIDA
+            )
+            self.assertEqual(consumo.movimentacao.quantidade, consumo.quantidade)
+
+        # Baixa correta do estoque por lote
+        self.assertEqual(saldo(self.mp, lote=lote_b), Decimal("0"))
+        self.assertEqual(saldo(self.mp, lote=lote_a), Decimal("10"))
+
+        # Coluna "Lote usado" preenchida na tela da OP (vista pelo PCP)
+        criar_usuario("pcp.consulta", perfil=PCP)
+        self.client.login(username="pcp.consulta", password="senha-forte-123")
+        detalhe = self.client.get(reverse("ordens:detalhe", args=[ordem.pk]))
+        self.assertContains(detalhe, "MP-LB")
+        self.assertContains(detalhe, "MP-LA")
+
+    def test_sugestao_fefo_prioriza_quem_vence_primeiro(self):
+        lote_a = self.lote_mp("MP-LA", dias_validade=90)
+        lote_b = self.lote_mp("MP-LB", dias_validade=30)
+        entrada({"materia_prima": self.mp}, "15", self.deposito, lote=lote_a)
+        entrada({"materia_prima": self.mp}, "15", self.deposito, lote=lote_b)
+        ordem = self.iniciar(quantidade="50")
+
+        material = ordem.materiais.get()
+        sugestoes = sugerir_consumos_fefo(ordem)[material.pk]
+        self.assertEqual(sugestoes[0]["lote"], lote_b)
+        self.assertEqual(sugestoes[0]["quantidade"], Decimal("15"))
+        self.assertEqual(sugestoes[1]["lote"], lote_a)
+        self.assertEqual(sugestoes[1]["quantidade"], Decimal("5"))
+
+    def test_concluir_sem_lote_lista_materiais_pendentes(self):
+        lote = self.lote_mp("MP-L1")
+        entrada({"materia_prima": self.mp}, "30", self.deposito, lote=lote)
+        ordem = self.iniciar()
+
+        response = self.client.post(
+            reverse("producao:concluir", args=[ordem.pk]),
+            self.dados_conclusao(),
+            follow=True,
+        )
+        self.assertContains(response, "Aponte os lotes consumidos")
+        self.assertContains(response, "MP-1")
+        ordem.refresh_from_db()
+        self.assertEqual(ordem.status, StatusOP.EM_PRODUCAO)
+
+    def test_lote_vencido_fora_da_sugestao_e_rejeitado_no_apontamento(self):
+        vencido = Lote.objects.create(
+            codigo="MP-VENC",
+            materia_prima=self.mp,
+            validade=timezone.localdate() - timedelta(days=1),
+        )
+        valido = self.lote_mp("MP-OK")
+        entrada({"materia_prima": self.mp}, "30", self.deposito, lote=vencido)
+        entrada({"materia_prima": self.mp}, "30", self.deposito, lote=valido)
+        ordem = self.iniciar()
+        material = ordem.materiais.get()
+
+        # Vencido não aparece na sugestão
+        lotes_sugeridos = [
+            s["lote"] for s in sugerir_consumos_fefo(ordem)[material.pk]
+        ]
+        self.assertNotIn(vencido, lotes_sugeridos)
+
+        # Operador comum não pode apontar o vencido (bloqueio informa a causa)
+        response = self.client.post(
+            reverse("producao:consumos", args=[ordem.pk]),
+            {f"qtd-{material.pk}-{vencido.pk}-{self.deposito.pk}": "20"},
+            follow=True,
+        )
+        self.assertContains(response, "vencido em")
+        self.assertEqual(material.consumos.count(), 0)
+
+    def test_divergencia_exige_justificativa(self):
+        lote = self.lote_mp("MP-L1")
+        entrada({"materia_prima": self.mp}, "30", self.deposito, lote=lote)
+        ordem = self.iniciar()  # necessário 20
+        material = ordem.materiais.get()
+        self.client.post(
+            reverse("producao:consumos", args=[ordem.pk]),
+            {f"qtd-{material.pk}-{lote.pk}-{self.deposito.pk}": "18"},
+        )
+
+        # Sem justificativa → bloqueia
+        response = self.client.post(
+            reverse("producao:concluir", args=[ordem.pk]),
+            self.dados_conclusao(),
+            follow=True,
+        )
+        self.assertContains(response, "difere do necessário")
+        ordem.refresh_from_db()
+        self.assertEqual(ordem.status, StatusOP.EM_PRODUCAO)
+
+        # Com justificativa → conclui e registra na trilha
+        self.client.post(
+            reverse("producao:concluir", args=[ordem.pk]),
+            self.dados_conclusao(
+                justificativa_divergencia="Rendimento melhor: sobrou essência"
+            ),
+        )
+        ordem.refresh_from_db()
+        self.assertEqual(ordem.status, StatusOP.CONCLUIDA)
+        self.assertEqual(saldo(self.mp), Decimal("12"))
+
+        from apps.auditoria.models import AcaoAuditoria
+        from apps.auditoria.servicos import trilha_de
+
+        evento = trilha_de(ordem).filter(
+            acao=AcaoAuditoria.ALTERACAO, campo="consumo apontado"
+        ).get()
+        self.assertEqual(
+            evento.justificativa, "Rendimento melhor: sobrou essência"
+        )
+
+    def test_consumo_confirmado_e_imutavel(self):
+        from apps.auditoria.models import TrilhaImutavelError
+
+        lote = self.lote_mp("MP-L1")
+        entrada({"materia_prima": self.mp}, "30", self.deposito, lote=lote)
+        ordem = self.iniciar()
+        apontar_consumos_fefo(ordem, self.operador)
+        self.client.post(
+            reverse("producao:concluir", args=[ordem.pk]), self.dados_conclusao()
+        )
+
+        consumo = ConsumoMaterialOP.objects.get()
+        self.assertTrue(consumo.confirmado)
+        consumo.quantidade = Decimal("999")
+        with self.assertRaises(TrilhaImutavelError):
+            consumo.save()
+        with self.assertRaises(TrilhaImutavelError):
+            consumo.delete()
+        with self.assertRaises(TrilhaImutavelError):
+            ConsumoMaterialOP.objects.all().delete()
+
+    def test_comando_retroativo_cria_consumos_de_op_antiga(self):
+        from django.core.management import call_command
+
+        lote = self.lote_mp("MP-ANTIGO")
+        entrada({"materia_prima": self.mp}, "30", self.deposito, lote=lote)
+        ordem = self.criar_op_liberada()
+        # OP "à moda antiga": concluída sem apontamento, só com a movimentação
+        ordem.status = StatusOP.CONCLUIDA
+        ordem.save()
+        saida = Movimentacao(
+            tipo=TipoMovimentacao.SAIDA,
+            materia_prima=self.mp,
+            lote=lote,
+            quantidade=Decimal("20"),
+            local_origem=self.deposito,
+            motivo=f"Consumo na produção {ordem.numero}",
+            documento=ordem.numero,
+            criado_por=self.operador,
+            atualizado_por=self.operador,
+        )
+        saida.full_clean()
+        saida.save()
+
+        call_command("criar_consumos_retroativos")
+
+        consumo = ConsumoMaterialOP.objects.get(material__ordem=ordem)
+        self.assertEqual(consumo.lote, lote)
+        self.assertEqual(consumo.quantidade, Decimal("20"))
+        self.assertEqual(consumo.movimentacao, saida)
+        self.assertEqual(consumo.registrado_por, self.operador)
+
+        # Idempotente
+        call_command("criar_consumos_retroativos")
+        self.assertEqual(ConsumoMaterialOP.objects.count(), 1)
+
+
+class SituacaoLoteBloqueioTests(BaseProducao):
+    """Etapa 5: situação do lote impede consumo; exceção justificada libera."""
+
+    def iniciar(self, quantidade="50"):
+        ordem = self.criar_op_liberada(quantidade)
+        self.client.post(reverse("producao:iniciar", args=[ordem.pk]))
+        ordem.refresh_from_db()
+        return ordem
+
+    def lote_mp(self, codigo, situacao=SituacaoLote.APROVADO, dias_validade=180):
+        return Lote.objects.create(
+            codigo=codigo,
+            materia_prima=self.mp,
+            validade=timezone.localdate() + timedelta(days=dias_validade),
+            situacao=situacao,
+        )
+
+    def apontar(self, ordem, lote, quantidade, **extra):
+        material = ordem.materiais.get()
+        dados = {f"qtd-{material.pk}-{lote.pk}-{self.deposito.pk}": str(quantidade)}
+        dados.update(extra)
+        return self.client.post(
+            reverse("producao:consumos", args=[ordem.pk]), dados, follow=True
+        )
+
+    def test_lote_reprovado_bloqueia_consumo_e_informa_causa(self):
+        lote = self.lote_mp("MP-REP", situacao=SituacaoLote.REPROVADO)
+        entrada({"materia_prima": self.mp}, "30", self.deposito, lote=lote)
+        ordem = self.iniciar()
+
+        response = self.apontar(ordem, lote, 20)
+        self.assertContains(response, "reprovado no controle de qualidade")
+        self.assertEqual(ordem.materiais.get().consumos.count(), 0)
+
+    def test_lote_bloqueado_nao_aparece_na_sugestao(self):
+        bloqueado = self.lote_mp("MP-BLOQ", situacao=SituacaoLote.BLOQUEADO)
+        entrada({"materia_prima": self.mp}, "30", self.deposito, lote=bloqueado)
+        ordem = self.iniciar()
+
+        lotes = [s["lote"] for s in sugerir_consumos_fefo(ordem)[ordem.materiais.get().pk]]
+        self.assertNotIn(bloqueado, lotes)
+
+    def test_operador_comum_nao_autoriza_excecao(self):
+        lote = self.lote_mp("MP-REP", situacao=SituacaoLote.REPROVADO)
+        entrada({"materia_prima": self.mp}, "30", self.deposito, lote=lote)
+        ordem = self.iniciar()
+
+        # Operador (PRODUCAO) tenta forçar com justificativa: exceção ignorada
+        response = self.apontar(
+            ordem, lote, 20, **{f"excecao-{lote.pk}": "preciso usar"}
+        )
+        self.assertContains(response, "reprovado no controle de qualidade")
+        self.assertEqual(ordem.materiais.get().consumos.count(), 0)
+
+    def test_excecao_autorizada_libera_e_grava_trilha(self):
+        from apps.auditoria.models import AcaoAuditoria
+        from apps.auditoria.servicos import trilha_de
+
+        diretor = criar_usuario("diretora", perfil=DIRETORIA)
+        lote = self.lote_mp("MP-REP", situacao=SituacaoLote.REPROVADO)
+        entrada({"materia_prima": self.mp}, "30", self.deposito, lote=lote)
+        ordem = self.iniciar()
+
+        self.client.login(username="diretora", password="senha-forte-123")
+        response = self.apontar(
+            ordem, lote, 20,
+            **{f"excecao-{lote.pk}": "Reanálise aprovou; usar sob responsabilidade"},
+        )
+        self.assertContains(response, "exceção autorizada")
+
+        consumo = ordem.materiais.get().consumos.get()
+        self.assertEqual(consumo.lote, lote)
+        self.assertEqual(consumo.quantidade, Decimal("20"))
+
+        evento = trilha_de(lote).filter(
+            acao=AcaoAuditoria.EXCECAO_BLOQUEIO
+        ).get()
+        self.assertEqual(evento.usuario, diretor)
+        self.assertIn("reprovado", evento.valor_anterior)
+        self.assertEqual(
+            evento.justificativa,
+            "Reanálise aprovou; usar sob responsabilidade",
+        )
+
+    def test_produto_acabado_nasce_aguardando_cq(self):
+        lote = self.lote_mp("MP-OK")
+        entrada({"materia_prima": self.mp}, "30", self.deposito, lote=lote)
+        ordem = self.iniciar()
+        apontar_consumos_fefo(ordem, self.operador)
+        self.client.post(
+            reverse("producao:concluir", args=[ordem.pk]),
+            {
+                "quantidade_produzida": "50",
+                "perdas": "0",
+                "lote_validade": "",
+                "local_destino": str(self.acabados.pk),
+                "justificativa_divergencia": "",
+            },
+        )
+        ordem.refresh_from_db()
+        self.assertEqual(
+            ordem.lote_produto.situacao, SituacaoLote.AGUARDANDO_CQ
+        )
 
 
 class AtividadeOPTests(BaseProducao):
@@ -181,11 +532,17 @@ class AtividadeOPTests(BaseProducao):
     def test_iniciar_e_concluir_registram_atividades_automaticas(self):
         from .models import TipoAtividadeOP
 
-        entrada({"materia_prima": self.mp}, "30", self.deposito)
+        lote = Lote.objects.create(
+            codigo="MP-ATIV",
+            materia_prima=self.mp,
+            validade=timezone.localdate() + timedelta(days=180),
+        )
+        entrada({"materia_prima": self.mp}, "30", self.deposito, lote=lote)
         ordem = self.iniciar()
         atividades = list(ordem.atividades.values_list("atividade", flat=True))
         self.assertIn(TipoAtividadeOP.PRODUCAO, atividades)
 
+        apontar_consumos_fefo(ordem, self.operador)
         self.client.post(
             reverse("producao:concluir", args=[ordem.pk]), self.dados_conclusao()
         )
@@ -268,7 +625,7 @@ class AtividadeOPTests(BaseProducao):
         # Continua tudo na quarentena
         self.assertEqual(saldo(self.mp, local=local_quarentena()), Decimal("30"))
 
-    def test_consumo_respeita_fefo(self):
+    def test_apontamento_fefo_automatico_consome_quem_vence_primeiro(self):
         # Lote A vence depois; lote B vence antes → B deve sair primeiro
         hoje = timezone.localdate()
         lote_a = Lote.objects.create(
@@ -281,6 +638,7 @@ class AtividadeOPTests(BaseProducao):
         entrada({"materia_prima": self.mp}, "15", self.deposito, lote=lote_b)
 
         ordem = self.iniciar(quantidade="50")  # precisa de 20
+        apontar_consumos_fefo(ordem, self.operador)
         self.client.post(
             reverse("producao:concluir", args=[ordem.pk]), self.dados_conclusao()
         )
@@ -288,44 +646,6 @@ class AtividadeOPTests(BaseProducao):
         # B (vence antes) esgota 15; A cede 5 → sobra 10 em A, 0 em B
         self.assertEqual(saldo(self.mp, lote=lote_b), Decimal("0"))
         self.assertEqual(saldo(self.mp, lote=lote_a), Decimal("10"))
-
-    def test_consumir_material_fefo_ordem_direta(self):
-        hoje = timezone.localdate()
-        lote_a = Lote.objects.create(
-            materia_prima=self.mp, codigo="A", validade=hoje + timedelta(days=90)
-        )
-        lote_b = Lote.objects.create(
-            materia_prima=self.mp, codigo="B", validade=hoje + timedelta(days=10)
-        )
-        entrada({"materia_prima": self.mp}, "15", self.deposito, lote=lote_a)
-        entrada({"materia_prima": self.mp}, "15", self.deposito, lote=lote_b)
-
-        from .models import consumir_material_fefo
-
-        consumir_material_fefo(
-            self.mp,
-            Decimal("20"),
-            usuario=self.operador,
-            motivo="teste",
-            documento="OP-1",
-            excluir_local=local_quarentena(),
-        )
-        self.assertEqual(saldo(self.mp, lote=lote_b), Decimal("0"))
-        self.assertEqual(saldo(self.mp, lote=lote_a), Decimal("10"))
-
-    def test_saldo_insuficiente_levanta_excecao(self):
-        entrada({"materia_prima": self.mp}, "5", self.deposito)
-        from .models import consumir_material_fefo
-
-        with self.assertRaises(ProducaoInsuficiente):
-            consumir_material_fefo(
-                self.mp,
-                Decimal("20"),
-                usuario=self.operador,
-                motivo="teste",
-                documento="OP-1",
-                excluir_local=local_quarentena(),
-            )
 
 
 class ParadaOcorrenciaTests(BaseProducao):

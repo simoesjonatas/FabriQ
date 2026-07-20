@@ -65,6 +65,7 @@
                                         <th class="text-end">Necessário</th>
                                         <th class="text-end">Disponível*</th>
                                         <th>Situação</th>
+                                        <th>Lote usado</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -88,6 +89,22 @@
                                                     <span class="badge text-bg-danger">Insuficiente</span>
                                                 {% endif %}
                                             </td>
+                                            <td>
+                                                {% for consumo in material.consumos.all %}
+                                                    <div class="small text-nowrap">
+                                                        {{ consumo.lote.codigo }} ·
+                                                        {{ consumo.quantidade|floatformat:"-3" }}
+                                                        {% if consumo.lote.fornecedor %}
+                                                            <span class="text-body-secondary">· {{ consumo.lote.fornecedor }}</span>
+                                                        {% endif %}
+                                                        {% if not consumo.confirmado %}
+                                                            <span class="badge text-bg-warning">apontado</span>
+                                                        {% endif %}
+                                                    </div>
+                                                {% empty %}
+                                                    <span class="text-body-secondary">—</span>
+                                                {% endfor %}
+                                            </td>
                                         </tr>
                                     {% endfor %}
                                 </tbody>
@@ -95,6 +112,7 @@
                         </div>
                         <p class="small text-body-secondary mt-2 mb-0">
                             * saldo fora da quarentena — apenas material liberado pela Qualidade.
+                            O consumo real é apontado por lote na execução (baixa na conclusão).
                         </p>
                     </div>
                 </div>

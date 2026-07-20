@@ -215,9 +215,38 @@ Alterar a fórmula padrão após a emissão de uma OP de teste e confirmar que a
 
 ---
 
-## Etapa 4 — Consumo por lote obrigatório na OP (P1)
+## Etapa 4 — Consumo por lote obrigatório na OP (P1) ✅ CONCLUÍDA (20/07/2026)
 
 **Objetivo (PDF 2.1 e 5.2):** a OP registra o consumo **real** por lote — nunca conclui com lote vazio. Hoje a baixa é automática (FEFO) e a coluna "Lote usado" fica vazia na OP concluída.
+
+> **Status:** implementada e testada (225 testes do projeto passando; critério de aceite
+> verificado nas telas com a base de demonstração — OP concluída com baixa por lote e a
+> coluna "Lote usado" preenchida).
+> - `ConsumoMaterialOP` em `apps/producao` (FK `MaterialOP`, `Lote`, `LocalEstoque`,
+>   quantidade, FK `Movimentacao` de saída, `registrado_por/em`). Reapontável enquanto
+>   `movimentacao` é nula; **imutável** depois de confirmado na conclusão (save/delete/
+>   queryset bloqueados como na Etapa 1).
+> - Serviços: `posicoes_consumiveis` (fora da quarentena, só com lote, validade em dia,
+>   FEFO), `sugerir_consumos_fefo`, `apontar_consumos` (valida lote apto + saldo) e
+>   `apontar_consumos_fefo` (automático, usado pela demo).
+> - `ExecucaoOP.concluir()` deixou de baixar FEFO automático: gera uma SAÍDA por
+>   consumo apontado. Bloqueios: material sem lote (lista quais faltam), lote vencido no
+>   apontamento, e divergência soma≠necessário exige justificativa (evento na trilha).
+>   Removidos `consumir_material_fefo`/`ProducaoInsuficiente`.
+> - Tela de apontamento `producao/<pk>/lotes/`: por material, posições (lote interno,
+>   fornecedor, validade+alerta, local, saldo) com quantidade editável pré-carregada
+>   pela sugestão FEFO ou pelo apontamento salvo. Painel de produção mostra lote
+>   apontado por material, bloqueia a conclusão se faltar lote, e o modal de conclusão
+>   tem o campo de justificativa de divergência.
+> - Coluna **"Lote usado"** preenchida no detalhe e na impressão da OP (código,
+>   quantidade, fornecedor).
+> - Comando `criar_consumos_retroativos`: casa `Movimentacao` de saída
+>   (documento = número da OP) com os `MaterialOP` e cria consumos retroativos
+>   (idempotente) para OPs concluídas antes desta etapa.
+> - Estoque: `Lote.vencido` e `Lote.fornecedor` (do recebimento) como propriedades;
+>   `carregar_demo` aponta FEFO antes de concluir.
+> - Nota: bloqueio por **situação** do lote (reprovado/bloqueado) vem na Etapa 5 — aqui
+>   já barramos quarentena e vencido.
 
 ### Passos
 1. Criar `ConsumoMaterialOP` em `apps/ordens` (ou `apps/producao`):
@@ -240,9 +269,37 @@ Concluir uma OP de teste usando dois lotes de um mesmo material e confirmar o co
 
 ---
 
-## Etapa 5 — Situação do lote e bloqueios sistêmicos (P1/P2)
+## Etapa 5 — Situação do lote e bloqueios sistêmicos (P1/P2) ✅ CONCLUÍDA (20/07/2026)
 
 **Objetivo (PDF 2.6, 4.1 e 7.2):** o sistema **impede** a ação irregular (não só avisa); o lote tem situação controlada.
+
+> **Status:** implementada e testada (232 testes do projeto passando; critério de aceite
+> verificado nas telas — lote vencido/reprovado bloqueado com a causa, e exceção
+> autorizada gravada na trilha).
+> - `SituacaoLote` (EM_PRODUCAO, AGUARDANDO_CQ, EM_ANALISE, APROVADO, REPROVADO,
+>   BLOQUEADO, EXPEDIDO, RECOLHIDO, DEVOLVIDO) + campo `Lote.situacao` (default
+>   AGUARDANDO_CQ) + `badge_situacao`. Migração com backfill (lotes com decisão de
+>   quarentena recebem a situação correspondente).
+> - Sincronização: recebido nasce AGUARDANDO_CQ; a `DecidirItemView` mapeia a decisão
+>   da quarentena para a situação (liberado→APROVADO, reprovado→REPROVADO,
+>   bloqueado→BLOQUEADO, em análise→EM_ANALISE, devolvido→DEVOLVIDO), gravando na
+>   trilha do lote; o lote de produto nasce EM_PRODUCAO na reserva e vai a
+>   AGUARDANDO_CQ na conclusão (o fluxo de CQ→APROVADO do acabado é a Etapa 8).
+> - Serviço no `Lote`: `motivo_bloqueio_consumo()` (mensagem com causa+correção),
+>   `pode_ser_consumido()` e `pode_ser_expedido()`. Bloqueiam consumo: vencido +
+>   situações REPROVADO/BLOQUEADO/EXPEDIDO/RECOLHIDO/DEVOLVIDO (quarentena já é barrada
+>   por local). Aplicado em `posicoes_consumiveis`/`apontar_consumos`.
+> - **Exceção de bloqueio**: `pode_autorizar_excecao` (Administrador/Diretoria/
+>   Qualidade) em perfis.py; `apontar_consumos(..., excecoes={lote_pk: justificativa})`
+>   libera o lote bloqueado e grava `RegistroAuditoria` ação "exceção de bloqueio"
+>   (causa + justificativa + usuário). Na tela de apontamento, lotes bloqueados
+>   aparecem em vermelho com o motivo; para usuário autorizado, surge o campo de
+>   quantidade + justificativa da exceção.
+> - Badge de situação nas telas: consulta de saldo, apontamento de lotes. A
+>   re-checagem de elegibilidade saiu do `concluir()` — o apontamento é o único ponto
+>   de controle (permite honrar exceções); `concluir()` só efetiva a baixa.
+> - Nota: os demais bloqueios da lista do PDF 7.2 (liberação sem CQ, expedição de lote
+>   não liberado) dependem das Etapas 8–9 e serão fechados lá.
 
 ### Passos
 1. Adicionar ao `Lote` (`apps/estoque/models.py`) o campo `situacao` com fluxo controlado:

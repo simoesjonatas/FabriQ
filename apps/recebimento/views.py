@@ -29,6 +29,7 @@ from .forms import (
     RecebimentoForm,
 )
 from .models import (
+    SITUACAO_LOTE_POR_DECISAO,
     DecisaoQuarentena,
     ItemRecebimento,
     Recebimento,
@@ -342,6 +343,15 @@ class DecidirItemView(AcessoModuloMixin, View):
             status_anterior = item.get_status_display()
             item.status = decisao
             item.save()
+
+            # Reflete a decisão na SITUAÇÃO controlada do lote (Etapa 5):
+            # é ela que impede consumo/expedição irregular. A mudança
+            # entra automaticamente na trilha do lote (ModeloAuditado).
+            nova_situacao = SITUACAO_LOTE_POR_DECISAO.get(decisao)
+            if nova_situacao and item.lote.situacao != nova_situacao:
+                item.lote.situacao = nova_situacao
+                item.lote._justificativa_auditoria = observacoes
+                item.lote.salvar_com_usuario(request.user)
 
             DecisaoQuarentena.objects.create(
                 item=item,

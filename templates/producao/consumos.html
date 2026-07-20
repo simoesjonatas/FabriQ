@@ -1,0 +1,150 @@
+{% extends "base.html" %}
+
+{% block title %}Lotes consumidos · {{ ordem.numero }}{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-12 col-xxl-10">
+
+        <nav class="app-breadcrumb" aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item">
+                    <a href="{% url 'producao:painel' ordem.pk %}">
+                        <i class="bi bi-arrow-left-short" aria-hidden="true"></i>{{ ordem.numero }}
+                    </a>
+                </li>
+                <li class="breadcrumb-item active" aria-current="page">Lotes consumidos</li>
+            </ol>
+        </nav>
+
+        <div class="page-header mb-4">
+            <div>
+                <span class="eyebrow"><i class="bi bi-upc-scan me-1"></i>Apontamento de consumo</span>
+                <h1>Lotes consumidos · {{ ordem.numero }}</h1>
+                <p>
+                    {{ ordem.produto.codigo }} · {{ ordem.produto.nome }} —
+                    confirme a sugestão FEFO (vence primeiro, sai primeiro) ou
+                    ajuste os lotes e quantidades realmente usados.
+                </p>
+            </div>
+        </div>
+
+        <form method="post">
+            {% csrf_token %}
+
+            {% for bloco in blocos %}
+                <div class="card shadow-sm data-panel mb-4">
+                    <div class="card-body">
+                        <div class="section-heading">
+                            <div>
+                                <h2>
+                                    <i class="bi bi-box-seam me-1 text-primary"></i>
+                                    {{ bloco.material.item.codigo }} · {{ bloco.material.item.nome }}
+                                </h2>
+                                <p>
+                                    Necessário:
+                                    <strong>{{ bloco.material.quantidade_necessaria|floatformat:"-3" }}
+                                    {{ bloco.material.item.get_unidade_display }}</strong>
+                                    · sugerido/apontado:
+                                    {{ bloco.total_apontado|floatformat:"-3" }}
+                                </p>
+                            </div>
+                        </div>
+
+                        {% if bloco.linhas %}
+                            <div class="table-responsive">
+                                <table class="table align-middle mb-0">
+                                    <thead>
+                                        <tr>
+                                            <th>Lote interno</th>
+                                            <th>Fornecedor</th>
+                                            <th>Validade</th>
+                                            <th>Situação</th>
+                                            <th>Local</th>
+                                            <th class="text-end">Saldo</th>
+                                            <th class="text-end" style="width: 160px;">Quantidade usada</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for linha in bloco.linhas %}
+                                            <tr {% if linha.bloqueio %}class="table-danger"{% endif %}>
+                                                <td>
+                                                    {{ linha.lote.codigo }}
+                                                    {% if linha.lote.lote_fornecedor %}
+                                                        <div class="small text-body-secondary">forn.: {{ linha.lote.lote_fornecedor }}</div>
+                                                    {% endif %}
+                                                </td>
+                                                <td>{{ linha.lote.fornecedor|default:"—" }}</td>
+                                                <td>
+                                                    {{ linha.lote.validade|date:"d/m/Y"|default:"—" }}
+                                                    {% if linha.lote.situacao_validade == "VENCE_EM_BREVE" %}
+                                                        <span class="badge text-bg-warning">vence em breve</span>
+                                                    {% endif %}
+                                                </td>
+                                                <td>
+                                                    <span class="badge {{ linha.lote.badge_situacao }}">
+                                                        {{ linha.lote.get_situacao_display }}
+                                                    </span>
+                                                </td>
+                                                <td>{{ linha.local }}</td>
+                                                <td class="text-end">{{ linha.saldo|floatformat:"-3" }}</td>
+                                                <td class="text-end">
+                                                    {% if linha.bloqueio %}
+                                                        <div class="small text-danger mb-1">
+                                                            <i class="bi bi-lock me-1"></i>{{ linha.bloqueio }}
+                                                        </div>
+                                                        {% if pode_excecao %}
+                                                            <input type="number" step="any" min="0"
+                                                                   max="{{ linha.saldo|stringformat:'f' }}"
+                                                                   class="form-control form-control-sm text-end mb-1"
+                                                                   name="qtd-{{ bloco.material.pk }}-{{ linha.lote.pk }}-{{ linha.local.pk }}"
+                                                                   value="0"
+                                                                   aria-label="Quantidade do lote {{ linha.lote.codigo }}">
+                                                            <input type="text" maxlength="200"
+                                                                   class="form-control form-control-sm"
+                                                                   name="excecao-{{ linha.lote.pk }}"
+                                                                   placeholder="Justificativa da exceção"
+                                                                   aria-label="Justificativa da exceção do lote {{ linha.lote.codigo }}">
+                                                        {% endif %}
+                                                    {% else %}
+                                                        <input type="number" step="any" min="0"
+                                                               max="{{ linha.saldo|stringformat:'f' }}"
+                                                               class="form-control form-control-sm text-end"
+                                                               name="qtd-{{ bloco.material.pk }}-{{ linha.lote.pk }}-{{ linha.local.pk }}"
+                                                               value="{{ linha.apontado|floatformat:'-3' }}"
+                                                               aria-label="Quantidade do lote {{ linha.lote.codigo }}">
+                                                    {% endif %}
+                                                </td>
+                                            </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        {% else %}
+                            <div class="alert alert-danger mb-0" role="alert">
+                                <i class="bi bi-exclamation-triangle me-1"></i>
+                                Nenhum lote disponível para consumo (fora da quarentena e
+                                dentro da validade). Receba/libere material antes de concluir.
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+            {% endfor %}
+
+            <div class="form-actions-bar">
+                <a href="{% url 'producao:painel' ordem.pk %}" class="btn btn-outline-secondary">Cancelar</a>
+                <button type="submit" class="btn btn-primary">
+                    <i class="bi bi-check-lg me-1"></i>Salvar apontamento
+                </button>
+            </div>
+        </form>
+
+        <p class="small text-body-secondary mt-3">
+            <i class="bi bi-info-circle me-1"></i>
+            A baixa do estoque acontece na conclusão da produção, uma movimentação
+            de saída por lote/local apontado. Se a soma divergir do necessário, a
+            conclusão pedirá justificativa.
+        </p>
+    </div>
+</div>
+{% endblock %}

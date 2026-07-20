@@ -50,6 +50,46 @@ class SituacaoValidade(models.TextChoices):
     VENCIDO = "VENCIDO", "Vencido"
 
 
+class SituacaoLote(models.TextChoices):
+    """
+    Situação controlada do lote (Etapa 5 do plano de correções, PDF 4.1).
+    Complementa a validade e o local físico: é o estado que o sistema
+    consulta para IMPEDIR a ação irregular (consumo/expedição).
+    """
+
+    EM_PRODUCAO = "EM_PRODUCAO", "Em produção"
+    AGUARDANDO_CQ = "AGUARDANDO_CQ", "Aguardando CQ"
+    EM_ANALISE = "EM_ANALISE", "Em análise"
+    APROVADO = "APROVADO", "Aprovado"
+    REPROVADO = "REPROVADO", "Reprovado"
+    BLOQUEADO = "BLOQUEADO", "Bloqueado"
+    EXPEDIDO = "EXPEDIDO", "Expedido"
+    RECOLHIDO = "RECOLHIDO", "Recolhido"
+    DEVOLVIDO = "DEVOLVIDO", "Devolvido"
+
+
+BADGE_POR_SITUACAO_LOTE = {
+    SituacaoLote.EM_PRODUCAO: "text-bg-info",
+    SituacaoLote.AGUARDANDO_CQ: "text-bg-warning",
+    SituacaoLote.EM_ANALISE: "text-bg-info",
+    SituacaoLote.APROVADO: "text-bg-success",
+    SituacaoLote.REPROVADO: "text-bg-danger",
+    SituacaoLote.BLOQUEADO: "text-bg-dark",
+    SituacaoLote.EXPEDIDO: "text-bg-primary",
+    SituacaoLote.RECOLHIDO: "text-bg-danger",
+    SituacaoLote.DEVOLVIDO: "text-bg-secondary",
+}
+
+# Situações que impedem consumo na produção (além de vencido).
+SITUACOES_BLOQUEIAM_CONSUMO = {
+    SituacaoLote.REPROVADO: "reprovado no controle de qualidade",
+    SituacaoLote.BLOQUEADO: "bloqueado",
+    SituacaoLote.EXPEDIDO: "já expedido",
+    SituacaoLote.RECOLHIDO: "recolhido",
+    SituacaoLote.DEVOLVIDO: "devolvido ao fornecedor",
+}
+
+
 class Lote(ModeloAuditado):
     """
     Lote de um item, com validade opcional. O vínculo é com exatamente
@@ -58,6 +98,10 @@ class Lote(ModeloAuditado):
     `codigo` é o LOTE INTERNO — para lotes novos ele é gerado
     automaticamente pela sequência (`criar_lote_interno`); o lote
     impresso pelo fornecedor fica em `lote_fornecedor`.
+
+    `situacao` é o estado controlado (Etapa 5): recebidos nascem
+    AGUARDANDO_CQ e a decisão da quarentena os move para APROVADO/
+    REPROVADO/BLOQUEADO; produzidos nascem EM_PRODUCAO.
     """
 
     codigo = models.CharField("lote interno", max_length=50)
@@ -68,6 +112,12 @@ class Lote(ModeloAuditado):
         help_text="Código impresso pelo fornecedor na embalagem/laudo.",
     )
     validade = models.DateField("validade", null=True, blank=True)
+    situacao = models.CharField(
+        "situação",
+        max_length=20,
+        choices=SituacaoLote.choices,
+        default=SituacaoLote.AGUARDANDO_CQ,
+    )
     produto = models.ForeignKey(
         Produto,
         verbose_name="produto",
@@ -153,6 +203,44 @@ class Lote(ModeloAuditado):
             return SituacaoValidade.VENCE_EM_BREVE
         return SituacaoValidade.OK
 
+    @property
+    def vencido(self) -> bool:
+        return self.situacao_validade == SituacaoValidade.VENCIDO
+
+    @property
+    def badge_situacao(self) -> str:
+        return BADGE_POR_SITUACAO_LOTE.get(self.situacao, "text-bg-secondary")
+
+    @property
+    def fornecedor(self):
+        """Fornecedor do recebimento que originou o lote (None se produzido)."""
+        item = self.itens_de_recebimento.select_related(
+            "recebimento__fornecedor"
+        ).first()
+        return item.recebimento.fornecedor if item else None
+
+    def motivo_bloqueio_consumo(self) -> str:
+        """
+        Motivo pelo qual o lote NÃO pode ser consumido, ou "" se pode.
+        Mensagem já pronta para a tela, com a causa e o que corrigir.
+        """
+        if self.vencido:
+            return (
+                f"lote {self.codigo} vencido em "
+                f"{self.validade:%d/%m/%Y} — selecione outro lote"
+            )
+        motivo = SITUACOES_BLOQUEIAM_CONSUMO.get(self.situacao)
+        if motivo:
+            return f"lote {self.codigo} {motivo} — selecione outro lote"
+        return ""
+
+    def pode_ser_consumido(self) -> bool:
+        return self.motivo_bloqueio_consumo() == ""
+
+    def pode_ser_expedido(self) -> bool:
+        """Só lote APROVADO e dentro da validade vai para expedição (Etapa 9)."""
+        return self.situacao == SituacaoLote.APROVADO and not self.vencido
+
 
 class SequenciaLote(models.Model):
     """
@@ -203,7 +291,9 @@ def gerar_lote_interno(item) -> str:
         return f"{prefixo}-{ano}-{sequencia.ultimo_numero:05d}"
 
 
-def criar_lote_interno(item, usuario, validade=None, lote_fornecedor="") -> Lote:
+def criar_lote_interno(
+    item, usuario, validade=None, lote_fornecedor="", situacao=None
+) -> Lote:
     """
     Cria um Lote com o código interno gerado pela sequência.
 
@@ -219,6 +309,7 @@ def criar_lote_interno(item, usuario, validade=None, lote_fornecedor="") -> Lote
         codigo=codigo,
         lote_fornecedor=lote_fornecedor.strip(),
         validade=validade,
+        situacao=situacao or SituacaoLote.AGUARDANDO_CQ,
         criado_por=usuario,
         atualizado_por=usuario,
     )

@@ -27,7 +27,12 @@ from django.urls import reverse
 from apps.cadastros.models import Embalagem, Equipamento, MateriaPrima, Produto
 from apps.core import formatos
 from apps.core.models import ModeloAuditado, ModeloBase
-from apps.estoque.models import Lote, criar_lote_interno, saldo
+from apps.estoque.models import (
+    Lote,
+    SituacaoLote,
+    criar_lote_interno,
+    saldo,
+)
 from apps.pedidos.models import ItemPedido, StatusPedido
 
 # Pedido "aprovado" para fins de OP: já analisado/programado e não encerrado
@@ -312,7 +317,9 @@ class OrdemProducao(ModeloAuditado):
         etiquetas; a entrada em estoque só acontece na conclusão.
         """
         if self.lote_produto_id is None:
-            self.lote_produto = criar_lote_interno(self.produto, usuario)
+            self.lote_produto = criar_lote_interno(
+                self.produto, usuario, situacao=SituacaoLote.EM_PRODUCAO
+            )
             self.atualizado_por = usuario
             self.save()
         return self.lote_produto

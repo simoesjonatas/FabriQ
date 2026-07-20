@@ -190,6 +190,36 @@ class QuarentenaTests(BaseRecebimento):
         self.assertEqual(decisao.responsavel, self.analista)
         self.assertEqual(decisao.local_destino, self.deposito)
 
+    def test_decisao_reflete_na_situacao_do_lote(self):
+        """Etapa 5: a decisão da quarentena move a situação controlada do lote."""
+        from apps.auditoria.models import AcaoAuditoria
+        from apps.auditoria.servicos import trilha_de
+        from apps.estoque.models import SituacaoLote
+
+        self.entrar_como_qualidade()
+        # Nasce aguardando CQ
+        self.assertEqual(self.item.lote.situacao, SituacaoLote.AGUARDANDO_CQ)
+
+        self.decidir(StatusQuarentena.LIBERADO, local_destino=str(self.deposito.pk))
+        self.item.lote.refresh_from_db()
+        self.assertEqual(self.item.lote.situacao, SituacaoLote.APROVADO)
+
+        # A mudança de situação entrou na trilha do lote
+        campos = list(
+            trilha_de(self.item.lote)
+            .filter(acao=AcaoAuditoria.ALTERACAO)
+            .values_list("campo", flat=True)
+        )
+        self.assertIn("situação", campos)
+
+    def test_reprovar_marca_lote_reprovado(self):
+        from apps.estoque.models import SituacaoLote
+
+        self.entrar_como_qualidade()
+        self.decidir(StatusQuarentena.REPROVADO, observacoes="Fora de especificação")
+        self.item.lote.refresh_from_db()
+        self.assertEqual(self.item.lote.situacao, SituacaoLote.REPROVADO)
+
     def test_liberar_exige_local_de_destino(self):
         self.entrar_como_qualidade()
         self.decidir(StatusQuarentena.LIBERADO)

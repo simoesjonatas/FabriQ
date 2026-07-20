@@ -99,7 +99,11 @@
                     <td>{{ material.item.nome }}</td>
                     <td class="num">{{ material.quantidade_necessaria|floatformat:"-3" }}</td>
                     <td>{{ material.item.get_unidade_display }}</td>
-                    <td>&nbsp;</td>
+                    <td>
+                        {% for consumo in material.consumos.all %}
+                            {{ consumo.lote.codigo }} × {{ consumo.quantidade|floatformat:"-3" }}{% if not forloop.last %}<br>{% endif %}
+                        {% empty %}&nbsp;{% endfor %}
+                    </td>
                 </tr>
             {% endfor %}
         </tbody>

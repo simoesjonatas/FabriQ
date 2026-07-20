@@ -45,6 +45,7 @@ from apps.estoque.models import (
     Lote,
     Movimentacao,
     SequenciaLote,
+    SituacaoLote,
     TipoMovimentacao,
 )
 from apps.ordens.models import (
@@ -61,13 +62,21 @@ from apps.pcp.models import Programacao
 from apps.pedidos.models import HistoricoPedido, ItemPedido, Pedido, StatusPedido
 from apps.producao.models import (
     AtividadeOP,
+    ConsumoMaterialOP,
     ExecucaoOP,
     FotoProducao,
     Ocorrencia,
     Parada,
     TipoAtividadeOP,
+    apontar_consumos_fefo,
 )
-from apps.qualidade.models import Analise, AnexoAnalise, ResultadoAnalise, StatusAnalise, TipoAnalise
+from apps.qualidade.models import (
+    Analise,
+    AnexoAnalise,
+    ResultadoAnalise,
+    StatusAnalise,
+    TipoAnalise,
+)
 from apps.recebimento.models import (
     AnexoRecebimento,
     DecisaoQuarentena,
@@ -155,6 +164,9 @@ class Command(BaseCommand):
         Parada.objects.all().delete()
         ExecucaoOP.objects.all().delete()
         HistoricoOP.objects.all().delete()
+        # Consumos confirmados são imutáveis para usuários; a recarga da
+        # demo usa o caminho interno para limpar o ambiente.
+        models.QuerySet.delete(ConsumoMaterialOP.objects.all())
         MaterialOP.objects.all().delete()
         # Atividades e snapshots são imutáveis para usuários; a recarga da
         # demo usa o caminho interno para limpar o ambiente de demonstração.
@@ -359,6 +371,8 @@ class Command(BaseCommand):
                     )
                     item_recebido.status = StatusQuarentena.LIBERADO
                     item_recebido.save()
+                    lote.situacao = SituacaoLote.APROVADO
+                    lote.save(update_fields=["situacao"])
                     DecisaoQuarentena.objects.create(
                         item=item_recebido,
                         decisao=StatusQuarentena.LIBERADO,
@@ -368,6 +382,8 @@ class Command(BaseCommand):
                 elif decisao == "bloquear":
                     item_recebido.status = StatusQuarentena.BLOQUEADO
                     item_recebido.save()
+                    lote.situacao = SituacaoLote.BLOQUEADO
+                    lote.save(update_fields=["situacao"])
                     DecisaoQuarentena.objects.create(
                         item=item_recebido,
                         decisao=StatusQuarentena.BLOQUEADO,
@@ -377,6 +393,8 @@ class Command(BaseCommand):
                 elif decisao == "reprovar":
                     item_recebido.status = StatusQuarentena.REPROVADO
                     item_recebido.save()
+                    lote.situacao = SituacaoLote.REPROVADO
+                    lote.save(update_fields=["situacao"])
                     DecisaoQuarentena.objects.create(
                         item=item_recebido,
                         decisao=StatusQuarentena.REPROVADO,
@@ -646,6 +664,8 @@ class Command(BaseCommand):
     def _produzir(self, ordem, operador, produzido, perdas, chave_lote, dias_atras):
         """`chave_lote` é só a chave em self.lotes — o código interno é automático."""
         execucao = ExecucaoOP.iniciar(ordem, operador)
+        # Etapa 4: o consumo é apontado por lote antes da conclusão
+        apontar_consumos_fefo(ordem, operador)
         execucao.concluir(
             usuario=operador,
             quantidade_produzida=Decimal(produzido),

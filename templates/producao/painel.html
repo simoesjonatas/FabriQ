@@ -140,8 +140,14 @@
                             <div class="section-heading">
                                 <div>
                                     <h2><i class="bi bi-box-seam me-1 text-primary"></i>Materiais da OP</h2>
-                                    <p>Serão baixados do estoque (FEFO) ao concluir.</p>
+                                    <p>A baixa usa os lotes apontados pelo operador.</p>
                                 </div>
+                                {% if em_producao %}
+                                    <a href="{% url 'producao:consumos' ordem.pk %}"
+                                       class="btn btn-outline-primary">
+                                        <i class="bi bi-upc-scan me-1"></i>Apontar lotes
+                                    </a>
+                                {% endif %}
                             </div>
                             <div class="table-responsive">
                                 <table class="table align-middle mb-0">
@@ -149,6 +155,7 @@
                                         <tr>
                                             <th>Material</th>
                                             <th class="text-end">Necessário</th>
+                                            <th>Lote apontado</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -158,6 +165,20 @@
                                                 <td class="text-end">
                                                     {{ material.quantidade_necessaria|floatformat:"-3" }}
                                                     <span class="text-body-secondary small">{{ material.item.get_unidade_display }}</span>
+                                                </td>
+                                                <td>
+                                                    {% for consumo in material.consumos.all %}
+                                                        <div class="small">
+                                                            {{ consumo.lote.codigo }} ·
+                                                            {{ consumo.quantidade|floatformat:"-3" }}
+                                                            <span class="text-body-secondary">({{ consumo.local }})</span>
+                                                            {% if consumo.confirmado %}
+                                                                <i class="bi bi-check-circle-fill text-success" title="Baixado do estoque"></i>
+                                                            {% endif %}
+                                                        </div>
+                                                    {% empty %}
+                                                        <span class="badge text-bg-warning">sem lote</span>
+                                                    {% endfor %}
                                                 </td>
                                             </tr>
                                         {% endfor %}
@@ -327,9 +348,16 @@
                                 </div>
                                 <button type="button" class="btn btn-primary w-100"
                                         data-bs-toggle="modal" data-bs-target="#modalConcluir"
-                                        {% if execucao.tem_parada_aberta %}disabled title="Encerre a parada em aberto"{% endif %}>
+                                        {% if execucao.tem_parada_aberta %}disabled title="Encerre a parada em aberto"
+                                        {% elif materiais_sem_apontamento %}disabled title="Aponte os lotes de: {{ materiais_sem_apontamento|join:', ' }}"{% endif %}>
                                     <i class="bi bi-check-lg me-1"></i>Concluir produção
                                 </button>
+                                {% if materiais_sem_apontamento %}
+                                    <p class="small text-danger mt-2 mb-0">
+                                        <i class="bi bi-exclamation-triangle me-1"></i>
+                                        Sem lote apontado: {{ materiais_sem_apontamento|join:", " }}.
+                                    </p>
+                                {% endif %}
                             </div>
                         </div>
                     {% endif %}
@@ -352,14 +380,15 @@
                 </div>
                 <div class="modal-body">
                     <p class="text-body-secondary small mb-3">
-                        Os materiais serão baixados do estoque (FEFO) e {{ ordem.produto.codigo }}
-                        entrará como produto acabado no lote interno
+                        O estoque será baixado pelos <strong>lotes apontados</strong> e
+                        {{ ordem.produto.codigo }} entrará como produto acabado no lote interno
                         <strong>{{ ordem.lote_produto.codigo|default:"gerado automaticamente" }}</strong>.
                     </p>
                     {% include "includes/campo.html" with campo=concluir_form.quantidade_produzida %}
                     {% include "includes/campo.html" with campo=concluir_form.perdas %}
                     {% include "includes/campo.html" with campo=concluir_form.lote_validade %}
                     {% include "includes/campo.html" with campo=concluir_form.local_destino %}
+                    {% include "includes/campo.html" with campo=concluir_form.justificativa_divergencia %}
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Voltar</button>

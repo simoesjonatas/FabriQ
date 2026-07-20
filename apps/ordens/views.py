@@ -174,6 +174,8 @@ class OrdemDetalheView(AcessoModuloMixin, TrilhaAuditoriaMixin, DetailView):
         ).prefetch_related(
             "materiais__materia_prima",
             "materiais__embalagem",
+            "materiais__consumos__lote",
+            "materiais__consumos__local",
             "historico__usuario",
             "atividades__funcionario",
         )

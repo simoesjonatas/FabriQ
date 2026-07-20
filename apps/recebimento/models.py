@@ -116,6 +116,17 @@ BADGE_POR_STATUS_QUARENTENA = {
     StatusQuarentena.DEVOLVIDO: "text-bg-secondary",
 }
 
+# Decisão da quarentena → situação controlada do lote (Etapa 5).
+# Importado aqui para manter as duas máquinas de estado alinhadas.
+SITUACAO_LOTE_POR_DECISAO = {
+    StatusQuarentena.EM_QUARENTENA: "AGUARDANDO_CQ",
+    StatusQuarentena.EM_ANALISE: "EM_ANALISE",
+    StatusQuarentena.LIBERADO: "APROVADO",
+    StatusQuarentena.REPROVADO: "REPROVADO",
+    StatusQuarentena.BLOQUEADO: "BLOQUEADO",
+    StatusQuarentena.DEVOLVIDO: "DEVOLVIDO",
+}
+
 
 class ItemRecebimento(models.Model):
     recebimento = models.ForeignKey(

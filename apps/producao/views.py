@@ -1,15 +1,18 @@
 import logging
+from decimal import Decimal, InvalidOperation
 
 from django.contrib import messages
 from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.db.models import Q
-from django.shortcuts import get_object_or_404, redirect
+from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views import View
 from django.views.generic import DetailView, ListView
 
 from apps.accounts.mixins import AcessoModuloMixin
+from apps.accounts.perfis import pode_autorizar_excecao
+from apps.estoque.models import LocalEstoque, Lote
 from apps.ordens.models import OrdemProducao, StatusOP
 
 from .forms import (
@@ -19,7 +22,15 @@ from .forms import (
     OcorrenciaForm,
     ParadaForm,
 )
-from .models import AtividadeOP, ExecucaoOP, Parada, ProducaoInsuficiente
+from .models import (
+    AtividadeOP,
+    ConsumoMaterialOP,
+    ExecucaoOP,
+    Parada,
+    apontar_consumos,
+    posicoes_para_apontamento,
+    sugerir_consumos_fefo,
+)
 
 logger = logging.getLogger("fabriq")
 
@@ -96,6 +107,8 @@ class PainelView(AcessoModuloMixin, DetailView):
         ).prefetch_related(
             "materiais__materia_prima",
             "materiais__embalagem",
+            "materiais__consumos__lote",
+            "materiais__consumos__local",
             "atividades__funcionario",
             "execucao__paradas__registrado_por",
             "execucao__ocorrencias__registrado_por",
@@ -116,6 +129,11 @@ class PainelView(AcessoModuloMixin, DetailView):
         context["concluir_form"] = ConcluirProducaoForm(
             excluir_local=local_quarentena()
         )
+        context["materiais_sem_apontamento"] = [
+            material.item.codigo
+            for material in self.object.materiais.all()
+            if not material.consumos.all()
+        ]
         return context
 
 
@@ -229,6 +247,122 @@ class FotoView(_ExecucaoActionView):
         return redirect("producao:painel", pk=ordem.pk)
 
 
+class ConsumosView(_ExecucaoActionView):
+    """
+    Apontamento dos lotes consumidos (Etapa 4/5): o operador confirma a
+    sugestão FEFO ou escolhe outros lotes/quantidades por material.
+    Lotes bloqueados (vencido/reprovado…) só entram com exceção
+    justificada de um usuário autorizado (Etapa 5).
+    """
+
+    def get(self, request, pk):
+        execucao, ordem = self.get_execucao_em_andamento(request, pk)
+        if execucao is None:
+            return redirect("producao:painel", pk=ordem.pk)
+        return self._render_tela(request, ordem)
+
+    def post(self, request, pk):
+        execucao, ordem = self.get_execucao_em_andamento(request, pk)
+        if execucao is None:
+            return redirect("producao:painel", pk=ordem.pk)
+
+        materiais = {material.pk: material for material in ordem.materiais.all()}
+        linhas = []
+        for nome, valor in request.POST.items():
+            if not nome.startswith("qtd-"):
+                continue
+            valor = (valor or "").strip().replace(",", ".")
+            partes = nome.split("-")
+            if len(partes) != 4 or not valor:
+                continue
+            try:
+                material = materiais[int(partes[1])]
+                lote = Lote.objects.get(pk=int(partes[2]))
+                local = LocalEstoque.objects.get(pk=int(partes[3]))
+                quantidade = Decimal(valor)
+            except (KeyError, ValueError, InvalidOperation, Lote.DoesNotExist,
+                    LocalEstoque.DoesNotExist):
+                messages.error(request, "Apontamento inválido — tente novamente.")
+                return redirect("producao:consumos", pk=ordem.pk)
+            if quantidade > 0:
+                linhas.append((material, lote, local, quantidade))
+
+        # Exceções de bloqueio: só valem se o usuário pode autorizar.
+        excecoes = {}
+        if pode_autorizar_excecao(request.user):
+            for nome, valor in request.POST.items():
+                if nome.startswith("excecao-") and (valor or "").strip():
+                    try:
+                        excecoes[int(nome.split("-")[1])] = valor.strip()
+                    except ValueError:
+                        continue
+
+        try:
+            with transaction.atomic():
+                apontar_consumos(ordem, request.user, linhas, excecoes=excecoes)
+        except ValidationError as erro:
+            messages.error(request, " ".join(erro.messages))
+            return redirect("producao:consumos", pk=ordem.pk)
+
+        sufixo = (
+            f" ({len(excecoes)} com exceção autorizada)" if excecoes else ""
+        )
+        messages.success(
+            request,
+            f"Apontamento salvo: {len(linhas)} lote(s) para {ordem.numero}{sufixo}.",
+        )
+        logger.info(
+            "Consumos apontados na %s por %s", ordem.numero, request.user
+        )
+        return redirect("producao:painel", pk=ordem.pk)
+
+    def _render_tela(self, request, ordem):
+        sugestoes = {
+            material_id: {s["lote"].pk: s["quantidade"] for s in linhas}
+            for material_id, linhas in sugerir_consumos_fefo(ordem).items()
+        }
+        apontamentos = {
+            (consumo.material_id, consumo.lote_id, consumo.local_id): consumo.quantidade
+            for consumo in ConsumoMaterialOP.objects.filter(
+                material__ordem=ordem, movimentacao__isnull=True
+            )
+        }
+        materiais_apontados = {chave[0] for chave in apontamentos}
+
+        blocos = []
+        for material in ordem.materiais.select_related("materia_prima", "embalagem"):
+            linhas = []
+            for posicao in posicoes_para_apontamento(material.item):
+                chave = (material.pk, posicao["lote"].pk, posicao["local"].pk)
+                if material.pk in materiais_apontados:
+                    quantidade = apontamentos.get(chave, Decimal("0"))
+                elif posicao["bloqueio"]:
+                    quantidade = Decimal("0")  # bloqueado não entra na sugestão
+                else:
+                    quantidade = sugestoes[material.pk].get(
+                        posicao["lote"].pk, Decimal("0")
+                    )
+                linhas.append({**posicao, "apontado": quantidade})
+            blocos.append(
+                {
+                    "material": material,
+                    "linhas": linhas,
+                    "total_apontado": sum(
+                        (linha["apontado"] for linha in linhas), Decimal("0")
+                    ),
+                }
+            )
+        return render(
+            request,
+            "producao/consumos.html",
+            {
+                "ordem": ordem,
+                "blocos": blocos,
+                "pode_excecao": pode_autorizar_excecao(request.user),
+            },
+        )
+
+
 class AtividadeView(_ExecucaoActionView):
     """Registro manual de "quem fez o quê" durante a produção."""
 
@@ -284,9 +418,10 @@ class ConcluirView(_ExecucaoActionView):
                     perdas=form.cleaned_data["perdas"],
                     validade=form.cleaned_data["lote_validade"],
                     local_destino=form.cleaned_data["local_destino"],
+                    justificativa_divergencia=form.cleaned_data[
+                        "justificativa_divergencia"
+                    ],
                 )
-        except ProducaoInsuficiente as erro:
-            messages.error(request, str(erro))
         except ValidationError as erro:
             messages.error(request, "; ".join(erro.messages))
         else:

@@ -108,11 +108,25 @@ MODULOS = {
 }
 
 
+# Perfis que podem AUTORIZAR uma exceção de bloqueio sistêmico
+# (consumir lote vencido/reprovado etc. com justificativa — Etapa 5).
+PERFIS_AUTORIZAM_EXCECAO = {ADMINISTRADOR, DIRETORIA, QUALIDADE}
+
+
 def perfis_do_usuario(user) -> set[str]:
     """Nomes dos perfis (grupos) do usuário. Uma consulta ao banco."""
     if not user.is_authenticated:
         return set()
     return set(user.groups.values_list("name", flat=True))
+
+
+def pode_autorizar_excecao(user) -> bool:
+    """Diz se o usuário pode liberar uma exceção de bloqueio, com justificativa."""
+    if not user.is_authenticated or not user.is_active:
+        return False
+    if user.is_superuser:
+        return True
+    return bool(perfis_do_usuario(user) & PERFIS_AUTORIZAM_EXCECAO)
 
 
 def _acessa(user, modulo: str, perfis: set[str]) -> bool:
