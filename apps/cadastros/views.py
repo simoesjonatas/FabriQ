@@ -22,6 +22,7 @@ from .forms import (
     ProdutoForm,
     SetorForm,
     TelefoneFormSet,
+    VersaoArteForm,
 )
 from .models import (
     Balanca,
@@ -36,6 +37,7 @@ from .models import (
     MateriaPrima,
     Produto,
     Setor,
+    VersaoArte,
 )
 
 MODULO = "cadastros"
@@ -89,6 +91,12 @@ CADASTROS = [
         "descricao": "Balanças de pesagem e validade da calibração",
         "icone": "bi-speedometer2",
         "url_name": "cadastros:balanca_lista",
+    },
+    {
+        "titulo": "Versões de arte",
+        "descricao": "Artes de rótulo/embalagem aprovadas por produto",
+        "icone": "bi-palette",
+        "url_name": "cadastros:versaoarte_lista",
     },
 ]
 
@@ -293,6 +301,36 @@ class BalancaCriarView(BalancaConfig, CriarBase):
 
 
 class BalancaEditarView(BalancaConfig, EditarBase):
+    pass
+
+
+# Versões de arte
+
+
+class VersaoArteConfig:
+    model = VersaoArte
+    form_class = VersaoArteForm
+    titulo = "Versões de arte"
+    url_lista = "cadastros:versaoarte_lista"
+    success_url = reverse_lazy("cadastros:versaoarte_lista")
+
+
+class VersaoArteListView(VersaoArteConfig, ListaBase):
+    template_name = "cadastros/versaoarte_lista.html"
+    campos_pesquisa = ["produto__codigo", "produto__nome", "versao"]
+    colunas = ["Produto", "Versão", "Aprovação", "Situação"]
+    url_criar = "cadastros:versaoarte_criar"
+    url_editar = "cadastros:versaoarte_editar"
+
+    def get_queryset(self):
+        return super().get_queryset().select_related("produto")
+
+
+class VersaoArteCriarView(VersaoArteConfig, CriarBase):
+    pass
+
+
+class VersaoArteEditarView(VersaoArteConfig, EditarBase):
     pass
 
 

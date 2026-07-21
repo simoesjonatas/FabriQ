@@ -18,6 +18,14 @@ urlpatterns = [
         views.BalancaEditarView.as_view(),
         name="balanca_editar",
     ),
+    # Versões de arte
+    path("artes/", views.VersaoArteListView.as_view(), name="versaoarte_lista"),
+    path("artes/nova/", views.VersaoArteCriarView.as_view(), name="versaoarte_criar"),
+    path(
+        "artes/<int:pk>/editar/",
+        views.VersaoArteEditarView.as_view(),
+        name="versaoarte_editar",
+    ),
     # Equipamentos
     path("equipamentos/", views.EquipamentoListView.as_view(), name="equipamento_lista"),
     path("equipamentos/novo/", views.EquipamentoCriarView.as_view(), name="equipamento_criar"),

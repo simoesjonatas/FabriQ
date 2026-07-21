@@ -385,6 +385,24 @@ class ExecucaoOP(ModeloAuditado):
     perdas = models.DecimalField(
         "perdas", max_digits=12, decimal_places=3, default=Decimal("0")
     )
+    quantidade_teorica = models.DecimalField(
+        "quantidade teórica", max_digits=12, decimal_places=3, null=True, blank=True
+    )
+    perda_percentual = models.DecimalField(
+        "perda (%)", max_digits=7, decimal_places=3, null=True, blank=True
+    )
+    rendimento_percentual = models.DecimalField(
+        "rendimento (%)", max_digits=7, decimal_places=3, null=True, blank=True
+    )
+    perda_justificativa = models.TextField("justificativa da perda", blank=True)
+    perda_aprovada_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        verbose_name="perda aprovada por",
+        on_delete=models.PROTECT,
+        related_name="+",
+        null=True,
+        blank=True,
+    )
     lote_produzido = models.ForeignKey(
         Lote,
         verbose_name="lote do produto acabado",
@@ -470,6 +488,7 @@ class ExecucaoOP(ModeloAuditado):
         validade,
         local_destino,
         justificativa_divergencia="",
+        justificativa_perda="",
     ) -> None:
         """
         Conclui a produção baixando o estoque a partir dos CONSUMOS
@@ -483,6 +502,35 @@ class ExecucaoOP(ModeloAuditado):
 
         if self.ordem.status != StatusOP.EM_PRODUCAO:
             raise ValidationError("A produção não está em andamento.")
+
+        # Bloqueio: OP não encerra com desvio pendente (Etapa 7c, PDF 5.9)
+        pendentes = list(
+            self.ordem.desvios.exclude(status=StatusDesvio.ENCERRADO)
+        )
+        if pendentes:
+            raise ValidationError(
+                f"Há {len(pendentes)} desvio(s) pendente(s) — a Qualidade "
+                "precisa decidir antes de encerrar a OP."
+            )
+
+        # Perdas e rendimento (Etapa 7b, PDF 5.8): perda acima do limite
+        # do produto exige justificativa e aprovação para encerrar.
+        teorica = self.ordem.quantidade
+        perda_pct = (
+            (perdas / teorica * 100).quantize(Decimal("0.001"))
+            if teorica else Decimal("0")
+        )
+        rendimento_pct = (
+            (quantidade_produzida / teorica * 100).quantize(Decimal("0.001"))
+            if teorica else Decimal("0")
+        )
+        limite = self.ordem.produto.limite_perda_percentual
+        if perda_pct > limite and not justificativa_perda.strip():
+            raise ValidationError(
+                f"Perda de {formatos.quantidade(perda_pct)}% acima do limite "
+                f"de {formatos.quantidade(limite)}% — informe a justificativa "
+                "e aprovação para encerrar."
+            )
 
         documento = self.ordem.numero
         materiais = list(
@@ -598,11 +646,30 @@ class ExecucaoOP(ModeloAuditado):
 
         self.quantidade_produzida = quantidade_produzida
         self.perdas = perdas
+        self.quantidade_teorica = teorica
+        self.perda_percentual = perda_pct
+        self.rendimento_percentual = rendimento_pct
+        if perda_pct > limite:
+            self.perda_justificativa = justificativa_perda.strip()
+            self.perda_aprovada_por = usuario
         self.lote_produzido = lote_produto
         self.concluido_em = timezone.now()
         self.concluido_por = usuario
         self.atualizado_por = usuario
         self.save()
+
+        if perda_pct > limite:
+            auditoria.registrar_evento(
+                self.ordem,
+                AcaoAuditoria.APROVACAO,
+                usuario,
+                justificativa=justificativa_perda.strip(),
+                campo="perda acima do limite",
+                valor_novo=(
+                    f"perda {formatos.quantidade(perda_pct)}% "
+                    f"(limite {formatos.quantidade(limite)}%)"
+                ),
+            )
 
         self.ordem.status = StatusOP.CONCLUIDA
         self.ordem.atualizado_por = usuario
@@ -1120,6 +1187,254 @@ class Ocorrencia(models.Model):
 
     def __str__(self) -> str:
         return self.descricao[:60]
+
+
+class EnvaseOP(models.Model):
+    """
+    Envase/embalagem/rotulagem da OP (Etapa 7a, PDF 5.7). O rótulo tem de
+    usar uma versão de arte APROVADA; os lotes de frasco/tampa/rótulo/
+    caixa entram pelo apontamento de consumo (Etapa 4).
+    """
+
+    ordem = models.ForeignKey(
+        OrdemProducao,
+        verbose_name="ordem de produção",
+        on_delete=models.PROTECT,
+        related_name="envases",
+    )
+    lote_granel = models.ForeignKey(
+        Lote,
+        verbose_name="lote do granel",
+        on_delete=models.PROTECT,
+        related_name="+",
+        null=True,
+        blank=True,
+    )
+    linha = models.ForeignKey(
+        "cadastros.Setor",
+        verbose_name="linha",
+        on_delete=models.PROTECT,
+        related_name="+",
+        null=True,
+        blank=True,
+    )
+    versao_arte = models.ForeignKey(
+        "cadastros.VersaoArte",
+        verbose_name="versão de arte",
+        on_delete=models.PROTECT,
+        related_name="envases",
+    )
+    inicio = models.DateTimeField("início", null=True, blank=True)
+    fim = models.DateTimeField("fim", null=True, blank=True)
+    quantidade_envasada = models.DecimalField(
+        "quantidade envasada", max_digits=12, decimal_places=3,
+        validators=[MinValueValidator(Decimal("0"))],
+    )
+    peso_volume_medio = models.DecimalField(
+        "peso/volume médio", max_digits=12, decimal_places=3, null=True, blank=True
+    )
+    perdas = models.DecimalField(
+        "perdas", max_digits=12, decimal_places=3, default=Decimal("0")
+    )
+    controles = models.TextField("controles", blank=True)
+    operador = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        verbose_name="operador",
+        on_delete=models.PROTECT,
+        related_name="+",
+    )
+    conferente = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        verbose_name="conferente",
+        on_delete=models.PROTECT,
+        related_name="+",
+        null=True,
+        blank=True,
+    )
+    registrado_em = models.DateTimeField("registrado em", auto_now_add=True)
+
+    class Meta:
+        verbose_name = "envase da OP"
+        verbose_name_plural = "envases da OP"
+        ordering = ["registrado_em", "id"]
+
+    def __str__(self) -> str:
+        return f"{self.ordem.numero} · envase"
+
+
+def registrar_envase(
+    *, ordem, versao_arte, quantidade_envasada, operador, lote_granel=None,
+    linha=None, peso_volume_medio=None, perdas=Decimal("0"), controles="",
+    conferente=None, inicio=None, fim=None,
+) -> EnvaseOP:
+    """
+    Registra um envase (Etapa 7a). O rótulo só pode usar versão de arte
+    APROVADA do produto da OP.
+    """
+    if versao_arte.produto_id != ordem.produto.pk:
+        raise ValidationError(
+            "A versão de arte é de outro produto."
+        )
+    if not versao_arte.aprovada:
+        raise ValidationError(
+            f"A versão de arte {versao_arte.versao} está obsoleta — "
+            "use a versão aprovada vigente."
+        )
+    return EnvaseOP.objects.create(
+        ordem=ordem,
+        versao_arte=versao_arte,
+        quantidade_envasada=quantidade_envasada,
+        operador=operador,
+        lote_granel=lote_granel,
+        linha=linha,
+        peso_volume_medio=peso_volume_medio,
+        perdas=perdas,
+        controles=controles,
+        conferente=conferente,
+        inicio=inicio,
+        fim=fim,
+    )
+
+
+class TipoDesvio(models.TextChoices):
+    PROCESSO = "PROCESSO", "Processo"
+    MATERIAL = "MATERIAL", "Material"
+    EQUIPAMENTO = "EQUIPAMENTO", "Equipamento"
+    DOCUMENTACAO = "DOCUMENTACAO", "Documentação"
+    OUTRO = "OUTRO", "Outro"
+
+
+class StatusDesvio(models.TextChoices):
+    ABERTO = "ABERTO", "Aberto"
+    EM_AVALIACAO = "EM_AVALIACAO", "Em avaliação"
+    ENCERRADO = "ENCERRADO", "Encerrado"
+
+
+class DecisaoDesvio(models.TextChoices):
+    ACEITO = "ACEITO", "Aceito (segue produção)"
+    RETRABALHO = "RETRABALHO", "Retrabalho"
+    REPROVADO = "REPROVADO", "Reprovado (bloquear lote)"
+
+
+BADGE_POR_STATUS_DESVIO = {
+    StatusDesvio.ABERTO: "text-bg-danger",
+    StatusDesvio.EM_AVALIACAO: "text-bg-warning",
+    StatusDesvio.ENCERRADO: "text-bg-success",
+}
+
+
+class Desvio(models.Model):
+    """
+    Desvio/ocorrência com decisão da Qualidade (Etapa 7c, PDF 5.9). A OP
+    não pode ser encerrada com desvio pendente; toda decisão tem
+    avaliador, data e justificativa; desvio crítico reprovado bloqueia o
+    lote (SituacaoLote.BLOQUEADO — Etapa 5).
+    """
+
+    ordem = models.ForeignKey(
+        OrdemProducao,
+        verbose_name="ordem de produção",
+        on_delete=models.PROTECT,
+        related_name="desvios",
+    )
+    tipo = models.CharField(
+        "tipo", max_length=15, choices=TipoDesvio.choices, default=TipoDesvio.OUTRO
+    )
+    etapa = models.CharField("etapa", max_length=120, blank=True)
+    descricao = models.TextField("descrição")
+    impacto = models.TextField("impacto", blank=True)
+    acao_imediata = models.TextField("ação imediata", blank=True)
+    critico = models.BooleanField("desvio crítico", default=False)
+    responsavel = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        verbose_name="registrado por",
+        on_delete=models.PROTECT,
+        related_name="+",
+    )
+    status = models.CharField(
+        "situação", max_length=15, choices=StatusDesvio.choices,
+        default=StatusDesvio.ABERTO,
+    )
+    # Decisão da Qualidade
+    decisao = models.CharField(
+        "decisão", max_length=15, choices=DecisaoDesvio.choices, blank=True
+    )
+    avaliador = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        verbose_name="avaliador",
+        on_delete=models.PROTECT,
+        related_name="+",
+        null=True,
+        blank=True,
+    )
+    decidido_em = models.DateTimeField("decidido em", null=True, blank=True)
+    justificativa_decisao = models.TextField("justificativa da decisão", blank=True)
+    capa = models.CharField(
+        "não conformidade / CAPA", max_length=120, blank=True,
+        help_text="Referência de NC/CAPA, quando houver.",
+    )
+    criado_em = models.DateTimeField("criado em", auto_now_add=True)
+
+    class Meta:
+        verbose_name = "desvio"
+        verbose_name_plural = "desvios"
+        ordering = ["-criado_em", "-id"]
+
+    def __str__(self) -> str:
+        return f"{self.ordem.numero} · {self.get_tipo_display()}"
+
+    @property
+    def pendente(self) -> bool:
+        return self.status != StatusDesvio.ENCERRADO
+
+    @property
+    def badge_status(self) -> str:
+        return BADGE_POR_STATUS_DESVIO.get(self.status, "text-bg-secondary")
+
+
+def decidir_desvio(desvio, avaliador, decisao, justificativa) -> Desvio:
+    """
+    Registra a decisão da Qualidade sobre um desvio (Etapa 7c). Reprovar
+    um desvio crítico bloqueia o lote acabado (situação BLOQUEADO).
+    Deve rodar em transaction.atomic.
+    """
+    from apps.auditoria import servicos as auditoria
+    from apps.auditoria.models import AcaoAuditoria
+    from apps.estoque.models import SituacaoLote
+
+    if not desvio.pendente:
+        raise ValidationError("Este desvio já foi encerrado.")
+    if decisao not in DecisaoDesvio.values:
+        raise ValidationError("Decisão inválida.")
+    if not justificativa.strip():
+        raise ValidationError("Informe a justificativa da decisão.")
+
+    desvio.decisao = decisao
+    desvio.avaliador = avaliador
+    desvio.decidido_em = timezone.now()
+    desvio.justificativa_decisao = justificativa.strip()
+    desvio.status = StatusDesvio.ENCERRADO
+    desvio.save()
+
+    lote = desvio.ordem.lote_produto
+    if (
+        decisao == DecisaoDesvio.REPROVADO
+        and lote is not None
+        and lote.situacao != SituacaoLote.BLOQUEADO
+    ):
+        lote.situacao = SituacaoLote.BLOQUEADO
+        lote._justificativa_auditoria = justificativa.strip()
+        lote.salvar_com_usuario(avaliador)
+
+    auditoria.registrar_evento(
+        desvio.ordem,
+        AcaoAuditoria.APROVACAO,
+        avaliador,
+        justificativa=justificativa.strip(),
+        campo="decisão de desvio",
+        valor_novo=dict(DecisaoDesvio.choices)[decisao],
+    )
+    return desvio
 
 
 class FotoProducao(ModeloAuditado):

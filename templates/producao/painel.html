@@ -160,6 +160,10 @@
                                            class="btn btn-outline-primary">
                                             <i class="bi bi-clipboard2-pulse me-1"></i>Controles
                                         </a>
+                                        <a href="{% url 'producao:envase' ordem.pk %}"
+                                           class="btn btn-outline-primary">
+                                            <i class="bi bi-box2 me-1"></i>Envase
+                                        </a>
                                     </div>
                                 {% endif %}
                             </div>
@@ -264,6 +268,38 @@
                     <div class="card shadow-sm mb-4">
                         <div class="card-body">
                             <div class="section-heading">
+                                <div>
+                                    <h2><i class="bi bi-exclamation-diamond me-1 text-primary"></i>Desvios</h2>
+                                    <p>A OP não encerra com desvio pendente.</p>
+                                </div>
+                                <a href="{% url 'producao:desvios' ordem.pk %}" class="btn btn-outline-primary">
+                                    <i class="bi bi-exclamation-diamond me-1"></i>Desvios
+                                </a>
+                            </div>
+                            <ul class="list-group list-group-flush">
+                                {% for desvio in ordem.desvios.all %}
+                                    <li class="list-group-item px-0">
+                                        <div class="d-flex justify-content-between gap-3 flex-wrap">
+                                            <span>
+                                                <span class="badge {{ desvio.badge_status }}">{{ desvio.get_status_display }}</span>
+                                                {% if desvio.critico %}<span class="badge text-bg-danger">crítico</span>{% endif %}
+                                                {{ desvio.descricao|truncatechars:80 }}
+                                            </span>
+                                            <span class="text-body-secondary small text-nowrap">
+                                                {{ desvio.criado_em|date:"d/m/Y H:i" }} · {{ desvio.responsavel }}
+                                            </span>
+                                        </div>
+                                    </li>
+                                {% empty %}
+                                    <li class="list-group-item px-0 text-body-secondary">Sem desvios.</li>
+                                {% endfor %}
+                            </ul>
+                        </div>
+                    </div>
+
+                    <div class="card shadow-sm mb-4">
+                        <div class="card-body">
+                            <div class="section-heading">
                                 <div><h2><i class="bi bi-chat-left-text me-1 text-primary"></i>Ocorrências</h2></div>
                             </div>
                             <ul class="list-group list-group-flush">
@@ -343,7 +379,18 @@
                                         {{ ordem.produto.get_unidade_display }}
                                     </dd>
                                     <dt class="col-6">Perdas</dt>
-                                    <dd class="col-6">{{ execucao.perdas|floatformat:"-3" }}</dd>
+                                    <dd class="col-6">
+                                        {{ execucao.perdas|floatformat:"-3" }}
+                                        {% if execucao.perda_percentual %}
+                                            <span class="text-body-secondary small">({{ execucao.perda_percentual|floatformat:"-2" }}%)</span>
+                                        {% endif %}
+                                    </dd>
+                                    <dt class="col-6">Rendimento</dt>
+                                    <dd class="col-6">{{ execucao.rendimento_percentual|floatformat:"-2"|default:"—" }}%</dd>
+                                    {% if execucao.perda_aprovada_por %}
+                                        <dt class="col-6">Perda aprovada por</dt>
+                                        <dd class="col-6">{{ execucao.perda_aprovada_por }}</dd>
+                                    {% endif %}
                                     <dt class="col-6">Lote produzido</dt>
                                     <dd class="col-6">{{ execucao.lote_produzido.codigo }}</dd>
                                     <dt class="col-6">Concluída por</dt>
@@ -403,6 +450,7 @@
                     {% include "includes/campo.html" with campo=concluir_form.lote_validade %}
                     {% include "includes/campo.html" with campo=concluir_form.local_destino %}
                     {% include "includes/campo.html" with campo=concluir_form.justificativa_divergencia %}
+                    {% include "includes/campo.html" with campo=concluir_form.justificativa_perda %}
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Voltar</button>

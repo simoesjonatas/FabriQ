@@ -252,6 +252,7 @@ class Command(BaseCommand):
             Balanca,
             Equipamento,
             StatusEquipamento,
+            VersaoArte,
         )
         from apps.ordens.models import EtapaFormula
         from apps.qualidade.models import EspecificacaoProduto
@@ -286,6 +287,17 @@ class Command(BaseCommand):
             ultima_limpeza=self.hoje,
             calibracao_validade=self.hoje + timedelta(days=90),
         )
+
+        # Limite de perda e versão de arte aprovada por produto
+        Produto.objects.all().update(limite_perda_percentual=Decimal("5"))
+        for produto in Produto.objects.all():
+            VersaoArte.objects.get_or_create(
+                produto=produto, versao="v1",
+                defaults={
+                    "data_aprovacao": self.hoje - timedelta(days=30),
+                    "status": "APROVADA",
+                },
+            )
 
         # Especificação do produto (mais restrita que o tipo genérico)
         ph = TipoAnalise.objects.get(nome="pH")

@@ -5,6 +5,8 @@ Todos herdam ModeloBase: auditoria (criado/atualizado por/em) e o campo
 `ativo` para inativação — registros nunca são excluídos definitivamente.
 """
 
+from decimal import Decimal
+
 from django.db import models
 
 from apps.core.models import ModeloBase
@@ -406,6 +408,13 @@ class ItemBase(ModeloBase):
 
 class Produto(ItemBase):
     descricao = models.TextField("descrição", blank=True)
+    limite_perda_percentual = models.DecimalField(
+        "limite de perda (%)",
+        max_digits=6,
+        decimal_places=3,
+        default=Decimal("5"),
+        help_text="Perda acima deste percentual exige justificativa e aprovação.",
+    )
 
     class Meta(ItemBase.Meta):
         verbose_name = "produto"
@@ -441,6 +450,56 @@ class Embalagem(ItemBase):
     class Meta(ItemBase.Meta):
         verbose_name = "embalagem"
         verbose_name_plural = "embalagens"
+
+
+class StatusVersaoArte(models.TextChoices):
+    APROVADA = "APROVADA", "Aprovada"
+    OBSOLETA = "OBSOLETA", "Obsoleta"
+
+
+class VersaoArte(ModeloBase):
+    """
+    Versão de arte (rótulo/embalagem) de um produto (Etapa 7a, PDF 5.7).
+    O envase só pode usar uma versão APROVADA.
+    """
+
+    produto = models.ForeignKey(
+        Produto,
+        verbose_name="produto",
+        on_delete=models.PROTECT,
+        related_name="versoes_arte",
+    )
+    versao = models.CharField("versão", max_length=30)
+    data_aprovacao = models.DateField("data de aprovação", null=True, blank=True)
+    arquivo = models.FileField(
+        "arquivo da arte",
+        upload_to="artes/%Y/%m/",
+        null=True,
+        blank=True,
+    )
+    status = models.CharField(
+        "situação", max_length=10, choices=StatusVersaoArte.choices,
+        default=StatusVersaoArte.APROVADA,
+    )
+
+    class Meta:
+        verbose_name = "versão de arte"
+        verbose_name_plural = "versões de arte"
+        ordering = ["produto__nome", "-versao"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["produto", "versao"],
+                name="versao_arte_unica_por_produto",
+                violation_error_message="Este produto já tem essa versão de arte.",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.produto.codigo} · arte {self.versao}"
+
+    @property
+    def aprovada(self) -> bool:
+        return self.status == StatusVersaoArte.APROVADA
 
 
 class Balanca(ModeloBase):

@@ -17,6 +17,7 @@ from .models import (
     MateriaPrima,
     Produto,
     Setor,
+    VersaoArte,
 )
 
 _TEXTAREA_CURTA = forms.Textarea(attrs={"rows": 3})
@@ -307,6 +308,24 @@ class MateriaPrimaForm(BootstrapFormMixin, forms.ModelForm):
             "ativo",
         ]
         widgets = {"observacoes": _TEXTAREA_CURTA}
+
+
+class VersaoArteForm(BootstrapFormMixin, forms.ModelForm):
+    class Meta:
+        model = VersaoArte
+        fields = ["produto", "versao", "data_aprovacao", "arquivo", "status", "ativo"]
+        widgets = {
+            "data_aprovacao": forms.DateInput(
+                attrs={"type": "date"}, format="%Y-%m-%d"
+            ),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        produtos = Produto.objects.filter(ativo=True)
+        if self.instance.pk and self.instance.produto_id:
+            produtos = produtos | Produto.objects.filter(pk=self.instance.produto_id)
+        self.fields["produto"].queryset = produtos.distinct()
 
 
 class BalancaForm(BootstrapFormMixin, forms.ModelForm):

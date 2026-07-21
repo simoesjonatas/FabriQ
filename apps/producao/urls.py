@@ -20,6 +20,8 @@ urlpatterns = [
     path("<int:pk>/pesagem/", views.PesagemView.as_view(), name="pesagem"),
     path("<int:pk>/etapas/", views.EtapasView.as_view(), name="etapas"),
     path("<int:pk>/controles/", views.ControlesView.as_view(), name="controles"),
+    path("<int:pk>/desvios/", views.DesviosView.as_view(), name="desvios"),
+    path("<int:pk>/envase/", views.EnvaseView.as_view(), name="envase"),
     path("<int:pk>/atividade/", views.AtividadeView.as_view(), name="atividade"),
     path("<int:pk>/concluir/", views.ConcluirView.as_view(), name="concluir"),
 ]

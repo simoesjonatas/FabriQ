@@ -390,7 +390,30 @@ Tentar selecionar um lote vencido ou em quarentena e confirmar que o sistema imp
 
 ---
 
-## Etapa 7 — Envase, perdas e desvios (P1)
+## Etapa 7 — Envase, perdas e desvios (P1) ✅ CONCLUÍDA (20/07/2026)
+
+> **Status:** implementada e testada (255 testes do projeto passando; critério de aceite
+> do 7c verificado na tela — conclusão bloqueada por desvio pendente).
+> - **7a:** cadastro `VersaoArte` (filho de Produto; status aprovada/obsoleta) e
+>   `EnvaseOP` + `registrar_envase` — o envase só usa **versão de arte aprovada** do
+>   produto (obsoleta é barrada). Tela `producao/<pk>/envase/`; cadastro de Versões de
+>   arte no módulo Cadastros. Os lotes de frasco/tampa/rótulo/caixa continuam entrando
+>   pelo apontamento de consumo (Etapa 4).
+> - **7b:** `Produto.limite_perda_percentual` (default 5%). `ExecucaoOP.concluir()`
+>   calcula quantidade teórica, perda % e rendimento % e **bloqueia o encerramento** se a
+>   perda ultrapassa o limite sem justificativa/aprovação (registro em
+>   `perda_justificativa`/`perda_aprovada_por` + evento na trilha). O modal de conclusão
+>   ganhou o campo de justificativa da perda; o painel mostra perda %/rendimento %.
+> - **7c:** `Desvio` (tipo, etapa, descrição, impacto, ação imediata, crítico,
+>   responsável, status aberto/em avaliação/encerrado, decisão da Qualidade
+>   avaliador/decisão/data/justificativa, CAPA). A OP **não encerra com desvio pendente**;
+>   `decidir_desvio` (só Qualidade) encerra e, se crítico + reprovado, bloqueia o lote
+>   (SituacaoLote.BLOQUEADO — Etapa 5). Tela `producao/<pk>/desvios/` (registro +
+>   decisão); ocorrências antigas migradas para desvios encerrados. As `Ocorrencia`
+>   informais seguem existindo em paralelo.
+> - `carregar_demo`: limite de perda 5%, versão de arte v1 aprovada por produto.
+> - Pendência: os campos do EnvaseOP (peso/volume médio, controles) e os painéis de
+>   envase/perdas/desvios no dossiê virão na Etapa 12.
 
 ### 7a. Envase, embalagem e rotulagem (PDF 5.7)
 1. Novo cadastro `VersaoArte` (filho de `Produto`): versão, data de aprovação, arquivo/arte, status (aprovada/obsoleta).

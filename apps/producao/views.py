@@ -2,7 +2,8 @@ import logging
 from decimal import Decimal, InvalidOperation
 
 from django.contrib import messages
-from django.core.exceptions import ValidationError
+from django.contrib.auth.mixins import LoginRequiredMixin
+from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import transaction
 from django.db.models import Q
 from django.shortcuts import get_object_or_404, redirect, render
@@ -11,7 +12,7 @@ from django.views import View
 from django.views.generic import DetailView, ListView
 
 from apps.accounts.mixins import AcessoModuloMixin
-from apps.accounts.perfis import pode_autorizar_excecao
+from apps.accounts.perfis import pode_autorizar_excecao, usuario_acessa_modulo
 from apps.estoque.models import LocalEstoque, Lote
 from apps.ordens.models import OrdemProducao, StatusOP
 
@@ -19,6 +20,9 @@ from .forms import (
     AtividadeOPForm,
     ConcluirProducaoForm,
     ControleProcessoForm,
+    DecisaoDesvioForm,
+    DesvioForm,
+    EnvaseForm,
     EtapaOPForm,
     FotoProducaoForm,
     OcorrenciaForm,
@@ -29,13 +33,16 @@ from .models import (
     AtividadeOP,
     ConsumoMaterialOP,
     ControleProcessoOP,
+    Desvio,
     EtapaOP,
     ExecucaoOP,
     Parada,
     PesagemOP,
     apontar_consumos,
+    decidir_desvio,
     posicoes_para_apontamento,
     registrar_controle,
+    registrar_envase,
     registrar_etapa,
     registrar_pesagem,
     sugerir_consumos_fefo,
@@ -119,6 +126,7 @@ class PainelView(AcessoModuloMixin, DetailView):
             "materiais__consumos__lote",
             "materiais__consumos__local",
             "atividades__funcionario",
+            "desvios__responsavel",
             "execucao__paradas__registrado_por",
             "execucao__ocorrencias__registrado_por",
             "execucao__fotos",
@@ -541,6 +549,128 @@ class ControlesView(_ExecucaoActionView):
         )
 
 
+class EnvaseView(_ExecucaoActionView):
+    """Envase/embalagem/rotulagem com versão de arte aprovada (Etapa 7a)."""
+
+    def _usuarios(self):
+        from django.contrib.auth import get_user_model
+
+        return get_user_model().objects.filter(is_active=True).order_by(
+            "first_name", "username"
+        )
+
+    def get(self, request, pk):
+        execucao, ordem = self.get_execucao_em_andamento(request, pk)
+        if execucao is None:
+            return redirect("producao:painel", pk=ordem.pk)
+        form = EnvaseForm(ordem=ordem, usuarios=self._usuarios())
+        return self._render_tela(request, ordem, form)
+
+    def post(self, request, pk):
+        execucao, ordem = self.get_execucao_em_andamento(request, pk)
+        if execucao is None:
+            return redirect("producao:painel", pk=ordem.pk)
+
+        form = EnvaseForm(request.POST, ordem=ordem, usuarios=self._usuarios())
+        if form.is_valid():
+            try:
+                registrar_envase(
+                    ordem=ordem,
+                    versao_arte=form.cleaned_data["versao_arte"],
+                    quantidade_envasada=form.cleaned_data["quantidade_envasada"],
+                    operador=request.user,
+                    linha=form.cleaned_data["linha"],
+                    lote_granel=ordem.lote_produto,
+                    peso_volume_medio=form.cleaned_data["peso_volume_medio"],
+                    perdas=form.cleaned_data["perdas"],
+                    controles=form.cleaned_data["controles"],
+                    conferente=form.cleaned_data["conferente"],
+                )
+            except ValidationError as erro:
+                for mensagem in erro.messages:
+                    form.add_error(None, mensagem)
+            else:
+                messages.success(request, "Envase registrado.")
+                return redirect("producao:envase", pk=ordem.pk)
+        return self._render_tela(request, ordem, form)
+
+    def _render_tela(self, request, ordem, form):
+        return render(
+            request,
+            "producao/envase.html",
+            {"ordem": ordem, "form": form, "envases": ordem.envases.all()},
+        )
+
+
+class DesviosView(LoginRequiredMixin, View):
+    """
+    Desvios da OP (Etapa 7c): quem faz a produção registra; a Qualidade
+    decide. Acessível por Produção e por Qualidade.
+    """
+
+    def dispatch(self, request, *args, **kwargs):
+        if request.user.is_authenticated and not (
+            usuario_acessa_modulo(request.user, MODULO)
+            or usuario_acessa_modulo(request.user, "qualidade")
+        ):
+            raise PermissionDenied
+        return super().dispatch(request, *args, **kwargs)
+
+    def get(self, request, pk):
+        ordem = get_object_or_404(OrdemProducao, pk=pk)
+        return self._render_tela(request, ordem, DesvioForm())
+
+    def post(self, request, pk):
+        ordem = get_object_or_404(OrdemProducao, pk=pk)
+        acao = request.POST.get("acao", "registrar")
+
+        if acao == "decidir":
+            return self._decidir(request, ordem)
+
+        form = DesvioForm(request.POST)
+        if form.is_valid():
+            desvio = form.save(commit=False)
+            desvio.ordem = ordem
+            desvio.responsavel = request.user
+            desvio.save()
+            messages.success(request, "Desvio registrado — aguarda decisão da Qualidade.")
+            return redirect("producao:desvios", pk=ordem.pk)
+        return self._render_tela(request, ordem, form)
+
+    def _decidir(self, request, ordem):
+        if not usuario_acessa_modulo(request.user, "qualidade"):
+            messages.error(request, "Somente a Qualidade decide desvios.")
+            return redirect("producao:desvios", pk=ordem.pk)
+
+        desvio = get_object_or_404(Desvio, pk=request.POST.get("desvio"), ordem=ordem)
+        try:
+            with transaction.atomic():
+                decidir_desvio(
+                    desvio,
+                    request.user,
+                    request.POST.get("decisao", ""),
+                    request.POST.get("justificativa", ""),
+                )
+        except ValidationError as erro:
+            messages.error(request, "; ".join(erro.messages))
+        else:
+            messages.success(request, f"Desvio decidido: {desvio.get_decisao_display()}.")
+        return redirect("producao:desvios", pk=ordem.pk)
+
+    def _render_tela(self, request, ordem, form):
+        return render(
+            request,
+            "producao/desvios.html",
+            {
+                "ordem": ordem,
+                "form": form,
+                "desvios": ordem.desvios.select_related("responsavel", "avaliador"),
+                "decisao_form": DecisaoDesvioForm(),
+                "pode_decidir": usuario_acessa_modulo(request.user, "qualidade"),
+            },
+        )
+
+
 class AtividadeView(_ExecucaoActionView):
     """Registro manual de "quem fez o quê" durante a produção."""
 
@@ -599,6 +729,7 @@ class ConcluirView(_ExecucaoActionView):
                     justificativa_divergencia=form.cleaned_data[
                         "justificativa_divergencia"
                     ],
+                    justificativa_perda=form.cleaned_data["justificativa_perda"],
                 )
         except ValidationError as erro:
             messages.error(request, "; ".join(erro.messages))

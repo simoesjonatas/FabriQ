@@ -111,6 +111,14 @@ class ConcluirProducaoForm(BootstrapFormMixin, forms.Form):
             "necessário (fica na trilha de auditoria)."
         ),
     )
+    justificativa_perda = forms.CharField(
+        label="Justificativa/aprovação da perda",
+        required=False,
+        widget=forms.Textarea(attrs={"rows": 2}),
+        help_text=(
+            "Obrigatória quando a perda ultrapassa o limite do produto."
+        ),
+    )
 
     def __init__(self, *args, excluir_local=None, **kwargs):
         super().__init__(*args, **kwargs)
@@ -164,6 +172,81 @@ class EtapaOPForm(BootstrapFormMixin, forms.Form):
             snapshot.etapas.all() if snapshot else self.fields["etapa"].queryset
         )
         self.fields["conferente"].queryset = usuarios
+
+
+class EnvaseForm(BootstrapFormMixin, forms.Form):
+    """Registro de envase da OP (Etapa 7a)."""
+
+    versao_arte = forms.ModelChoiceField(label="Versão de arte", queryset=None)
+    linha = forms.ModelChoiceField(label="Linha", queryset=None, required=False)
+    quantidade_envasada = forms.DecimalField(
+        label="Quantidade envasada", max_digits=12, decimal_places=3, min_value=0,
+        widget=forms.NumberInput(attrs={"step": "any", "min": "0"}),
+    )
+    peso_volume_medio = forms.DecimalField(
+        label="Peso/volume médio", max_digits=12, decimal_places=3, min_value=0,
+        required=False, widget=forms.NumberInput(attrs={"step": "any"}),
+    )
+    perdas = forms.DecimalField(
+        label="Perdas", max_digits=12, decimal_places=3, min_value=0,
+        required=False, initial=0, widget=forms.NumberInput(attrs={"step": "any"}),
+    )
+    controles = forms.CharField(
+        label="Controles", required=False, widget=forms.Textarea(attrs={"rows": 2})
+    )
+    conferente = forms.ModelChoiceField(
+        label="Conferente", queryset=None, required=False
+    )
+
+    def __init__(self, *args, ordem=None, usuarios=None, **kwargs):
+        from apps.cadastros.models import Setor, VersaoArte
+
+        super().__init__(*args, **kwargs)
+        self.fields["versao_arte"].queryset = VersaoArte.objects.filter(
+            produto=ordem.produto, status="APROVADA", ativo=True
+        )
+        self.fields["linha"].queryset = Setor.objects.filter(ativo=True)
+        self.fields["conferente"].queryset = usuarios
+
+    def clean_perdas(self):
+        return self.cleaned_data.get("perdas") or 0
+
+
+class DesvioForm(BootstrapFormMixin, forms.ModelForm):
+    """Registro de um desvio na produção (Etapa 7c)."""
+
+    class Meta:
+        from .models import Desvio
+
+        model = Desvio
+        fields = [
+            "tipo",
+            "etapa",
+            "descricao",
+            "impacto",
+            "acao_imediata",
+            "critico",
+        ]
+        widgets = {
+            "descricao": forms.Textarea(attrs={"rows": 2}),
+            "impacto": forms.Textarea(attrs={"rows": 2}),
+            "acao_imediata": forms.Textarea(attrs={"rows": 2}),
+        }
+
+
+class DecisaoDesvioForm(BootstrapFormMixin, forms.Form):
+    """Decisão da Qualidade sobre um desvio (Etapa 7c)."""
+
+    def __init__(self, *args, **kwargs):
+        from .models import DecisaoDesvio
+
+        super().__init__(*args, **kwargs)
+        self.fields["decisao"] = forms.ChoiceField(
+            label="Decisão", choices=DecisaoDesvio.choices
+        )
+        self.fields["justificativa"] = forms.CharField(
+            label="Justificativa", widget=forms.Textarea(attrs={"rows": 2})
+        )
 
 
 class ControleProcessoForm(BootstrapFormMixin, forms.Form):

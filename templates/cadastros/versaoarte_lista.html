@@ -1,0 +1,20 @@
+{% extends "cadastros/base_lista.html" %}
+
+{% block icone %}bi-palette{% endblock %}
+{% block rotulo_novo %}Nova versão de arte{% endblock %}
+
+{% block celulas %}
+    <td>
+        <span class="identifier-cell">{{ objeto.produto.codigo }}</span>
+        · {{ objeto.produto.nome }}
+    </td>
+    <td>{{ objeto.versao }}</td>
+    <td>{{ objeto.data_aprovacao|date:"d/m/Y"|default:"—" }}</td>
+    <td>
+        {% if objeto.aprovada %}
+            <span class="badge text-bg-success">Aprovada</span>
+        {% else %}
+            <span class="badge text-bg-secondary">Obsoleta</span>
+        {% endif %}
+    </td>
+{% endblock %}

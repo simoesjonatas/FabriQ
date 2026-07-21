@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+
+{% block title %}Desvios · {{ ordem.numero }}{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-12 col-xxl-10">
+
+        <nav class="app-breadcrumb" aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item">
+                    <a href="{% url 'producao:painel' ordem.pk %}">
+                        <i class="bi bi-arrow-left-short" aria-hidden="true"></i>{{ ordem.numero }}
+                    </a>
+                </li>
+                <li class="breadcrumb-item active" aria-current="page">Desvios</li>
+            </ol>
+        </nav>
+
+        <div class="page-header mb-4">
+            <div>
+                <span class="eyebrow"><i class="bi bi-exclamation-diamond me-1"></i>Desvios e ocorrências</span>
+                <h1>Desvios · {{ ordem.numero }}</h1>
+                <p>A OP não pode ser encerrada com desvio pendente. Toda decisão da Qualidade tem responsável, data e justificativa.</p>
+            </div>
+        </div>
+
+        <div class="row g-4">
+            <div class="col-12 col-lg-5">
+                <div class="card shadow-sm form-panel">
+                    <div class="card-body">
+                        <h2 class="h6 mb-3"><i class="bi bi-plus-circle me-1 text-primary"></i>Registrar desvio</h2>
+                        <form method="post">
+                            {% csrf_token %}
+                            <input type="hidden" name="acao" value="registrar">
+                            {% include "includes/campo.html" with campo=form.tipo %}
+                            {% include "includes/campo.html" with campo=form.etapa %}
+                            {% include "includes/campo.html" with campo=form.descricao %}
+                            {% include "includes/campo.html" with campo=form.impacto %}
+                            {% include "includes/campo.html" with campo=form.acao_imediata %}
+                            {% include "includes/campo.html" with campo=form.critico %}
+                            <button type="submit" class="btn btn-primary w-100">
+                                <i class="bi bi-check-lg me-1"></i>Registrar desvio
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-12 col-lg-7">
+                <div class="card shadow-sm data-panel">
+                    <div class="card-body">
+                        <h2 class="h6 mb-3"><i class="bi bi-list-check me-1 text-primary"></i>Desvios da OP</h2>
+                        {% for desvio in desvios %}
+                            <div class="border rounded p-3 mb-3">
+                                <div class="d-flex justify-content-between gap-2 flex-wrap">
+                                    <span>
+                                        <span class="badge {{ desvio.badge_status }}">{{ desvio.get_status_display }}</span>
+                                        <span class="badge text-bg-light border">{{ desvio.get_tipo_display }}</span>
+                                        {% if desvio.critico %}<span class="badge text-bg-danger">crítico</span>{% endif %}
+                                    </span>
+                                    <span class="text-body-secondary small">
+                                        {{ desvio.criado_em|date:"d/m/Y H:i" }} · {{ desvio.responsavel }}
+                                    </span>
+                                </div>
+                                <p class="mb-1 mt-2">{{ desvio.descricao }}</p>
+                                {% if desvio.etapa %}<div class="small text-body-secondary">Etapa: {{ desvio.etapa }}</div>{% endif %}
+                                {% if desvio.impacto %}<div class="small text-body-secondary">Impacto: {{ desvio.impacto }}</div>{% endif %}
+                                {% if desvio.acao_imediata %}<div class="small text-body-secondary">Ação imediata: {{ desvio.acao_imediata }}</div>{% endif %}
+
+                                {% if desvio.status == "ENCERRADO" %}
+                                    <div class="alert alert-success py-2 mt-2 mb-0 small">
+                                        <i class="bi bi-check2-circle me-1"></i>
+                                        Decisão: <strong>{{ desvio.get_decisao_display }}</strong>
+                                        por {{ desvio.avaliador }} em {{ desvio.decidido_em|date:"d/m/Y H:i" }}.
+                                        <div>{{ desvio.justificativa_decisao }}</div>
+                                    </div>
+                                {% elif pode_decidir %}
+                                    <form method="post" class="mt-2 border-top pt-2">
+                                        {% csrf_token %}
+                                        <input type="hidden" name="acao" value="decidir">
+                                        <input type="hidden" name="desvio" value="{{ desvio.pk }}">
+                                        <div class="row g-2 align-items-end">
+                                            <div class="col-12 col-md-5">
+                                                <label class="form-label small mb-1">Decisão</label>
+                                                {{ decisao_form.decisao }}
+                                            </div>
+                                            <div class="col-12 col-md-7">
+                                                <label class="form-label small mb-1">Justificativa</label>
+                                                {{ decisao_form.justificativa }}
+                                            </div>
+                                        </div>
+                                        <button type="submit" class="btn btn-sm btn-success mt-2">
+                                            <i class="bi bi-check2-square me-1"></i>Decidir
+                                        </button>
+                                    </form>
+                                {% else %}
+                                    <div class="small text-warning mt-2">
+                                        <i class="bi bi-hourglass-split me-1"></i>Aguardando decisão da Qualidade.
+                                    </div>
+                                {% endif %}
+                            </div>
+                        {% empty %}
+                            <p class="text-body-secondary mb-0">Nenhum desvio registrado.</p>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

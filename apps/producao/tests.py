@@ -762,6 +762,239 @@ class ControleProcessoTests(BaseProducao):
         self.assertFalse(controles[1].fora_especificacao)
 
 
+class EnvaseTests(BaseProducao):
+    """Etapa 7a: envase só com versão de arte aprovada."""
+
+    def setUp(self):
+        super().setUp()
+        from apps.cadastros.models import VersaoArte
+
+        self.arte = VersaoArte.objects.create(
+            produto=self.produto, versao="v1",
+            data_aprovacao=timezone.localdate(), status="APROVADA",
+        )
+        self.arte_obsoleta = VersaoArte.objects.create(
+            produto=self.produto, versao="v0", status="OBSOLETA",
+        )
+
+    def iniciar(self):
+        ordem = self.criar_op_liberada("50")
+        ordem.reservar_lote_produto(self.operador)
+        self.client.post(reverse("producao:iniciar", args=[ordem.pk]))
+        ordem.refresh_from_db()
+        return ordem
+
+    def envasar(self, ordem, arte, quantidade="48"):
+        return self.client.post(
+            reverse("producao:envase", args=[ordem.pk]),
+            {
+                "versao_arte": str(arte.pk),
+                "linha": "",
+                "quantidade_envasada": quantidade,
+                "peso_volume_medio": "",
+                "perdas": "0",
+                "controles": "",
+                "conferente": "",
+            },
+            follow=True,
+        )
+
+    def test_envase_com_arte_aprovada_registra(self):
+        from .models import EnvaseOP
+
+        ordem = self.iniciar()
+        response = self.envasar(ordem, self.arte)
+        self.assertContains(response, "Envase registrado")
+        self.assertEqual(EnvaseOP.objects.count(), 1)
+
+    def test_envase_com_arte_obsoleta_bloqueia(self):
+        from .models import EnvaseOP
+
+        ordem = self.iniciar()
+        # A arte obsoleta nem aparece no select (queryset filtrado)
+        response = self.envasar(ordem, self.arte_obsoleta)
+        self.assertEqual(EnvaseOP.objects.count(), 0)
+        self.assertEqual(response.status_code, 200)
+
+
+class PerdasTests(BaseProducao):
+    """Etapa 7b: perda acima do limite exige justificativa e aprovação."""
+
+    def iniciar(self, quantidade="100"):
+        lote = Lote.objects.create(
+            codigo="MP-PERDA", materia_prima=self.mp,
+            validade=timezone.localdate() + timedelta(days=180),
+        )
+        entrada({"materia_prima": self.mp}, "60", self.deposito, lote=lote)
+        ordem = self.criar_op_liberada(quantidade)
+        self.client.post(reverse("producao:iniciar", args=[ordem.pk]))
+        ordem.refresh_from_db()
+        apontar_consumos_fefo(ordem, self.operador)
+        return ordem
+
+    def concluir(self, ordem, quantidade_produzida, perdas, **extra):
+        dados = {
+            "quantidade_produzida": quantidade_produzida,
+            "perdas": perdas,
+            "lote_validade": "",
+            "local_destino": str(self.acabados.pk),
+            "justificativa_divergencia": "",
+            "justificativa_perda": "",
+        }
+        dados.update(extra)
+        return self.client.post(
+            reverse("producao:concluir", args=[ordem.pk]), dados, follow=True
+        )
+
+    def test_perda_dentro_do_limite_encerra_e_calcula_rendimento(self):
+        from apps.ordens.models import StatusOP
+
+        # limite padrão do produto = 5%
+        ordem = self.iniciar(quantidade="100")
+        self.concluir(ordem, quantidade_produzida="97", perdas="3")  # 3% < 5%
+        ordem.refresh_from_db()
+        self.assertEqual(ordem.status, StatusOP.CONCLUIDA)
+        self.assertEqual(ordem.execucao.perda_percentual, Decimal("3.000"))
+        self.assertEqual(ordem.execucao.rendimento_percentual, Decimal("97.000"))
+
+    def test_perda_acima_do_limite_bloqueia_sem_justificativa(self):
+        from apps.ordens.models import StatusOP
+
+        ordem = self.iniciar(quantidade="100")
+        response = self.concluir(ordem, quantidade_produzida="90", perdas="8")  # 8% > 5%
+        self.assertContains(response, "acima do limite")
+        ordem.refresh_from_db()
+        self.assertEqual(ordem.status, StatusOP.EM_PRODUCAO)
+
+    def test_perda_acima_do_limite_com_justificativa_encerra(self):
+        from apps.ordens.models import StatusOP
+
+        ordem = self.iniciar(quantidade="100")
+        self.concluir(
+            ordem, quantidade_produzida="90", perdas="8",
+            justificativa_perda="Vazamento no envase — aprovado pela supervisão",
+        )
+        ordem.refresh_from_db()
+        self.assertEqual(ordem.status, StatusOP.CONCLUIDA)
+        self.assertEqual(ordem.execucao.perda_aprovada_por, self.operador)
+        self.assertIn("Vazamento", ordem.execucao.perda_justificativa)
+
+
+class DesvioTests(BaseProducao):
+    """Etapa 7c: OP não encerra com desvio pendente; decisão da Qualidade."""
+
+    def setUp(self):
+        super().setUp()
+        from apps.accounts.perfis import QUALIDADE
+
+        self.analista = criar_usuario("analista", perfil=QUALIDADE)
+
+    def iniciar(self):
+        lote = Lote.objects.create(
+            codigo="MP-D1", materia_prima=self.mp,
+            validade=timezone.localdate() + timedelta(days=180),
+        )
+        entrada({"materia_prima": self.mp}, "30", self.deposito, lote=lote)
+        ordem = self.criar_op_liberada("50")
+        ordem.reservar_lote_produto(self.operador)  # como na liberação real
+        self.client.post(reverse("producao:iniciar", args=[ordem.pk]))
+        ordem.refresh_from_db()
+        apontar_consumos_fefo(ordem, self.operador)
+        return ordem
+
+    def registrar_desvio(self, ordem, **extra):
+        dados = {
+            "acao": "registrar",
+            "tipo": "PROCESSO",
+            "etapa": "",
+            "descricao": "Temperatura acima do previsto na mistura",
+            "impacto": "",
+            "acao_imediata": "",
+        }
+        dados.update(extra)
+        return self.client.post(
+            reverse("producao:desvios", args=[ordem.pk]), dados, follow=True
+        )
+
+    def dados_conclusao(self):
+        return {
+            "quantidade_produzida": "50",
+            "perdas": "0",
+            "lote_validade": "",
+            "local_destino": str(self.acabados.pk),
+            "justificativa_divergencia": "",
+        }
+
+    def test_desvio_pendente_bloqueia_encerramento(self):
+        from apps.ordens.models import StatusOP
+
+        ordem = self.iniciar()
+        self.registrar_desvio(ordem)
+
+        response = self.client.post(
+            reverse("producao:concluir", args=[ordem.pk]),
+            self.dados_conclusao(), follow=True,
+        )
+        self.assertContains(response, "desvio(s) pendente(s)")
+        ordem.refresh_from_db()
+        self.assertEqual(ordem.status, StatusOP.EM_PRODUCAO)
+
+    def test_decisao_da_qualidade_encerra_e_libera(self):
+        from apps.ordens.models import StatusOP
+
+        from .models import Desvio, StatusDesvio
+
+        ordem = self.iniciar()
+        self.registrar_desvio(ordem)
+        desvio = Desvio.objects.get()
+
+        # Operador (produção) não decide
+        self.client.post(
+            reverse("producao:desvios", args=[ordem.pk]),
+            {"acao": "decidir", "desvio": str(desvio.pk),
+             "decisao": "ACEITO", "justificativa": "Sem impacto na qualidade"},
+        )
+        desvio.refresh_from_db()
+        self.assertEqual(desvio.status, StatusDesvio.ABERTO)
+
+        # Qualidade decide
+        self.client.login(username="analista", password="senha-forte-123")
+        self.client.post(
+            reverse("producao:desvios", args=[ordem.pk]),
+            {"acao": "decidir", "desvio": str(desvio.pk),
+             "decisao": "ACEITO", "justificativa": "Sem impacto na qualidade"},
+        )
+        desvio.refresh_from_db()
+        self.assertEqual(desvio.status, StatusDesvio.ENCERRADO)
+        self.assertEqual(desvio.avaliador, self.analista)
+
+        # Agora encerra
+        self.client.login(username="operador", password="senha-forte-123")
+        self.client.post(
+            reverse("producao:concluir", args=[ordem.pk]), self.dados_conclusao()
+        )
+        ordem.refresh_from_db()
+        self.assertEqual(ordem.status, StatusOP.CONCLUIDA)
+
+    def test_desvio_critico_reprovado_bloqueia_lote(self):
+        from apps.estoque.models import SituacaoLote
+
+        from .models import Desvio
+
+        ordem = self.iniciar()
+        self.registrar_desvio(ordem, critico="on")
+        desvio = Desvio.objects.get()
+
+        self.client.login(username="analista", password="senha-forte-123")
+        self.client.post(
+            reverse("producao:desvios", args=[ordem.pk]),
+            {"acao": "decidir", "desvio": str(desvio.pk),
+             "decisao": "REPROVADO", "justificativa": "Lote comprometido"},
+        )
+        ordem.refresh_from_db()
+        self.assertEqual(ordem.lote_produto.situacao, SituacaoLote.BLOQUEADO)
+
+
 class AtividadeOPTests(BaseProducao):
     """Etapa 2c: quem fez o quê na OP."""
 
