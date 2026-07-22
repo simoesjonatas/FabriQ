@@ -25,7 +25,8 @@
                     <a href="{% url 'pedidos:detalhe' expedicao.pedido.pk %}" class="text-decoration-none">
                         {{ expedicao.pedido.numero }}
                     </a>
-                    · {{ expedicao.pedido.cliente }} · {{ expedicao.data|date:"d/m/Y" }}
+                    · <a href="{{ expedicao.pedido.cliente.get_absolute_url }}" class="text-decoration-none">{{ expedicao.pedido.cliente }}</a>
+                    · {{ expedicao.data|date:"d/m/Y" }}
                 </p>
             </div>
         </div>
@@ -53,11 +54,13 @@
                                     {% for item in expedicao.itens.all %}
                                         <tr>
                                             <td>
-                                                <span class="identifier-cell">{{ item.item_pedido.produto.codigo }}</span>
-                                                · {{ item.item_pedido.produto.nome }}
+                                                <a href="{{ item.item_pedido.produto.get_absolute_url }}" class="text-decoration-none">
+                                                    <span class="identifier-cell">{{ item.item_pedido.produto.codigo }}</span>
+                                                    · {{ item.item_pedido.produto.nome }}
+                                                </a>
                                             </td>
                                             <td>
-                                                {{ item.lote.codigo }}
+                                                <a href="{{ item.lote.get_absolute_url }}" class="text-decoration-none">{{ item.lote.codigo }}</a>
                                                 <span class="badge {{ item.lote.badge_situacao }}">{{ item.lote.get_situacao_display }}</span>
                                             </td>
                                             <td class="text-end">{{ item.quantidade|floatformat:"-3" }}</td>

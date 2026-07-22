@@ -1,0 +1,175 @@
+{% extends "base.html" %}
+
+{% block title %}{{ materia_prima.codigo }} · {{ materia_prima.nome }}{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-12 col-xxl-11">
+
+        <nav class="app-breadcrumb" aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item">
+                    <a href="{% url 'cadastros:materiaprima_lista' %}">
+                        <i class="bi bi-arrow-left-short" aria-hidden="true"></i>Matérias-primas
+                    </a>
+                </li>
+                <li class="breadcrumb-item active" aria-current="page">{{ materia_prima.codigo }}</li>
+            </ol>
+        </nav>
+
+        <div class="page-header page-header-actions mb-4">
+            <div>
+                <span class="eyebrow"><i class="bi bi-droplet me-1"></i>Matéria-prima</span>
+                <h1>{{ materia_prima.nome }}</h1>
+                <p>
+                    <span class="identifier-cell">{{ materia_prima.codigo }}</span>
+                    {% if materia_prima.inci %}· INCI {{ materia_prima.inci }}{% endif %}
+                    {% if materia_prima.cas %}· CAS {{ materia_prima.cas }}{% endif %}
+                </p>
+            </div>
+            <div class="d-flex gap-2 align-items-center flex-wrap">
+                {% if materia_prima.critico %}
+                    <span class="badge text-bg-warning fs-6"><i class="bi bi-exclamation-triangle me-1"></i>Material crítico</span>
+                {% endif %}
+                {% if pode_editar %}
+                    <a href="{% url 'cadastros:materiaprima_editar' materia_prima.pk %}" class="btn btn-outline-primary">
+                        <i class="bi bi-pencil me-1"></i>Editar
+                    </a>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="row g-4">
+            <div class="col-12 col-lg-7">
+                <div class="card shadow-sm data-panel mb-4">
+                    <div class="card-body">
+                        <div class="section-heading">
+                            <div>
+                                <h2><i class="bi bi-upc-scan me-1 text-primary"></i>Lotes</h2>
+                                <p>Lotes internos com fornecedor, validade, situação e saldo.</p>
+                            </div>
+                        </div>
+                        {% if lotes %}
+                            <div class="table-responsive">
+                                <table class="table align-middle mb-0">
+                                    <thead>
+                                        <tr>
+                                            <th>Lote interno</th>
+                                            <th>Fornecedor</th>
+                                            <th>Validade</th>
+                                            <th>Situação</th>
+                                            <th class="text-end">Saldo</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for lote in lotes %}
+                                            <tr>
+                                                <td>
+                                                    <a href="{% url 'estoque:lote_detalhe' lote.pk %}" class="text-decoration-none">
+                                                        {{ lote.codigo }}
+                                                    </a>
+                                                    {% if lote.lote_fornecedor %}
+                                                        <span class="text-body-secondary small d-block">forn. {{ lote.lote_fornecedor }}</span>
+                                                    {% endif %}
+                                                </td>
+                                                <td>{{ lote.fornecedor|default:"—" }}</td>
+                                                <td>{{ lote.validade|date:"d/m/Y"|default:"—" }}</td>
+                                                <td><span class="badge {{ lote.badge_situacao }}">{{ lote.get_situacao_display }}</span></td>
+                                                <td class="text-end">{{ lote.saldo_atual|floatformat:"-3" }}</td>
+                                            </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        {% else %}
+                            <p class="text-body-secondary mb-0">Nenhum lote recebido.</p>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <div class="card shadow-sm data-panel">
+                    <div class="card-body">
+                        <div class="section-heading">
+                            <div>
+                                <h2><i class="bi bi-file-earmark-text me-1 text-primary"></i>Especificação</h2>
+                                <p>Especificação técnica e condições de armazenamento.</p>
+                            </div>
+                        </div>
+                        <dl class="row mb-0 small">
+                            <dt class="col-4">Especificação</dt>
+                            <dd class="col-8">{{ materia_prima.especificacao|linebreaksbr|default:"—" }}</dd>
+                            <dt class="col-4">Armazenamento</dt>
+                            <dd class="col-8">{{ materia_prima.condicoes_armazenamento|default:"—" }}</dd>
+                            <dt class="col-4">Ficha técnica</dt>
+                            <dd class="col-8">
+                                {% if materia_prima.ficha_tecnica %}
+                                    <a href="{{ materia_prima.ficha_tecnica.url }}" target="_blank" rel="noopener">
+                                        <i class="bi bi-paperclip me-1"></i>abrir
+                                    </a>
+                                {% else %}—{% endif %}
+                            </dd>
+                            <dt class="col-4">FISPQ</dt>
+                            <dd class="col-8">
+                                {% if materia_prima.fispq %}
+                                    <a href="{{ materia_prima.fispq.url }}" target="_blank" rel="noopener">
+                                        <i class="bi bi-paperclip me-1"></i>abrir
+                                    </a>
+                                {% else %}—{% endif %}
+                            </dd>
+                        </dl>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-12 col-lg-5">
+                <div class="card shadow-sm mb-4">
+                    <div class="card-body">
+                        <div class="section-heading">
+                            <div><h2><i class="bi bi-card-text me-1 text-primary"></i>Dados</h2></div>
+                        </div>
+                        <dl class="row mb-0 small">
+                            <dt class="col-5">Código</dt>
+                            <dd class="col-7">{{ materia_prima.codigo }}</dd>
+                            <dt class="col-5">Nome INCI</dt>
+                            <dd class="col-7">{{ materia_prima.inci|default:"—" }}</dd>
+                            <dt class="col-5">Número CAS</dt>
+                            <dd class="col-7">{{ materia_prima.cas|default:"—" }}</dd>
+                            <dt class="col-5">Unidade</dt>
+                            <dd class="col-7">{{ materia_prima.get_unidade_display }}</dd>
+                            <dt class="col-5">Estoque mínimo</dt>
+                            <dd class="col-7">{{ materia_prima.estoque_minimo|floatformat:"-3" }}</dd>
+                            <dt class="col-5">Saldo total</dt>
+                            <dd class="col-7 fw-semibold">{{ saldo_total|floatformat:"-3" }}</dd>
+                        </dl>
+                    </div>
+                </div>
+
+                <div class="card shadow-sm">
+                    <div class="card-body">
+                        <div class="section-heading">
+                            <div>
+                                <h2><i class="bi bi-patch-check me-1 text-primary"></i>Fornecedores aprovados</h2>
+                            </div>
+                        </div>
+                        {% if fornecedores_aprovados %}
+                            <ul class="list-unstyled small mb-2">
+                                {% for fornecedor in fornecedores_aprovados %}
+                                    <li class="py-1"><i class="bi bi-check2 text-success me-1"></i>{{ fornecedor }}</li>
+                                {% endfor %}
+                            </ul>
+                            <p class="text-body-secondary small mb-0">
+                                Só lotes destes fornecedores podem ser consumidos na produção.
+                            </p>
+                        {% else %}
+                            <p class="text-body-secondary small mb-0">
+                                Nenhum fornecedor aprovado definido — o consumo não é restrito
+                                por fornecedor.
+                            </p>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

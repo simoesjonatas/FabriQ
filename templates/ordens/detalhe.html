@@ -22,7 +22,9 @@
                 <span class="eyebrow"><i class="bi bi-journal-check me-1"></i>Ordem de produção</span>
                 <h1>{{ ordem.numero }}</h1>
                 <p>
-                    {{ ordem.produto.codigo }} · {{ ordem.produto.nome }} ·
+                    <a href="{{ ordem.produto.get_absolute_url }}" class="text-decoration-none">
+                        {{ ordem.produto.codigo }} · {{ ordem.produto.nome }}
+                    </a> ·
                     {{ ordem.quantidade|floatformat:"-3" }} {{ ordem.produto.get_unidade_display }} ·
                     programada para {{ ordem.data_programada|date:"d/m/Y" }}
                 </p>
@@ -72,8 +74,10 @@
                                     {% for material in ordem.materiais.all %}
                                         <tr>
                                             <td>
-                                                <span class="identifier-cell">{{ material.item.codigo }}</span>
-                                                · {{ material.item.nome }}
+                                                <a href="{{ material.item.get_absolute_url }}" class="text-decoration-none">
+                                                    <span class="identifier-cell">{{ material.item.codigo }}</span>
+                                                    · {{ material.item.nome }}
+                                                </a>
                                             </td>
                                             <td class="text-end fw-bold">
                                                 {{ material.quantidade_necessaria|floatformat:"-3" }}
@@ -92,7 +96,7 @@
                                             <td>
                                                 {% for consumo in material.consumos.all %}
                                                     <div class="small text-nowrap">
-                                                        {{ consumo.lote.codigo }} ·
+                                                        <a href="{{ consumo.lote.get_absolute_url }}" class="text-decoration-none">{{ consumo.lote.codigo }}</a> ·
                                                         {{ consumo.quantidade|floatformat:"-3" }}
                                                         {% if consumo.lote.fornecedor %}
                                                             <span class="text-body-secondary">· {{ consumo.lote.fornecedor }}</span>
@@ -220,7 +224,7 @@
                                 <a href="{% url 'pedidos:detalhe' ordem.pedido.pk %}" class="text-decoration-none">
                                     {{ ordem.pedido.numero }}
                                 </a>
-                                · {{ ordem.pedido.cliente }}
+                                · <a href="{{ ordem.pedido.cliente.get_absolute_url }}" class="text-decoration-none">{{ ordem.pedido.cliente }}</a>
                             </dd>
                             <dt class="col-5">Fórmula</dt>
                             <dd class="col-7">

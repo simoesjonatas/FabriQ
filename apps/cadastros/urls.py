@@ -37,7 +37,18 @@ urlpatterns = [
     # Clientes
     path("clientes/", views.ClienteListView.as_view(), name="cliente_lista"),
     path("clientes/novo/", views.ClienteCriarView.as_view(), name="cliente_criar"),
+    path("clientes/<int:pk>/", views.ClienteDetalheView.as_view(), name="cliente_detalhe"),
     path("clientes/<int:pk>/editar/", views.ClienteEditarView.as_view(), name="cliente_editar"),
+    path(
+        "clientes/<int:cliente_pk>/documentos/novo/",
+        views.DocumentoClienteCriarView.as_view(),
+        name="cliente_documento_criar",
+    ),
+    path(
+        "documentos-cliente/<int:pk>/remover/",
+        views.DocumentoClienteRemoverView.as_view(),
+        name="cliente_documento_remover",
+    ),
     # Fornecedores
     path("fornecedores/", views.FornecedorListView.as_view(), name="fornecedor_lista"),
     path("fornecedores/novo/", views.FornecedorCriarView.as_view(), name="fornecedor_criar"),
@@ -49,6 +60,7 @@ urlpatterns = [
     # Produtos
     path("produtos/", views.ProdutoListView.as_view(), name="produto_lista"),
     path("produtos/novo/", views.ProdutoCriarView.as_view(), name="produto_criar"),
+    path("produtos/<int:pk>/", views.ProdutoDetalheView.as_view(), name="produto_detalhe"),
     path("produtos/<int:pk>/editar/", views.ProdutoEditarView.as_view(), name="produto_editar"),
     # Matérias-primas
     path("materias-primas/", views.MateriaPrimaListView.as_view(), name="materiaprima_lista"),
@@ -58,6 +70,11 @@ urlpatterns = [
         name="materiaprima_criar",
     ),
     path(
+        "materias-primas/<int:pk>/",
+        views.MateriaPrimaDetalheView.as_view(),
+        name="materiaprima_detalhe",
+    ),
+    path(
         "materias-primas/<int:pk>/editar/",
         views.MateriaPrimaEditarView.as_view(),
         name="materiaprima_editar",
@@ -65,6 +82,11 @@ urlpatterns = [
     # Embalagens
     path("embalagens/", views.EmbalagemListView.as_view(), name="embalagem_lista"),
     path("embalagens/novo/", views.EmbalagemCriarView.as_view(), name="embalagem_criar"),
+    path(
+        "embalagens/<int:pk>/",
+        views.EmbalagemDetalheView.as_view(),
+        name="embalagem_detalhe",
+    ),
     path(
         "embalagens/<int:pk>/editar/",
         views.EmbalagemEditarView.as_view(),

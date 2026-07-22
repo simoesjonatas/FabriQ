@@ -335,11 +335,31 @@ class ConsumoMaterialOP(models.Model):
         return self.movimentacao_id is not None
 
 
+def _impedimento_do_item(item, lote) -> str:
+    """
+    Impedimentos do item (Etapa 10) para consumir `lote`, ou "" se apto:
+    fornecedor não aprovado (MP e embalagem) e rótulo com arte obsoleta.
+    """
+    if hasattr(item, "fornecedor_aprovado") and not item.fornecedor_aprovado(
+        lote.fornecedor
+    ):
+        return (
+            f"{item.codigo}: fornecedor do lote {lote.codigo} não está "
+            "aprovado para este material."
+        )
+    if hasattr(item, "motivo_arte_invalida"):
+        motivo = item.motivo_arte_invalida()
+        if motivo:
+            return f"{motivo}."
+    return ""
+
+
 def apontar_consumos(ordem, usuario, linhas, excecoes=None) -> list[ConsumoMaterialOP]:
     """
     Substitui o apontamento (não confirmado) da OP pelas `linhas`:
     [(material, lote, local, quantidade)]. Valida posição, situação do
-    lote (Etapa 5) e saldo. Deve rodar dentro de transaction.atomic.
+    lote (Etapa 5), fornecedor/arte do item (Etapa 10) e saldo. Deve
+    rodar dentro de transaction.atomic.
 
     `excecoes`: {lote_pk: justificativa} para lotes BLOQUEADOS que um
     usuário autorizado liberou — a view faz o controle de permissão.
@@ -373,6 +393,14 @@ def apontar_consumos(ordem, usuario, linhas, excecoes=None) -> list[ConsumoMater
                 )
                 continue
             excecoes_usadas.append((lote, posicao["bloqueio"], justificativa))
+        item = material.item
+        impedimento_item = _impedimento_do_item(item, lote)
+        if impedimento_item:
+            justificativa = (excecoes.get(lote.pk) or "").strip()
+            if not justificativa:
+                erros.append(impedimento_item)
+                continue
+            excecoes_usadas.append((lote, impedimento_item, justificativa))
         if quantidade > posicao["saldo"]:
             erros.append(
                 f"Lote {lote.codigo} em {local}: apontado "

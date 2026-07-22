@@ -421,3 +421,47 @@ class PermissoesTests(TestCase):
         ]:
             with self.subTest(rota=rota):
                 self.assertEqual(self.client.get(reverse(rota)).status_code, 200)
+
+
+class FichaLoteTests(TestCase):
+    """Etapa 10: ficha do lote com origem, saldo, análise e consumo."""
+
+    def setUp(self):
+        self.usuario = criar_usuario("almox2", perfil=ALMOXARIFADO)
+        self.client.force_login(self.usuario)
+        self.mp = MateriaPrima.objects.create(codigo="MP-7", nome="Glicerina")
+        self.deposito = LocalEstoque.objects.create(nome="Almoxarifado MP")
+        self.lote = Lote.objects.create(
+            codigo="MP-2026-00007",
+            materia_prima=self.mp,
+            lote_fornecedor="GLI-889",
+            validade=timezone.localdate() + timedelta(days=200),
+        )
+        mov = Movimentacao(
+            tipo=TipoMovimentacao.ENTRADA,
+            materia_prima=self.mp,
+            lote=self.lote,
+            quantidade=Decimal("40"),
+            local_destino=self.deposito,
+            motivo="recebimento",
+        )
+        mov.full_clean()
+        mov.save()
+
+    def test_ficha_mostra_identificacao_e_saldo(self):
+        response = self.client.get(
+            reverse("estoque:lote_detalhe", args=[self.lote.pk])
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "MP-2026-00007")
+        self.assertContains(response, "GLI-889")
+        self.assertContains(response, "Almoxarifado MP")
+        self.assertEqual(response.context["saldo_total"], Decimal("40"))
+
+    def test_producao_tambem_abre_a_ficha_do_lote(self):
+        """Quem produz precisa consultar o lote, mesmo sem o módulo Estoque."""
+        self.client.force_login(criar_usuario("producao2", perfil=PRODUCAO))
+        response = self.client.get(
+            reverse("estoque:lote_detalhe", args=[self.lote.pk])
+        )
+        self.assertEqual(response.status_code, 200)

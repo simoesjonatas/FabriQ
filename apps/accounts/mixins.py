@@ -28,3 +28,25 @@ class AcessoModuloMixin(LoginRequiredMixin):
         ):
             raise PermissionDenied
         return super().dispatch(request, *args, **kwargs)
+
+
+class AcessoQualquerModuloMixin(LoginRequiredMixin):
+    """
+    Protege uma view liberando o acesso quando o usuário acessa QUALQUER
+    um dos módulos em `modulos`. Útil para fichas consolidadas (Etapa 10)
+    que são abertas a partir de telas de vários módulos.
+    """
+
+    modulos: tuple[str, ...] = ()
+
+    def dispatch(self, request, *args, **kwargs):
+        if not self.modulos:
+            raise ImproperlyConfigured(
+                f"{type(self).__name__} usa AcessoQualquerModuloMixin mas não "
+                "define 'modulos'."
+            )
+        if request.user.is_authenticated and not any(
+            usuario_acessa_modulo(request.user, modulo) for modulo in self.modulos
+        ):
+            raise PermissionDenied
+        return super().dispatch(request, *args, **kwargs)

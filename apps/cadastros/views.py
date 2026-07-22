@@ -1,10 +1,13 @@
 from django.contrib import messages
 from django.forms import inlineformset_factory
 from django.http import HttpResponseRedirect
+from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse_lazy
-from django.views.generic import TemplateView
+from django.views import View
+from django.views.generic import DetailView, TemplateView
 
-from apps.accounts.mixins import AcessoModuloMixin
+from apps.accounts.mixins import AcessoModuloMixin, AcessoQualquerModuloMixin
+from apps.accounts.perfis import usuario_acessa_modulo
 from apps.core.views import CadastroCreateView, CadastroListView, CadastroUpdateView
 
 from .forms import (
@@ -12,6 +15,7 @@ from .forms import (
     ClienteEnderecoForm,
     ClienteForm,
     ClienteTelefoneForm,
+    DocumentoClienteForm,
     EmbalagemForm,
     EnderecoFormSet,
     EquipamentoForm,
@@ -29,6 +33,7 @@ from .models import (
     Cliente,
     ClienteEndereco,
     ClienteTelefone,
+    DocumentoCliente,
     Embalagem,
     Equipamento,
     Fornecedor,
@@ -407,6 +412,74 @@ class ClienteEditarView(ClienteConfig, PessoaComContatosMixin, EditarBase):
     pass
 
 
+class ClienteDetalheView(AcessoQualquerModuloMixin, DetailView):
+    """Ficha consolidada do cliente (Etapa 10, PDF 3.1)."""
+
+    modulos = ("cadastros", "pedidos", "expedicao")
+    model = Cliente
+    template_name = "cadastros/cliente_detalhe.html"
+    context_object_name = "cliente"
+
+    def get_queryset(self):
+        return Cliente.objects.prefetch_related("telefones", "enderecos")
+
+    def get_context_data(self, **kwargs):
+        from apps.estoque.models import Lote
+
+        context = super().get_context_data(**kwargs)
+        cliente = self.object
+        context["documentos"] = cliente.documentos.filter(ativo=True)
+        context["pedidos"] = cliente.pedidos.order_by("-criado_em")
+        context["produtos"] = (
+            Produto.objects.filter(itens_de_pedido__pedido__cliente=cliente)
+            .distinct()
+            .order_by("nome")
+        )
+        context["lotes"] = (
+            Lote.objects.filter(
+                ordens_de_producao__item_pedido__pedido__cliente=cliente
+            )
+            .select_related("produto")
+            .distinct()
+            .order_by("-id")
+        )
+        context["pode_editar"] = usuario_acessa_modulo(
+            self.request.user, "cadastros"
+        )
+        context["documento_form"] = DocumentoClienteForm()
+        return context
+
+
+class DocumentoClienteCriarView(AcessoModuloMixin, View):
+    modulo = MODULO
+
+    def post(self, request, cliente_pk):
+        cliente = get_object_or_404(Cliente, pk=cliente_pk)
+        form = DocumentoClienteForm(request.POST, request.FILES)
+        if form.is_valid():
+            documento = form.save(commit=False)
+            documento.cliente = cliente
+            documento.criado_por = request.user
+            documento.atualizado_por = request.user
+            documento.save()
+            messages.success(request, "Documento adicionado à ficha do cliente.")
+        else:
+            messages.error(request, "Revise os dados do documento e tente de novo.")
+        return redirect("cadastros:cliente_detalhe", pk=cliente.pk)
+
+
+class DocumentoClienteRemoverView(AcessoModuloMixin, View):
+    modulo = MODULO
+
+    def post(self, request, pk):
+        documento = get_object_or_404(DocumentoCliente, pk=pk)
+        documento.ativo = False
+        documento.atualizado_por = request.user
+        documento.save()
+        messages.success(request, "Documento removido da ficha.")
+        return redirect("cadastros:cliente_detalhe", pk=documento.cliente_id)
+
+
 # Fornecedores
 
 
@@ -477,6 +550,45 @@ class ProdutoEditarView(ProdutoConfig, EditarBase):
     pass
 
 
+class ProdutoDetalheView(AcessoQualquerModuloMixin, DetailView):
+    """Ficha consolidada do produto (Etapa 10, PDF 3.3)."""
+
+    modulos = ("cadastros", "pcp", "ordens", "producao", "pedidos")
+    model = Produto
+    template_name = "cadastros/produto_detalhe.html"
+    context_object_name = "produto"
+
+    def get_context_data(self, **kwargs):
+        from apps.ordens.models import OrdemProducao, StatusFormula
+
+        context = super().get_context_data(**kwargs)
+        produto = self.object
+        formulas = produto.formulas.order_by("nome", "-versao")
+        context["formulas"] = formulas
+        context["formula_vigente"] = formulas.filter(
+            ativo=True, status=StatusFormula.VIGENTE
+        ).first()
+        context["versoes_arte"] = produto.versoes_arte.all()
+        context["especificacoes"] = produto.especificacoes.filter(
+            ativo=True
+        ).select_related("tipo")
+        context["ordens"] = (
+            OrdemProducao.objects.filter(item_pedido__produto=produto)
+            .select_related("item_pedido__pedido__cliente", "lote_produto")
+            .order_by("-criado_em")
+        )
+        context["lotes"] = produto.lotes.order_by("-id")
+        context["clientes"] = (
+            Cliente.objects.filter(pedidos__itens__produto=produto)
+            .distinct()
+            .order_by("razao_social")
+        )
+        context["pode_editar"] = usuario_acessa_modulo(
+            self.request.user, "cadastros"
+        )
+        return context
+
+
 # Matérias-primas
 
 
@@ -504,6 +616,34 @@ class MateriaPrimaEditarView(MateriaPrimaConfig, EditarBase):
     pass
 
 
+class MateriaPrimaDetalheView(AcessoQualquerModuloMixin, DetailView):
+    """Ficha da matéria-prima (Etapa 10, PDF 6.1)."""
+
+    modulos = ("cadastros", "estoque", "producao", "recebimento", "qualidade")
+    model = MateriaPrima
+    template_name = "cadastros/materiaprima_detalhe.html"
+    context_object_name = "materia_prima"
+
+    def get_context_data(self, **kwargs):
+        from apps.estoque.models import saldo
+
+        context = super().get_context_data(**kwargs)
+        materia_prima = self.object
+
+        lotes = list(materia_prima.lotes.order_by("-id"))
+        for lote in lotes:
+            lote.saldo_atual = saldo(materia_prima, lote=lote)
+        context["lotes"] = lotes
+        context["fornecedores_aprovados"] = (
+            materia_prima.fornecedores_aprovados.order_by("razao_social")
+        )
+        context["saldo_total"] = saldo(materia_prima)
+        context["pode_editar"] = usuario_acessa_modulo(
+            self.request.user, "cadastros"
+        )
+        return context
+
+
 # Embalagens
 
 
@@ -529,3 +669,34 @@ class EmbalagemCriarView(EmbalagemConfig, CriarBase):
 
 class EmbalagemEditarView(EmbalagemConfig, EditarBase):
     pass
+
+
+class EmbalagemDetalheView(AcessoQualquerModuloMixin, DetailView):
+    """Ficha da embalagem (Etapa 10, PDF 6.2)."""
+
+    modulos = ("cadastros", "estoque", "producao", "recebimento", "qualidade")
+    model = Embalagem
+    template_name = "cadastros/embalagem_detalhe.html"
+    context_object_name = "embalagem"
+
+    def get_queryset(self):
+        return Embalagem.objects.select_related("versao_arte__produto")
+
+    def get_context_data(self, **kwargs):
+        from apps.estoque.models import saldo
+
+        context = super().get_context_data(**kwargs)
+        embalagem = self.object
+
+        lotes = list(embalagem.lotes.order_by("-id"))
+        for lote in lotes:
+            lote.saldo_atual = saldo(embalagem, lote=lote)
+        context["lotes"] = lotes
+        context["fornecedores_aprovados"] = (
+            embalagem.fornecedores_aprovados.order_by("razao_social")
+        )
+        context["saldo_total"] = saldo(embalagem)
+        context["pode_editar"] = usuario_acessa_modulo(
+            self.request.user, "cadastros"
+        )
+        return context

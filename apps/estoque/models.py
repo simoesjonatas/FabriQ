@@ -188,6 +188,11 @@ class Lote(ModeloAuditado):
     def __str__(self) -> str:
         return self.codigo
 
+    def get_absolute_url(self) -> str:
+        from django.urls import reverse
+
+        return reverse("estoque:lote_detalhe", args=[self.pk])
+
     @property
     def item(self):
         return self.produto or self.materia_prima or self.embalagem

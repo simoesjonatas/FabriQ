@@ -244,18 +244,26 @@ class OrdemProducaoForm(JustificativaAuditoriaMixin, BootstrapFormMixin, forms.M
                 f"“{item_pedido.produto}”.",
             )
 
-        # Cliente e produto devem estar ativos para emitir OP (PDF 5.1)
+        # Produto apto (ativo, não bloqueado, regularizado) e cliente ativo/
+        # não bloqueado para emitir OP (PDF 5.1 + Etapa 10)
         if item_pedido and not self.instance.pk:
-            if not item_pedido.produto.ativo:
+            impedimento_produto = item_pedido.produto.motivo_impedimento_op()
+            if impedimento_produto:
                 self.add_error(
                     "item_pedido",
-                    f"O produto “{item_pedido.produto}” está inativo — "
+                    f"{impedimento_produto} — não é possível emitir OP.",
+                )
+            cliente = item_pedido.pedido.cliente
+            if not cliente.ativo:
+                self.add_error(
+                    "item_pedido",
+                    f"O cliente “{cliente}” está inativo — "
                     "não é possível emitir OP.",
                 )
-            if not item_pedido.pedido.cliente.ativo:
+            elif cliente.bloqueado:
                 self.add_error(
                     "item_pedido",
-                    f"O cliente “{item_pedido.pedido.cliente}” está inativo — "
+                    f"O cliente “{cliente}” está bloqueado — "
                     "não é possível emitir OP.",
                 )
         return cleaned

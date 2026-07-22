@@ -19,11 +19,27 @@ class PedidoForm(JustificativaAuditoriaMixin, BootstrapFormMixin, forms.ModelFor
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        # Só oferece clientes ativos, preservando um inativo já vinculado
-        queryset = Cliente.objects.filter(ativo=True)
+        # Só oferece clientes ativos e não bloqueados, preservando um já
+        # vinculado (inativo ou bloqueado) para não travar a edição.
+        queryset = Cliente.objects.filter(ativo=True, bloqueado=False)
         if self.instance.pk and self.instance.cliente_id:
             queryset = queryset | Cliente.objects.filter(pk=self.instance.cliente_id)
         self.fields["cliente"].queryset = queryset.distinct()
+
+    def clean_cliente(self):
+        cliente = self.cleaned_data.get("cliente")
+        if cliente and cliente.bloqueado:
+            ja_vinculado = (
+                self.instance.pk and self.instance.cliente_id == cliente.pk
+            )
+            if not ja_vinculado:
+                motivo = (
+                    f" ({cliente.motivo_bloqueio})" if cliente.motivo_bloqueio else ""
+                )
+                raise forms.ValidationError(
+                    f"Cliente bloqueado{motivo} — não pode receber novos pedidos."
+                )
+        return cliente
 
 
 class ItemPedidoForm(BootstrapFormMixin, forms.ModelForm):

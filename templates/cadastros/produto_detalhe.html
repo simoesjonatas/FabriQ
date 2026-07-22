@@ -1,0 +1,238 @@
+{% extends "base.html" %}
+
+{% block title %}{{ produto.codigo }} · {{ produto.nome }}{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-12 col-xxl-11">
+
+        <nav class="app-breadcrumb" aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item">
+                    <a href="{% url 'cadastros:produto_lista' %}">
+                        <i class="bi bi-arrow-left-short" aria-hidden="true"></i>Produtos
+                    </a>
+                </li>
+                <li class="breadcrumb-item active" aria-current="page">{{ produto.codigo }}</li>
+            </ol>
+        </nav>
+
+        <div class="page-header page-header-actions mb-4">
+            <div>
+                <span class="eyebrow"><i class="bi bi-box-seam me-1"></i>Produto</span>
+                <h1>{{ produto.nome }}</h1>
+                <p>
+                    <span class="identifier-cell">{{ produto.codigo }}</span>
+                    {% if produto.apresentacao %}· {{ produto.apresentacao }}{% endif %}
+                    {% if produto.categoria %}· {{ produto.categoria }}{% endif %}
+                </p>
+            </div>
+            <div class="d-flex gap-2 align-items-center flex-wrap">
+                {% if produto.bloqueado %}
+                    <span class="badge text-bg-danger fs-6"><i class="bi bi-lock me-1"></i>Bloqueado</span>
+                {% endif %}
+                <span class="badge {% if produto.situacao_regulatoria == 'REGULARIZADO' or produto.situacao_regulatoria == 'ISENTO' %}text-bg-success{% else %}text-bg-warning{% endif %} fs-6">
+                    {{ produto.get_situacao_regulatoria_display }}
+                </span>
+                {% if pode_editar %}
+                    <a href="{% url 'cadastros:produto_editar' produto.pk %}" class="btn btn-outline-primary">
+                        <i class="bi bi-pencil me-1"></i>Editar
+                    </a>
+                {% endif %}
+            </div>
+        </div>
+
+        {% if produto.motivo_impedimento_op %}
+            <div class="alert alert-warning" role="alert">
+                <i class="bi bi-exclamation-triangle me-1"></i>
+                {{ produto.motivo_impedimento_op }} — não gera novas ordens de produção.
+            </div>
+        {% endif %}
+
+        <div class="row g-4">
+            <div class="col-12 col-lg-7">
+                <div class="card shadow-sm data-panel mb-4">
+                    <div class="card-body">
+                        <div class="section-heading">
+                            <div>
+                                <h2><i class="bi bi-flask me-1 text-primary"></i>Fórmula</h2>
+                                <p>Versão vigente e histórico de versões (Etapa 3).</p>
+                            </div>
+                        </div>
+                        {% if formula_vigente %}
+                            <p class="mb-2">
+                                <span class="badge text-bg-success">Vigente</span>
+                                {{ formula_vigente.nome }} · v{{ formula_vigente.versao }}
+                                · rendimento {{ formula_vigente.rendimento|floatformat:"-3" }}
+                            </p>
+                        {% else %}
+                            <p class="text-body-secondary">Sem fórmula vigente cadastrada.</p>
+                        {% endif %}
+                        {% if formulas %}
+                            <ul class="list-unstyled small mb-0">
+                                {% for formula in formulas %}
+                                    <li class="d-flex flex-wrap gap-2 align-items-center py-1">
+                                        <span>{{ formula.nome }} · v{{ formula.versao }}</span>
+                                        <span class="badge {{ formula.badge_status }}">{{ formula.get_status_display }}</span>
+                                    </li>
+                                {% endfor %}
+                            </ul>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <div class="card shadow-sm data-panel mb-4">
+                    <div class="card-body">
+                        <div class="section-heading">
+                            <div>
+                                <h2><i class="bi bi-journal-check me-1 text-primary"></i>Ordens de produção</h2>
+                                <p>OPs já emitidas para este produto.</p>
+                            </div>
+                        </div>
+                        {% if ordens %}
+                            <div class="table-responsive">
+                                <table class="table align-middle mb-0">
+                                    <thead>
+                                        <tr>
+                                            <th>OP</th>
+                                            <th>Cliente</th>
+                                            <th>Lote</th>
+                                            <th>Situação</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for ordem in ordens %}
+                                            <tr>
+                                                <td><a href="{% url 'ordens:detalhe' ordem.pk %}" class="text-decoration-none">{{ ordem.numero }}</a></td>
+                                                <td>{{ ordem.item_pedido.pedido.cliente }}</td>
+                                                <td>{% if ordem.lote_produto %}{{ ordem.lote_produto.codigo }}{% else %}—{% endif %}</td>
+                                                <td><span class="badge {{ ordem.badge_status }}">{{ ordem.get_status_display }}</span></td>
+                                            </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        {% else %}
+                            <p class="text-body-secondary mb-0">Nenhuma OP emitida.</p>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <div class="card shadow-sm data-panel">
+                    <div class="card-body">
+                        <div class="section-heading">
+                            <div>
+                                <h2><i class="bi bi-box2 me-1 text-primary"></i>Lotes produzidos</h2>
+                                <p>Lotes do produto acabado. O dossiê completo vem na Etapa 12.</p>
+                            </div>
+                        </div>
+                        {% if lotes %}
+                            <ul class="list-unstyled small mb-0">
+                                {% for lote in lotes %}
+                                    <li class="d-flex flex-wrap gap-2 align-items-center py-1">
+                                        <a href="{% url 'estoque:lote_detalhe' lote.pk %}" class="text-decoration-none">{{ lote.codigo }}</a>
+                                        {% if lote.validade %}<span class="text-body-secondary">val. {{ lote.validade|date:"d/m/Y" }}</span>{% endif %}
+                                        <span class="badge {{ lote.badge_situacao }}">{{ lote.get_situacao_display }}</span>
+                                    </li>
+                                {% endfor %}
+                            </ul>
+                        {% else %}
+                            <p class="text-body-secondary mb-0">Nenhum lote produzido.</p>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-12 col-lg-5">
+                <div class="card shadow-sm mb-4">
+                    <div class="card-body">
+                        <div class="section-heading">
+                            <div><h2><i class="bi bi-card-text me-1 text-primary"></i>Situação regulatória</h2></div>
+                        </div>
+                        <dl class="row mb-0 small">
+                            <dt class="col-5">Grau</dt>
+                            <dd class="col-7">{{ produto.get_grau_display|default:"—" }}</dd>
+                            <dt class="col-5">Registro/processo</dt>
+                            <dd class="col-7">{{ produto.registro_anvisa|default:"—" }}</dd>
+                            <dt class="col-5">Situação</dt>
+                            <dd class="col-7">{{ produto.get_situacao_regulatoria_display }}</dd>
+                            <dt class="col-5">Apresentação</dt>
+                            <dd class="col-7">{{ produto.apresentacao|default:"—" }}</dd>
+                            <dt class="col-5">Unidade</dt>
+                            <dd class="col-7">{{ produto.get_unidade_display }}</dd>
+                            <dt class="col-5">Limite de perda</dt>
+                            <dd class="col-7">{{ produto.limite_perda_percentual|floatformat:"-2" }}%</dd>
+                            {% if produto.bloqueado and produto.motivo_bloqueio %}
+                                <dt class="col-5 text-danger">Motivo do bloqueio</dt>
+                                <dd class="col-7 text-danger">{{ produto.motivo_bloqueio }}</dd>
+                            {% endif %}
+                        </dl>
+                    </div>
+                </div>
+
+                <div class="card shadow-sm mb-4">
+                    <div class="card-body">
+                        <div class="section-heading">
+                            <div><h2><i class="bi bi-clipboard2-pulse me-1 text-primary"></i>Especificações</h2></div>
+                        </div>
+                        {% if especificacoes %}
+                            <ul class="list-unstyled small mb-0">
+                                {% for espec in especificacoes %}
+                                    <li class="py-1">
+                                        <strong>{{ espec.tipo.nome }}</strong>:
+                                        {% if espec.valor_minimo is not None %}min {{ espec.valor_minimo|floatformat:"-3" }}{% endif %}
+                                        {% if espec.valor_maximo is not None %}máx {{ espec.valor_maximo|floatformat:"-3" }}{% endif %}
+                                        {% if espec.referencia_texto %}· {{ espec.referencia_texto }}{% endif %}
+                                    </li>
+                                {% endfor %}
+                            </ul>
+                        {% else %}
+                            <p class="text-body-secondary small mb-0">Sem especificações cadastradas.</p>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <div class="card shadow-sm mb-4">
+                    <div class="card-body">
+                        <div class="section-heading">
+                            <div><h2><i class="bi bi-palette me-1 text-primary"></i>Versões de arte</h2></div>
+                        </div>
+                        {% if versoes_arte %}
+                            <ul class="list-unstyled small mb-0">
+                                {% for arte in versoes_arte %}
+                                    <li class="d-flex flex-wrap gap-2 align-items-center py-1">
+                                        <span>Arte {{ arte.versao }}</span>
+                                        {% if arte.data_aprovacao %}<span class="text-body-secondary">{{ arte.data_aprovacao|date:"d/m/Y" }}</span>{% endif %}
+                                        <span class="badge {% if arte.aprovada %}text-bg-success{% else %}text-bg-secondary{% endif %}">{{ arte.get_status_display }}</span>
+                                    </li>
+                                {% endfor %}
+                            </ul>
+                        {% else %}
+                            <p class="text-body-secondary small mb-0">Sem versões de arte.</p>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <div class="card shadow-sm">
+                    <div class="card-body">
+                        <div class="section-heading">
+                            <div><h2><i class="bi bi-building me-1 text-primary"></i>Clientes</h2></div>
+                        </div>
+                        {% if clientes %}
+                            <ul class="list-unstyled small mb-0">
+                                {% for cliente in clientes %}
+                                    <li class="py-1">
+                                        <a href="{% url 'cadastros:cliente_detalhe' cliente.pk %}" class="text-decoration-none">{{ cliente }}</a>
+                                    </li>
+                                {% endfor %}
+                            </ul>
+                        {% else %}
+                            <p class="text-body-secondary small mb-0">Nenhum cliente pediu este produto ainda.</p>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

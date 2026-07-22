@@ -3,6 +3,7 @@ from decimal import Decimal
 
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
+from django.core.exceptions import ValidationError
 from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
@@ -30,6 +31,7 @@ from .models import (
     ConsumoMaterialOP,
     ExecucaoOP,
     Parada,
+    apontar_consumos,
     apontar_consumos_fefo,
     sugerir_consumos_fefo,
 )
@@ -276,6 +278,27 @@ class ConsumoPorLoteTests(BaseProducao):
         self.assertEqual(sugestoes[0]["quantidade"], Decimal("15"))
         self.assertEqual(sugestoes[1]["lote"], lote_a)
         self.assertEqual(sugestoes[1]["quantidade"], Decimal("5"))
+
+    def test_lote_de_fornecedor_nao_aprovado_bloqueia_consumo(self):
+        """Etapa 10: MP com fornecedores aprovados só consome lote deles."""
+        from apps.cadastros.models import Fornecedor
+
+        self.mp.fornecedores_aprovados.add(
+            Fornecedor.objects.create(razao_social="Aromas Aprovados SA")
+        )
+        lote = self.lote_mp("MP-SEM-FORN")
+        entrada({"materia_prima": self.mp}, "20", self.deposito, lote=lote)
+        ordem = self.iniciar(quantidade="50")
+        material = ordem.materiais.get()
+
+        with self.assertRaises(ValidationError) as erro:
+            apontar_consumos(
+                ordem,
+                self.operador,
+                [(material, lote, self.deposito, Decimal("20"))],
+            )
+        self.assertIn("não está aprovado", " ".join(erro.exception.messages))
+        self.assertEqual(material.consumos.count(), 0)
 
     def test_concluir_sem_lote_lista_materiais_pendentes(self):
         lote = self.lote_mp("MP-L1")

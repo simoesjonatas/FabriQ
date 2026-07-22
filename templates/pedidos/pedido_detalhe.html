@@ -60,8 +60,10 @@
                             <div class="{% if not forloop.first %}border-top pt-3 mt-3{% endif %}">
                                 <div class="d-flex justify-content-between align-items-start gap-2 flex-wrap mb-2">
                                     <div>
-                                        <span class="identifier-cell">{{ linha.item.produto.codigo }}</span>
-                                        <span class="fw-semibold">{{ linha.item.produto.nome }}</span>
+                                        <a href="{{ linha.item.produto.get_absolute_url }}" class="text-decoration-none">
+                                            <span class="identifier-cell">{{ linha.item.produto.codigo }}</span>
+                                            <span class="fw-semibold">{{ linha.item.produto.nome }}</span>
+                                        </a>
                                     </div>
                                     <span class="text-body-secondary small">
                                         pedida {{ linha.pedida|floatformat:"-3" }} {{ linha.item.produto.get_unidade_display|lower }}
@@ -84,7 +86,7 @@
                                                 <a href="{{ par.ordem.get_absolute_url }}" class="text-decoration-none">{{ par.ordem.numero }}</a>
                                                 {% if par.lote %}
                                                     <i class="bi bi-arrow-right-short text-body-secondary"></i>
-                                                    <span>lote {{ par.lote.codigo }}</span>
+                                                    <a href="{{ par.lote.get_absolute_url }}" class="text-decoration-none">lote {{ par.lote.codigo }}</a>
                                                     <span class="badge {{ par.lote.badge_situacao }}">{{ par.lote.get_situacao_display }}</span>
                                                 {% else %}
                                                     <span class="text-body-secondary">— sem lote reservado</span>
@@ -122,9 +124,9 @@
                                     <ul class="list-unstyled small mb-0">
                                         {% for item in expedicao.itens.all %}
                                             <li class="d-flex flex-wrap gap-2 align-items-center py-1">
-                                                <span class="identifier-cell">{{ item.item_pedido.produto.codigo }}</span>
+                                                <a href="{{ item.item_pedido.produto.get_absolute_url }}" class="identifier-cell text-decoration-none">{{ item.item_pedido.produto.codigo }}</a>
                                                 <i class="bi bi-arrow-right-short text-body-secondary"></i>
-                                                <span>lote {{ item.lote.codigo }}</span>
+                                                <a href="{{ item.lote.get_absolute_url }}" class="text-decoration-none">lote {{ item.lote.codigo }}</a>
                                                 <span class="text-body-secondary">× {{ item.quantidade|floatformat:"-3" }}</span>
                                             </li>
                                         {% endfor %}
@@ -215,7 +217,11 @@
                         </div>
                         <dl class="row mb-0 small">
                             <dt class="col-5">Cliente</dt>
-                            <dd class="col-7">{{ pedido.cliente }}</dd>
+                            <dd class="col-7">
+                                <a href="{% url 'cadastros:cliente_detalhe' pedido.cliente.pk %}" class="text-decoration-none">
+                                    {{ pedido.cliente }}
+                                </a>
+                            </dd>
                             <dt class="col-5">Prazo de entrega</dt>
                             <dd class="col-7">{{ pedido.prazo|date:"d/m/Y" }}</dd>
                             <dt class="col-5">Observações</dt>

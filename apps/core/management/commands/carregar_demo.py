@@ -34,6 +34,7 @@ from django.utils import timezone
 from apps.accounts import perfis
 from apps.cadastros.models import (
     Cliente,
+    DocumentoCliente,
     Embalagem,
     Equipamento,
     Fornecedor,
@@ -152,6 +153,7 @@ class Command(BaseCommand):
             self._execucao_detalhada()
             self._recebimentos_e_quarentena()
             self._estoque_extra()
+            self._fichas_etapa10()
             self._pedidos_e_fluxo()
 
         self._resumo()
@@ -558,6 +560,141 @@ class Command(BaseCommand):
             dias_atras=4,
         )
         self.stdout.write("✓ Estoque extra (lote vencido para o alerta)")
+
+    def _fichas_etapa10(self):
+        """
+        Etapa 10: dados das fichas consolidadas — documentos sanitários do
+        cliente, situação regulatória do produto, ficha técnica da MP com
+        fornecedores aprovados e dados da embalagem.
+        """
+        from apps.cadastros.models import VersaoArte
+
+        paula = self.usuarios["paula.qualidade"]
+
+        # --- Cliente: responsável técnico e documentos com validade
+        for cliente in Cliente.objects.all():
+            Cliente.objects.filter(pk=cliente.pk).update(
+                responsavel_tecnico="Dra. Helena Marques · CRF-SP 41.220",
+            )
+            DocumentoCliente.objects.get_or_create(
+                cliente=cliente,
+                tipo="AFE",
+                defaults={
+                    "numero": f"AFE-{8100 + cliente.pk}",
+                    "orgao_emissor": "ANVISA",
+                    "emissao": self.hoje - timedelta(days=400),
+                    "validade": self.hoje + timedelta(days=320),
+                    "criado_por": paula,
+                    "atualizado_por": paula,
+                },
+            )
+        # Um alvará vencendo em breve, para o alerta aparecer na ficha
+        primeiro_cliente = Cliente.objects.order_by("id").first()
+        if primeiro_cliente:
+            DocumentoCliente.objects.get_or_create(
+                cliente=primeiro_cliente,
+                tipo="ALVARA",
+                defaults={
+                    "numero": "ALV-2026-0771",
+                    "orgao_emissor": "Vigilância Sanitária Municipal",
+                    "emissao": self.hoje - timedelta(days=350),
+                    "validade": self.hoje + timedelta(days=12),
+                    "criado_por": paula,
+                    "atualizado_por": paula,
+                },
+            )
+
+        # --- Produto: categoria, apresentação e situação regulatória
+        apresentacoes = {
+            "PA-001": "Frasco 250 ml",
+            "PA-002": "Frasco 500 ml",
+            "PA-003": "Frasco 300 ml",
+            "PA-004": "Frasco 300 ml",
+            "PA-005": "Bisnaga 80 g",
+            "PA-099": "Frasco 200 ml",
+        }
+        for produto in Produto.objects.all():
+            Produto.objects.filter(pk=produto.pk).update(
+                categoria="Cosmético",
+                apresentacao=apresentacoes.get(produto.codigo, ""),
+                grau="GRAU_1",
+                registro_anvisa=f"25351.{404100 + produto.pk}/2026-15",
+                situacao_regulatoria="REGULARIZADO",
+            )
+        # Produto da linha antiga sem regularização: não gera OP nova
+        Produto.objects.filter(codigo="PA-099").update(
+            situacao_regulatoria="VENCIDO",
+            observacoes=f"{MARCADOR} registro vencido — regularizar antes de produzir",
+        )
+
+        # --- Matéria-prima: ficha técnica + fornecedores que de fato forneceram
+        dados_mp = {
+            "MP-ALOE": ("Aloe Barbadensis Leaf Extract", "85507-69-3"),
+            "MP-BASE-CREME": ("Cetearyl Alcohol (and) Ceteareth-20", "67762-27-0"),
+            "MP-TENSO-ANF": ("Cocamidopropyl Betaine", "61789-40-0"),
+            "MP-FRAG-LAV": ("Parfum (Lavandula Angustifolia)", "8000-28-0"),
+            "MP-OLEO-ARG": ("Argania Spinosa Kernel Oil", "223747-87-3"),
+        }
+        for mp in MateriaPrima.objects.all():
+            inci, cas = dados_mp.get(mp.codigo, ("", ""))
+            MateriaPrima.objects.filter(pk=mp.pk).update(
+                inci=inci,
+                cas=cas,
+                condicoes_armazenamento="Local seco e ventilado, 15–25 °C, ao abrigo da luz",
+                especificacao=(
+                    "Conforme laudo do fornecedor; conferir aspecto, cor e odor "
+                    "no recebimento."
+                ),
+            )
+            # Aprovados = quem realmente forneceu (mantém o consumo da demo válido)
+            fornecedores = {
+                item.recebimento.fornecedor
+                for lote in mp.lotes.all()
+                for item in lote.itens_de_recebimento.all()
+            }
+            if fornecedores:
+                mp.fornecedores_aprovados.set(fornecedores)
+
+        # --- Embalagem: material, cor, capacidade e arte do rótulo
+        dados_emb = {
+            "EMB-FR-250": ("PET", "transparente", "250 ml"),
+            "EMB-FR-300": ("PET", "âmbar", "300 ml"),
+            "EMB-VALV-28": ("PP", "branca", "rosca 28"),
+            "EMB-TMP-24": ("PP", "natural", "24 mm"),
+            "EMB-ROT-SAB": ("papel adesivo", "colorido", "90 × 60 mm"),
+            "EMB-CX-KIT": ("papelão kraft", "kraft", "kit"),
+            "EMB-FR-OLD": ("PET", "transparente", "200 ml"),
+        }
+        for embalagem in Embalagem.objects.all():
+            material, cor, capacidade = dados_emb.get(embalagem.codigo, ("", "", ""))
+            Embalagem.objects.filter(pk=embalagem.pk).update(
+                material=material,
+                cor=cor,
+                capacidade=capacidade,
+                fabricante="Embalagens Precisas LTDA",
+                inspecao=(
+                    "Conferir dimensões, integridade e impressão contra a "
+                    "amostra-padrão aprovada."
+                ),
+            )
+            fornecedores = {
+                item.recebimento.fornecedor
+                for lote in embalagem.lotes.all()
+                for item in lote.itens_de_recebimento.all()
+            }
+            if fornecedores:
+                embalagem.fornecedores_aprovados.set(fornecedores)
+
+        # Rótulo do sabonete vinculado à arte aprovada do PA-001
+        arte_sabonete = VersaoArte.objects.filter(
+            produto__codigo="PA-001", status="APROVADA"
+        ).first()
+        if arte_sabonete:
+            Embalagem.objects.filter(codigo="EMB-ROT-SAB").update(
+                versao_arte=arte_sabonete
+            )
+
+        self.stdout.write("✓ Fichas consolidadas (cliente, produto, MP, embalagem)")
 
     def _pedidos_e_fluxo(self):
         ana = self.usuarios["ana.pcp"]

@@ -197,6 +197,41 @@ class IdentificacaoOPTests(BaseOrdens):
         self.assertEqual(OrdemProducao.objects.count(), 0)
 
 
+class BloqueioOPProdutoTests(BaseOrdens):
+    """Etapa 10: produto/cliente bloqueado ou sem regularização não gera OP."""
+
+    def test_produto_bloqueado_impede_emitir_op(self):
+        self.produto.bloqueado = True
+        self.produto.motivo_bloqueio = "Reclamação em apuração"
+        self.produto.save()
+        response = self.client.post(reverse("ordens:criar"), self.dados_op())
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "bloqueado")
+        self.assertEqual(OrdemProducao.objects.count(), 0)
+
+    def test_produto_sem_regularizacao_impede_emitir_op(self):
+        self.produto.situacao_regulatoria = "VENCIDO"
+        self.produto.save()
+        response = self.client.post(reverse("ordens:criar"), self.dados_op())
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "sem regularização")
+        self.assertEqual(OrdemProducao.objects.count(), 0)
+
+    def test_cliente_bloqueado_impede_emitir_op(self):
+        self.cliente.bloqueado = True
+        self.cliente.save()
+        response = self.client.post(reverse("ordens:criar"), self.dados_op())
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "bloqueado")
+        self.assertEqual(OrdemProducao.objects.count(), 0)
+
+    def test_produto_isento_gera_op(self):
+        self.produto.situacao_regulatoria = "ISENTO"
+        self.produto.save()
+        self.client.post(reverse("ordens:criar"), self.dados_op())
+        self.assertEqual(OrdemProducao.objects.count(), 1)
+
+
 class VersionamentoFormulaTests(BaseOrdens):
     """Etapa 3: editar fórmula com OP emitida gera nova versão."""
 

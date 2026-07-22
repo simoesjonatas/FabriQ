@@ -8,6 +8,7 @@ Todos herdam ModeloBase: auditoria (criado/atualizado por/em) e o campo
 from decimal import Decimal
 
 from django.db import models
+from django.urls import reverse
 
 from apps.core.models import ModeloBase
 
@@ -197,6 +198,18 @@ class PessoaBase(ModeloBase):
 
 
 class Cliente(PessoaBase):
+    responsavel_tecnico = models.CharField(
+        "responsável técnico", max_length=150, blank=True
+    )
+    bloqueado = models.BooleanField(
+        "cliente bloqueado",
+        default=False,
+        help_text="Cliente bloqueado não pode receber novos pedidos.",
+    )
+    motivo_bloqueio = models.CharField(
+        "motivo do bloqueio", max_length=200, blank=True
+    )
+
     class Meta(PessoaBase.Meta):
         verbose_name = "cliente"
         verbose_name_plural = "clientes"
@@ -207,6 +220,22 @@ class Cliente(PessoaBase):
                 name="cliente_documento_unico",
                 violation_error_message="Já existe um cliente com este CNPJ/CPF.",
             ),
+        ]
+
+    def get_absolute_url(self) -> str:
+        return reverse("cadastros:cliente_detalhe", args=[self.pk])
+
+    @property
+    def documentos_vencidos(self):
+        """Documentos sanitários vencidos (para alerta na ficha)."""
+        return [doc for doc in self.documentos.filter(ativo=True) if doc.vencido]
+
+    @property
+    def documentos_a_vencer(self):
+        return [
+            doc
+            for doc in self.documentos.filter(ativo=True)
+            if doc.vence_em_breve
         ]
 
 
@@ -381,6 +410,78 @@ class FornecedorEndereco(EnderecoBase):
         ]
 
 
+DIAS_ALERTA_DOCUMENTO = 30
+
+
+class TipoDocumentoCliente(models.TextChoices):
+    AFE = "AFE", "AFE (Autorização de Funcionamento)"
+    ALVARA = "ALVARA", "Alvará sanitário"
+    LICENCA = "LICENCA", "Licença de funcionamento"
+    CONTRATO = "CONTRATO", "Contrato"
+    REGISTRO = "REGISTRO", "Registro / notificação de produto"
+    OUTRO = "OUTRO", "Outro"
+
+
+class DocumentoCliente(ModeloBase):
+    """
+    Documento sanitário/contratual do cliente (Etapa 10, PDF 3.1), com
+    validade e alerta de vencimento exibido na ficha do cliente.
+    """
+
+    cliente = models.ForeignKey(
+        Cliente,
+        verbose_name="cliente",
+        on_delete=models.CASCADE,
+        related_name="documentos",
+    )
+    tipo = models.CharField(
+        "tipo", max_length=15, choices=TipoDocumentoCliente.choices,
+        default=TipoDocumentoCliente.OUTRO,
+    )
+    numero = models.CharField("número", max_length=80, blank=True)
+    orgao_emissor = models.CharField("órgão emissor", max_length=120, blank=True)
+    emissao = models.DateField("emissão", null=True, blank=True)
+    validade = models.DateField("validade", null=True, blank=True)
+    arquivo = models.FileField(
+        "arquivo", upload_to="documentos_cliente/%Y/%m/", null=True, blank=True
+    )
+    observacoes = models.CharField("observações", max_length=200, blank=True)
+
+    class Meta:
+        verbose_name = "documento do cliente"
+        verbose_name_plural = "documentos do cliente"
+        ordering = ["validade", "tipo"]
+
+    def __str__(self) -> str:
+        return f"{self.get_tipo_display()} · {self.cliente}"
+
+    @property
+    def vencido(self) -> bool:
+        from django.utils import timezone
+
+        return self.validade is not None and self.validade < timezone.localdate()
+
+    @property
+    def vence_em_breve(self) -> bool:
+        from datetime import timedelta
+
+        from django.utils import timezone
+
+        if self.validade is None or self.vencido:
+            return False
+        return self.validade <= timezone.localdate() + timedelta(
+            days=DIAS_ALERTA_DOCUMENTO
+        )
+
+    @property
+    def badge_validade(self) -> str:
+        if self.vencido:
+            return "text-bg-danger"
+        if self.vence_em_breve:
+            return "text-bg-warning"
+        return "text-bg-success"
+
+
 class ItemBase(ModeloBase):
     """Campos comuns dos itens de estoque (produto, MP, embalagem)."""
 
@@ -406,6 +507,18 @@ class ItemBase(ModeloBase):
         return f"{self.codigo} · {self.nome}"
 
 
+class GrauProduto(models.TextChoices):
+    GRAU_1 = "GRAU_1", "Grau 1"
+    GRAU_2 = "GRAU_2", "Grau 2"
+
+
+class SituacaoRegulatoria(models.TextChoices):
+    REGULARIZADO = "REGULARIZADO", "Regularizado"
+    ISENTO = "ISENTO", "Isento de registro"
+    EM_ANALISE = "EM_ANALISE", "Em análise na ANVISA"
+    VENCIDO = "VENCIDO", "Registro vencido"
+
+
 class Produto(ItemBase):
     descricao = models.TextField("descrição", blank=True)
     limite_perda_percentual = models.DecimalField(
@@ -415,10 +528,57 @@ class Produto(ItemBase):
         default=Decimal("5"),
         help_text="Perda acima deste percentual exige justificativa e aprovação.",
     )
+    categoria = models.CharField("categoria", max_length=80, blank=True)
+    apresentacao = models.CharField(
+        "apresentação", max_length=120, blank=True,
+        help_text="Ex.: frasco 100 ml, bisnaga 80 g.",
+    )
+    grau = models.CharField(
+        "grau", max_length=10, choices=GrauProduto.choices, blank=True
+    )
+    registro_anvisa = models.CharField("registro/processo ANVISA", max_length=60, blank=True)
+    situacao_regulatoria = models.CharField(
+        "situação regulatória",
+        max_length=15,
+        choices=SituacaoRegulatoria.choices,
+        default=SituacaoRegulatoria.REGULARIZADO,
+    )
+    bloqueado = models.BooleanField(
+        "produto bloqueado",
+        default=False,
+        help_text="Produto bloqueado não gera novas ordens de produção.",
+    )
+    motivo_bloqueio = models.CharField("motivo do bloqueio", max_length=200, blank=True)
 
     class Meta(ItemBase.Meta):
         verbose_name = "produto"
         verbose_name_plural = "produtos"
+
+    def get_absolute_url(self) -> str:
+        return reverse("cadastros:produto_detalhe", args=[self.pk])
+
+    def motivo_impedimento_op(self) -> str:
+        """
+        Motivo pelo qual o produto NÃO pode gerar OP (Etapa 10), ou ""
+        se está apto. Mensagem pronta para a tela.
+        """
+        if not self.ativo:
+            return f"Produto “{self}” está inativo"
+        if self.bloqueado:
+            motivo = f" ({self.motivo_bloqueio})" if self.motivo_bloqueio else ""
+            return f"Produto “{self}” está bloqueado{motivo}"
+        if self.situacao_regulatoria in {
+            SituacaoRegulatoria.EM_ANALISE,
+            SituacaoRegulatoria.VENCIDO,
+        }:
+            return (
+                f"Produto “{self}” sem regularização "
+                f"({self.get_situacao_regulatoria_display()})"
+            )
+        return ""
+
+    def pode_gerar_op(self) -> bool:
+        return self.motivo_impedimento_op() == ""
 
 
 class MateriaPrima(ItemBase):
@@ -427,10 +587,44 @@ class MateriaPrima(ItemBase):
         default=False,
         help_text="Exige dupla conferência na pesagem (conferente ≠ operador).",
     )
+    inci = models.CharField("nome INCI", max_length=150, blank=True)
+    cas = models.CharField("número CAS", max_length=40, blank=True)
+    especificacao = models.TextField("especificação", blank=True)
+    condicoes_armazenamento = models.CharField(
+        "condições de armazenamento", max_length=200, blank=True
+    )
+    ficha_tecnica = models.FileField(
+        "ficha técnica", upload_to="fichas_mp/%Y/%m/", null=True, blank=True
+    )
+    fispq = models.FileField(
+        "FISPQ", upload_to="fispq/%Y/%m/", null=True, blank=True
+    )
+    fornecedores_aprovados = models.ManyToManyField(
+        "Fornecedor",
+        verbose_name="fornecedores aprovados",
+        related_name="materias_primas_aprovadas",
+        blank=True,
+        help_text="Se preenchido, só lotes desses fornecedores podem ser consumidos.",
+    )
 
     class Meta(ItemBase.Meta):
         verbose_name = "matéria-prima"
         verbose_name_plural = "matérias-primas"
+
+    def get_absolute_url(self) -> str:
+        return reverse("cadastros:materiaprima_detalhe", args=[self.pk])
+
+    def fornecedor_aprovado(self, fornecedor) -> bool:
+        """
+        Regra da Etapa 10: se a MP define fornecedores aprovados, só eles
+        podem ser consumidos. Sem lista definida, não restringe.
+        """
+        aprovados = self.fornecedores_aprovados.all()
+        if not aprovados:
+            return True
+        if fornecedor is None:
+            return False
+        return fornecedor in aprovados
 
 
 class TipoEmbalagem(models.TextChoices):
@@ -446,10 +640,64 @@ class Embalagem(ItemBase):
     tipo = models.CharField(
         "tipo", max_length=10, choices=TipoEmbalagem.choices, default=TipoEmbalagem.OUTRO
     )
+    capacidade = models.CharField(
+        "capacidade", max_length=60, blank=True, help_text="Ex.: 100 ml, 80 g."
+    )
+    material = models.CharField(
+        "material", max_length=80, blank=True, help_text="Ex.: PET, vidro, PP."
+    )
+    cor = models.CharField("cor", max_length=60, blank=True)
+    fabricante = models.CharField("fabricante", max_length=150, blank=True)
+    versao_arte = models.ForeignKey(
+        "VersaoArte",
+        verbose_name="versão de arte",
+        on_delete=models.PROTECT,
+        related_name="embalagens",
+        null=True,
+        blank=True,
+        help_text="Para rótulos: arte vinculada. Arte obsoleta bloqueia o uso na OP.",
+    )
+    inspecao = models.TextField(
+        "critérios de inspeção", blank=True,
+        help_text="O que conferir no recebimento (dimensões, impressão, vedação).",
+    )
+    fornecedores_aprovados = models.ManyToManyField(
+        "Fornecedor",
+        verbose_name="fornecedores aprovados",
+        related_name="embalagens_aprovadas",
+        blank=True,
+        help_text="Se preenchido, só lotes desses fornecedores podem ser consumidos.",
+    )
 
     class Meta(ItemBase.Meta):
         verbose_name = "embalagem"
         verbose_name_plural = "embalagens"
+
+    def get_absolute_url(self) -> str:
+        return reverse("cadastros:embalagem_detalhe", args=[self.pk])
+
+    def fornecedor_aprovado(self, fornecedor) -> bool:
+        """Mesma regra da matéria-prima (Etapa 10)."""
+        aprovados = self.fornecedores_aprovados.all()
+        if not aprovados:
+            return True
+        if fornecedor is None:
+            return False
+        return fornecedor in aprovados
+
+    def motivo_arte_invalida(self) -> str:
+        """
+        Rótulo com arte obsoleta não pode ir para a OP (Etapa 10, PDF 6.2).
+        Retorna "" quando o item está apto.
+        """
+        if self.tipo != TipoEmbalagem.ROTULO or self.versao_arte_id is None:
+            return ""
+        if not self.versao_arte.aprovada:
+            return (
+                f"Rótulo {self.codigo} usa a arte {self.versao_arte.versao}, "
+                f"que está {self.versao_arte.get_status_display().lower()}"
+            )
+        return ""
 
 
 class StatusVersaoArte(models.TextChoices):

@@ -4,6 +4,7 @@ from .models import (
     Cliente,
     ClienteEndereco,
     ClienteTelefone,
+    DocumentoCliente,
     Embalagem,
     Equipamento,
     Fornecedor,
@@ -66,6 +67,12 @@ class ClienteEnderecoInline(EnderecoInlineBase):
     model = ClienteEndereco
 
 
+class DocumentoClienteInline(admin.TabularInline):
+    model = DocumentoCliente
+    extra = 1
+    fields = ("tipo", "numero", "orgao_emissor", "emissao", "validade", "arquivo", "ativo")
+
+
 class FornecedorTelefoneInline(TelefoneInlineBase):
     model = FornecedorTelefone
 
@@ -98,9 +105,9 @@ class ClienteAdmin(CadastroAdminBase):
         "telefone_principal",
         "ativo",
     )
-    list_filter = ("ativo",)
+    list_filter = ("ativo", "bloqueado")
     search_fields = ("razao_social", "nome_fantasia", "documento")
-    inlines = (ClienteTelefoneInline, ClienteEnderecoInline)
+    inlines = (ClienteTelefoneInline, ClienteEnderecoInline, DocumentoClienteInline)
 
 
 @admin.register(Fornecedor)

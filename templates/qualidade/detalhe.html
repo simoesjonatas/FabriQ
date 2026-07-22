@@ -22,7 +22,8 @@
                 <span class="eyebrow"><i class="bi bi-clipboard2-pulse me-1"></i>Análise</span>
                 <h1>{{ analise.numero }}</h1>
                 <p>
-                    Lote {{ analise.lote.codigo }} · {{ analise.lote.item }}
+                    Lote <a href="{{ analise.lote.get_absolute_url }}" class="text-decoration-none">{{ analise.lote.codigo }}</a> ·
+                    <a href="{{ analise.lote.item.get_absolute_url }}" class="text-decoration-none">{{ analise.lote.item }}</a>
                     {% if analise.lote.validade %} · validade {{ analise.lote.validade|date:"d/m/Y" }}{% endif %}
                 </p>
             </div>
@@ -186,7 +187,9 @@
                         </div>
                         <dl class="row mb-0 small">
                             <dt class="col-5">Lote</dt>
-                            <dd class="col-7">{{ analise.lote.codigo }}</dd>
+                            <dd class="col-7">
+                                <a href="{{ analise.lote.get_absolute_url }}" class="text-decoration-none">{{ analise.lote.codigo }}</a>
+                            </dd>
                             <dt class="col-5">Item</dt>
                             <dd class="col-7">{{ analise.lote.item }}</dd>
                             <dt class="col-5">Observações</dt>

@@ -81,11 +81,15 @@
                                 <tr>
                                     <td><span class="badge text-bg-light border">{{ linha.tipo_item }}</span></td>
                                     <td>
-                                        <span class="identifier-cell">{{ linha.item.codigo }}</span>
-                                        · {{ linha.item.nome }}
+                                        <a href="{{ linha.item.get_absolute_url }}" class="text-decoration-none">
+                                            <span class="identifier-cell">{{ linha.item.codigo }}</span>
+                                            · {{ linha.item.nome }}
+                                        </a>
                                     </td>
                                     <td>
-                                        {{ linha.lote.codigo|default:"—" }}
+                                        {% if linha.lote %}
+                                            <a href="{{ linha.lote.get_absolute_url }}" class="text-decoration-none">{{ linha.lote.codigo }}</a>
+                                        {% else %}—{% endif %}
                                         {% if linha.lote.lote_fornecedor %}
                                             <div class="small text-body-secondary">forn.: {{ linha.lote.lote_fornecedor }}</div>
                                         {% endif %}

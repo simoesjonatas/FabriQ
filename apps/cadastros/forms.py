@@ -9,6 +9,7 @@ from .models import (
     Cliente,
     ClienteEndereco,
     ClienteTelefone,
+    DocumentoCliente,
     Embalagem,
     Equipamento,
     Fornecedor,
@@ -164,6 +165,31 @@ class PessoaFormBase(BootstrapFormMixin, forms.ModelForm):
 class ClienteForm(PessoaFormBase):
     class Meta(PessoaFormBase.Meta):
         model = Cliente
+        fields = [
+            "razao_social",
+            "nome_fantasia",
+            "documento",
+            "email",
+            "responsavel_tecnico",
+            "bloqueado",
+            "motivo_bloqueio",
+            "observacoes",
+            "ativo",
+        ]
+        widgets = {
+            **PessoaFormBase.Meta.widgets,
+            "motivo_bloqueio": forms.TextInput(
+                attrs={"placeholder": "Obrigatório quando bloqueado"}
+            ),
+        }
+
+    def clean(self):
+        cleaned = super().clean()
+        if cleaned.get("bloqueado") and not cleaned.get("motivo_bloqueio"):
+            self.add_error(
+                "motivo_bloqueio", "Informe o motivo ao bloquear o cliente."
+            )
+        return cleaned
 
 
 class FornecedorForm(PessoaFormBase):
@@ -289,10 +315,27 @@ class ProdutoForm(BootstrapFormMixin, forms.ModelForm):
     class Meta:
         model = Produto
         fields = [
-            "codigo", "nome", "descricao", "unidade",
-            "estoque_minimo", "observacoes", "ativo",
+            "codigo", "nome", "descricao", "unidade", "estoque_minimo",
+            "categoria", "apresentacao", "grau", "registro_anvisa",
+            "situacao_regulatoria", "limite_perda_percentual",
+            "bloqueado", "motivo_bloqueio", "observacoes", "ativo",
         ]
-        widgets = {"descricao": _TEXTAREA_CURTA, "observacoes": _TEXTAREA_CURTA}
+        widgets = {
+            "descricao": _TEXTAREA_CURTA,
+            "observacoes": _TEXTAREA_CURTA,
+            "limite_perda_percentual": forms.NumberInput(attrs={"step": "any"}),
+            "motivo_bloqueio": forms.TextInput(
+                attrs={"placeholder": "Obrigatório quando bloqueado"}
+            ),
+        }
+
+    def clean(self):
+        cleaned = super().clean()
+        if cleaned.get("bloqueado") and not cleaned.get("motivo_bloqueio"):
+            self.add_error(
+                "motivo_bloqueio", "Informe o motivo ao bloquear o produto."
+            )
+        return cleaned
 
 
 class MateriaPrimaForm(BootstrapFormMixin, forms.ModelForm):
@@ -304,10 +347,28 @@ class MateriaPrimaForm(BootstrapFormMixin, forms.ModelForm):
             "unidade",
             "estoque_minimo",
             "critico",
+            "inci",
+            "cas",
+            "especificacao",
+            "condicoes_armazenamento",
+            "ficha_tecnica",
+            "fispq",
+            "fornecedores_aprovados",
             "observacoes",
             "ativo",
         ]
-        widgets = {"observacoes": _TEXTAREA_CURTA}
+        widgets = {
+            "especificacao": _TEXTAREA_CURTA,
+            "observacoes": _TEXTAREA_CURTA,
+            "fornecedores_aprovados": forms.SelectMultiple(attrs={"size": 6}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["fornecedores_aprovados"].queryset = Fornecedor.objects.filter(
+            ativo=True
+        ).order_by("razao_social")
+        self.fields["fornecedores_aprovados"].required = False
 
 
 class VersaoArteForm(BootstrapFormMixin, forms.ModelForm):
@@ -351,5 +412,42 @@ class BalancaForm(BootstrapFormMixin, forms.ModelForm):
 class EmbalagemForm(BootstrapFormMixin, forms.ModelForm):
     class Meta:
         model = Embalagem
-        fields = ["codigo", "nome", "tipo", "unidade", "estoque_minimo", "observacoes", "ativo"]
-        widgets = {"observacoes": _TEXTAREA_CURTA}
+        fields = [
+            "codigo", "nome", "tipo", "unidade", "estoque_minimo",
+            "capacidade", "material", "cor", "fabricante", "versao_arte",
+            "inspecao", "fornecedores_aprovados", "observacoes", "ativo",
+        ]
+        widgets = {
+            "inspecao": _TEXTAREA_CURTA,
+            "observacoes": _TEXTAREA_CURTA,
+            "fornecedores_aprovados": forms.SelectMultiple(attrs={"size": 6}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["fornecedores_aprovados"].queryset = Fornecedor.objects.filter(
+            ativo=True
+        ).order_by("razao_social")
+        self.fields["fornecedores_aprovados"].required = False
+        self.fields["versao_arte"].queryset = VersaoArte.objects.filter(
+            ativo=True
+        ).select_related("produto").order_by("produto__nome", "-versao")
+        self.fields["versao_arte"].required = False
+
+
+class DocumentoClienteForm(BootstrapFormMixin, forms.ModelForm):
+    class Meta:
+        model = DocumentoCliente
+        fields = [
+            "tipo",
+            "numero",
+            "orgao_emissor",
+            "emissao",
+            "validade",
+            "arquivo",
+            "observacoes",
+        ]
+        widgets = {
+            "emissao": forms.DateInput(attrs={"type": "date"}, format="%Y-%m-%d"),
+            "validade": forms.DateInput(attrs={"type": "date"}, format="%Y-%m-%d"),
+        }

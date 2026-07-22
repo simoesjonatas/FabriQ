@@ -1,20 +1,27 @@
+from datetime import timedelta
+
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
 from django.test import TestCase
 from django.urls import reverse
+from django.utils import timezone
 
-from apps.accounts.perfis import PCP, PRODUCAO
+from apps.accounts.perfis import COMPRAS, EXPEDICAO, PCP, PRODUCAO
 
 from .models import (
     Cliente,
     ClienteEndereco,
     ClienteTelefone,
+    DocumentoCliente,
+    Embalagem,
     Equipamento,
     Fornecedor,
     FornecedorEndereco,
     FornecedorTelefone,
+    MateriaPrima,
     Produto,
     Setor,
+    VersaoArte,
 )
 
 User = get_user_model()
@@ -282,3 +289,288 @@ class DocumentoTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "(11) 4602-7800")
         self.assertContains(response, "Alameda Madeira")
+
+
+class DocumentoClienteTests(TestCase):
+    def setUp(self):
+        self.cliente = Cliente.objects.create(razao_social="Loja Bela")
+
+    def test_documento_vencido(self):
+        doc = DocumentoCliente.objects.create(
+            cliente=self.cliente,
+            validade=timezone.localdate() - timedelta(days=1),
+        )
+        self.assertTrue(doc.vencido)
+        self.assertFalse(doc.vence_em_breve)
+        self.assertIn(doc, self.cliente.documentos_vencidos)
+
+    def test_documento_vence_em_breve(self):
+        doc = DocumentoCliente.objects.create(
+            cliente=self.cliente,
+            validade=timezone.localdate() + timedelta(days=10),
+        )
+        self.assertFalse(doc.vencido)
+        self.assertTrue(doc.vence_em_breve)
+        self.assertIn(doc, self.cliente.documentos_a_vencer)
+
+    def test_documento_sem_validade_nao_alerta(self):
+        doc = DocumentoCliente.objects.create(cliente=self.cliente)
+        self.assertFalse(doc.vencido)
+        self.assertFalse(doc.vence_em_breve)
+
+
+class FichaClienteTests(TestCase):
+    def setUp(self):
+        self.cliente = Cliente.objects.create(
+            razao_social="Primavera Farma", nome_fantasia="Primavera"
+        )
+        self.compras = criar_usuario("carla", perfil=COMPRAS)  # cadastros + pedidos
+        self.expedicao = criar_usuario("rui", perfil=EXPEDICAO)  # pedidos, sem cadastros
+        self.producao = criar_usuario("pedro", perfil=PRODUCAO)  # nenhum dos três
+
+    def test_ficha_abre_para_perfil_de_cadastros_com_edicao(self):
+        self.client.force_login(self.compras)
+        response = self.client.get(
+            reverse("cadastros:cliente_detalhe", args=[self.cliente.pk])
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Primavera Farma")
+        self.assertTrue(response.context["pode_editar"])
+
+    def test_ficha_abre_para_perfil_de_pedidos_sem_edicao(self):
+        self.client.force_login(self.expedicao)
+        response = self.client.get(
+            reverse("cadastros:cliente_detalhe", args=[self.cliente.pk])
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.context["pode_editar"])
+
+    def test_ficha_negada_sem_modulo_relacionado(self):
+        self.client.force_login(self.producao)
+        response = self.client.get(
+            reverse("cadastros:cliente_detalhe", args=[self.cliente.pk])
+        )
+        self.assertEqual(response.status_code, 403)
+
+    def test_adicionar_e_remover_documento(self):
+        self.client.force_login(self.compras)
+        response = self.client.post(
+            reverse("cadastros:cliente_documento_criar", args=[self.cliente.pk]),
+            {
+                "tipo": "AFE",
+                "numero": "123",
+                "orgao_emissor": "ANVISA",
+                "emissao": "",
+                "validade": (timezone.localdate() + timedelta(days=365)).isoformat(),
+                "observacoes": "",
+            },
+        )
+        self.assertRedirects(
+            response, reverse("cadastros:cliente_detalhe", args=[self.cliente.pk])
+        )
+        documento = self.cliente.documentos.get()
+        self.assertEqual(documento.numero, "123")
+
+        self.client.post(
+            reverse("cadastros:cliente_documento_remover", args=[documento.pk])
+        )
+        documento.refresh_from_db()
+        self.assertFalse(documento.ativo)
+
+
+class ClienteBloqueadoTests(TestCase):
+    def _dados_pedido(self, cliente):
+        return {
+            "cliente": cliente.pk,
+            "prazo": (timezone.localdate() + timedelta(days=10)).isoformat(),
+            "observacoes": "",
+            "justificativa_auditoria": "",
+        }
+
+    def test_pedido_form_rejeita_cliente_bloqueado(self):
+        from apps.pedidos.forms import PedidoForm
+
+        cliente = Cliente.objects.create(
+            razao_social="Bloqueada", bloqueado=True, motivo_bloqueio="Inadimplência"
+        )
+        form = PedidoForm(data=self._dados_pedido(cliente))
+        self.assertFalse(form.is_valid())
+        self.assertIn("cliente", form.errors)
+
+    def test_pedido_form_aceita_cliente_liberado(self):
+        from apps.pedidos.forms import PedidoForm
+
+        cliente = Cliente.objects.create(razao_social="Liberada")
+        form = PedidoForm(data=self._dados_pedido(cliente))
+        self.assertTrue(form.is_valid(), form.errors)
+
+
+class ProdutoRegulatorioTests(TestCase):
+    def test_produto_regularizado_pode_gerar_op(self):
+        produto = Produto.objects.create(codigo="P1", nome="Creme")
+        self.assertTrue(produto.pode_gerar_op())
+        self.assertEqual(produto.motivo_impedimento_op(), "")
+
+    def test_produto_bloqueado_nao_gera_op(self):
+        produto = Produto.objects.create(
+            codigo="P2", nome="Creme", bloqueado=True, motivo_bloqueio="Recolhimento"
+        )
+        self.assertFalse(produto.pode_gerar_op())
+        self.assertIn("bloqueado", produto.motivo_impedimento_op())
+
+    def test_produto_sem_regularizacao_nao_gera_op(self):
+        produto = Produto.objects.create(
+            codigo="P3", nome="Creme", situacao_regulatoria="EM_ANALISE"
+        )
+        self.assertFalse(produto.pode_gerar_op())
+        self.assertIn("regularização", produto.motivo_impedimento_op())
+
+
+class FichaProdutoTests(TestCase):
+    def setUp(self):
+        self.produto = Produto.objects.create(codigo="PA-9", nome="Sabonete")
+        self.compras = criar_usuario("cris", perfil=COMPRAS)  # cadastros
+        self.producao = criar_usuario("paulo", perfil=PRODUCAO)  # producao
+
+    def test_ficha_abre_para_cadastros(self):
+        self.client.force_login(self.compras)
+        response = self.client.get(
+            reverse("cadastros:produto_detalhe", args=[self.produto.pk])
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Sabonete")
+        self.assertTrue(response.context["pode_editar"])
+
+    def test_ficha_abre_para_producao_sem_editar(self):
+        self.client.force_login(self.producao)
+        response = self.client.get(
+            reverse("cadastros:produto_detalhe", args=[self.produto.pk])
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.context["pode_editar"])
+
+
+class LinksDeFichaTests(TestCase):
+    """Etapa 10: get_absolute_url alimenta os links cruzados das telas."""
+
+    def test_cada_ficha_tem_url_propria(self):
+        cliente = Cliente.objects.create(razao_social="Loja")
+        produto = Produto.objects.create(codigo="P-1", nome="Creme")
+        mp = MateriaPrima.objects.create(codigo="M-1", nome="Óleo")
+        embalagem = Embalagem.objects.create(codigo="E-1", nome="Frasco")
+
+        self.assertEqual(
+            cliente.get_absolute_url(),
+            reverse("cadastros:cliente_detalhe", args=[cliente.pk]),
+        )
+        self.assertEqual(
+            produto.get_absolute_url(),
+            reverse("cadastros:produto_detalhe", args=[produto.pk]),
+        )
+        self.assertEqual(
+            mp.get_absolute_url(),
+            reverse("cadastros:materiaprima_detalhe", args=[mp.pk]),
+        )
+        self.assertEqual(
+            embalagem.get_absolute_url(),
+            reverse("cadastros:embalagem_detalhe", args=[embalagem.pk]),
+        )
+
+
+class FornecedorAprovadoTests(TestCase):
+    def setUp(self):
+        self.mp = MateriaPrima.objects.create(codigo="MP-1", nome="Essência")
+        self.fornecedor = Fornecedor.objects.create(razao_social="Aromas SA")
+        self.outro = Fornecedor.objects.create(razao_social="Outro Forn")
+
+    def test_sem_lista_nao_restringe(self):
+        self.assertTrue(self.mp.fornecedor_aprovado(self.outro))
+        self.assertTrue(self.mp.fornecedor_aprovado(None))
+
+    def test_com_lista_aceita_aprovado(self):
+        self.mp.fornecedores_aprovados.add(self.fornecedor)
+        self.assertTrue(self.mp.fornecedor_aprovado(self.fornecedor))
+
+    def test_com_lista_recusa_nao_aprovado(self):
+        self.mp.fornecedores_aprovados.add(self.fornecedor)
+        self.assertFalse(self.mp.fornecedor_aprovado(self.outro))
+
+    def test_com_lista_recusa_lote_sem_fornecedor(self):
+        self.mp.fornecedores_aprovados.add(self.fornecedor)
+        self.assertFalse(self.mp.fornecedor_aprovado(None))
+
+
+class EmbalagemArteTests(TestCase):
+    """Etapa 10: rótulo com arte obsoleta não pode ir para a OP."""
+
+    def setUp(self):
+        self.produto = Produto.objects.create(codigo="PA-1", nome="Sabonete")
+        self.arte = VersaoArte.objects.create(
+            produto=self.produto, versao="v1", status="APROVADA"
+        )
+
+    def test_rotulo_com_arte_aprovada_esta_apto(self):
+        rotulo = Embalagem.objects.create(
+            codigo="EMB-R1", nome="Rótulo sabonete", tipo="ROTULO",
+            versao_arte=self.arte,
+        )
+        self.assertEqual(rotulo.motivo_arte_invalida(), "")
+
+    def test_rotulo_com_arte_obsoleta_bloqueia(self):
+        self.arte.status = "OBSOLETA"
+        self.arte.save()
+        rotulo = Embalagem.objects.create(
+            codigo="EMB-R2", nome="Rótulo antigo", tipo="ROTULO",
+            versao_arte=self.arte,
+        )
+        self.assertIn("obsoleta", rotulo.motivo_arte_invalida())
+
+    def test_embalagem_que_nao_e_rotulo_nao_e_afetada(self):
+        self.arte.status = "OBSOLETA"
+        self.arte.save()
+        frasco = Embalagem.objects.create(
+            codigo="EMB-F1", nome="Frasco 100ml", tipo="FRASCO",
+            versao_arte=self.arte,
+        )
+        self.assertEqual(frasco.motivo_arte_invalida(), "")
+
+    def test_rotulo_sem_arte_vinculada_nao_bloqueia(self):
+        rotulo = Embalagem.objects.create(
+            codigo="EMB-R3", nome="Rótulo genérico", tipo="ROTULO"
+        )
+        self.assertEqual(rotulo.motivo_arte_invalida(), "")
+
+
+class FichaEmbalagemTests(TestCase):
+    def setUp(self):
+        self.embalagem = Embalagem.objects.create(
+            codigo="EMB-1", nome="Frasco âmbar", tipo="FRASCO",
+            material="vidro", cor="âmbar",
+        )
+        self.compras = criar_usuario("bea", perfil=COMPRAS)
+
+    def test_ficha_embalagem_abre(self):
+        self.client.force_login(self.compras)
+        response = self.client.get(
+            reverse("cadastros:embalagem_detalhe", args=[self.embalagem.pk])
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Frasco âmbar")
+        self.assertContains(response, "vidro")
+
+
+class FichaMateriaPrimaTests(TestCase):
+    def setUp(self):
+        self.mp = MateriaPrima.objects.create(
+            codigo="MP-9", nome="Óleo de argan", inci="Argania Spinosa"
+        )
+        self.compras = criar_usuario("ana2", perfil=COMPRAS)
+
+    def test_ficha_mp_abre_e_mostra_dados_tecnicos(self):
+        self.client.force_login(self.compras)
+        response = self.client.get(
+            reverse("cadastros:materiaprima_detalhe", args=[self.mp.pk])
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Óleo de argan")
+        self.assertContains(response, "Argania Spinosa")

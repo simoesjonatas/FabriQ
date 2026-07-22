@@ -3,9 +3,9 @@ import logging
 from django.contrib import messages
 from django.db.models import Q
 from django.urls import reverse_lazy
-from django.views.generic import CreateView, ListView, TemplateView
+from django.views.generic import CreateView, DetailView, ListView, TemplateView
 
-from apps.accounts.mixins import AcessoModuloMixin
+from apps.accounts.mixins import AcessoModuloMixin, AcessoQualquerModuloMixin
 from apps.core.views import (
     CadastroCreateView,
     CadastroListView,
@@ -16,8 +16,11 @@ from apps.core.views import (
 from .forms import LocalEstoqueForm, MovimentacaoForm
 from .models import (
     LocalEstoque,
+    Lote,
     Movimentacao,
     TipoMovimentacao,
+    locais_do_lote,
+    saldo,
     saldos_detalhados,
 )
 
@@ -203,3 +206,51 @@ class LocalCriarView(LocalConfig, CadastroCreateView):
 
 class LocalEditarView(LocalConfig, CadastroUpdateView):
     modulo = MODULO
+
+
+class LoteDetalheView(AcessoQualquerModuloMixin, DetailView):
+    """
+    Ficha do lote (Etapa 10, PDF 6.1): origem (fornecedor/recebimento),
+    validade, situação, análises, saldo por local, consumo em OPs e
+    expedições. É o nó que liga material, fornecedor e produção.
+    """
+
+    modulos = (
+        "estoque", "cadastros", "producao", "recebimento", "qualidade", "expedicao",
+    )
+    model = Lote
+    template_name = "estoque/lote_detalhe.html"
+    context_object_name = "lote"
+
+    def get_queryset(self):
+        return Lote.objects.select_related("produto", "materia_prima", "embalagem")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        lote = self.object
+
+        context["posicoes"] = locais_do_lote(lote)
+        context["saldo_total"] = saldo(lote.item, lote=lote)
+        context["item_recebido"] = (
+            lote.itens_de_recebimento.select_related(
+                "recebimento__fornecedor"
+            ).first()
+        )
+        context["analises"] = lote.analises.select_related("decidido_por").order_by(
+            "-id"
+        )
+        context["consumos"] = (
+            lote.consumos_em_op.select_related(
+                "material__ordem__item_pedido__produto", "local"
+            ).order_by("-id")
+        )
+        context["movimentacoes"] = lote.movimentacoes.select_related(
+            "local_origem", "local_destino"
+        ).order_by("-id")
+        context["ordens_do_lote"] = lote.ordens_de_producao.select_related(
+            "item_pedido__pedido__cliente"
+        )
+        context["expedicoes"] = lote.expedicoes.select_related(
+            "expedicao__pedido__cliente", "item_pedido__produto"
+        )
+        return context

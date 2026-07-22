@@ -1,0 +1,259 @@
+{% extends "base.html" %}
+
+{% block title %}Lote {{ lote.codigo }}{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-12 col-xxl-11">
+
+        <nav class="app-breadcrumb" aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item">
+                    <a href="{% url 'estoque:saldo' %}">
+                        <i class="bi bi-arrow-left-short" aria-hidden="true"></i>Estoque
+                    </a>
+                </li>
+                <li class="breadcrumb-item active" aria-current="page">Lote {{ lote.codigo }}</li>
+            </ol>
+        </nav>
+
+        <div class="page-header page-header-actions mb-4">
+            <div>
+                <span class="eyebrow"><i class="bi bi-upc-scan me-1"></i>Lote</span>
+                <h1>{{ lote.codigo }}</h1>
+                <p>
+                    {{ lote.item }}
+                    {% if lote.lote_fornecedor %}· lote do fornecedor {{ lote.lote_fornecedor }}{% endif %}
+                </p>
+            </div>
+            <div class="d-flex gap-2 align-items-center flex-wrap">
+                <span class="badge {{ lote.badge_situacao }} fs-6">{{ lote.get_situacao_display }}</span>
+                {% if lote.vencido %}
+                    <span class="badge text-bg-danger fs-6">Vencido</span>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="row g-4">
+            <div class="col-12 col-lg-7">
+                <div class="card shadow-sm data-panel mb-4">
+                    <div class="card-body">
+                        <div class="section-heading">
+                            <div>
+                                <h2><i class="bi bi-geo-alt me-1 text-primary"></i>Saldo por local</h2>
+                                <p>Onde o material está e quanto resta.</p>
+                            </div>
+                        </div>
+                        {% if posicoes %}
+                            <div class="table-responsive">
+                                <table class="table align-middle mb-0">
+                                    <thead>
+                                        <tr><th>Local</th><th class="text-end">Saldo</th></tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for posicao in posicoes %}
+                                            <tr>
+                                                <td>{{ posicao.local }}</td>
+                                                <td class="text-end">{{ posicao.saldo|floatformat:"-3" }}</td>
+                                            </tr>
+                                        {% endfor %}
+                                        <tr class="fw-semibold">
+                                            <td>Total</td>
+                                            <td class="text-end">{{ saldo_total|floatformat:"-3" }}</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        {% else %}
+                            <p class="text-body-secondary mb-0">Sem saldo em estoque.</p>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <div class="card shadow-sm data-panel mb-4">
+                    <div class="card-body">
+                        <div class="section-heading">
+                            <div>
+                                <h2><i class="bi bi-gear-wide-connected me-1 text-primary"></i>Consumo em produção</h2>
+                                <p>Ordens que consumiram este lote.</p>
+                            </div>
+                        </div>
+                        {% if consumos %}
+                            <div class="table-responsive">
+                                <table class="table align-middle mb-0">
+                                    <thead>
+                                        <tr><th>OP</th><th>Local</th><th class="text-end">Quantidade</th></tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for consumo in consumos %}
+                                            <tr>
+                                                <td>
+                                                    <a href="{% url 'ordens:detalhe' consumo.material.ordem.pk %}" class="text-decoration-none">
+                                                        {{ consumo.material.ordem.numero }}
+                                                    </a>
+                                                </td>
+                                                <td>{{ consumo.local }}</td>
+                                                <td class="text-end">{{ consumo.quantidade|floatformat:"-3" }}</td>
+                                            </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        {% else %}
+                            <p class="text-body-secondary mb-0">Este lote ainda não foi consumido em nenhuma OP.</p>
+                        {% endif %}
+                    </div>
+                </div>
+
+                {% if ordens_do_lote or expedicoes %}
+                    <div class="card shadow-sm data-panel mb-4">
+                        <div class="card-body">
+                            <div class="section-heading">
+                                <div>
+                                    <h2><i class="bi bi-truck me-1 text-primary"></i>Origem e destino</h2>
+                                    <p>OP que produziu este lote e para quem ele foi expedido.</p>
+                                </div>
+                            </div>
+                            {% for ordem in ordens_do_lote %}
+                                <div class="small py-1">
+                                    Produzido na
+                                    <a href="{% url 'ordens:detalhe' ordem.pk %}" class="text-decoration-none">{{ ordem.numero }}</a>
+                                    · pedido
+                                    <a href="{% url 'pedidos:detalhe' ordem.item_pedido.pedido.pk %}" class="text-decoration-none">{{ ordem.item_pedido.pedido.numero }}</a>
+                                    ·
+                                    <a href="{% url 'cadastros:cliente_detalhe' ordem.item_pedido.pedido.cliente.pk %}" class="text-decoration-none">{{ ordem.item_pedido.pedido.cliente }}</a>
+                                </div>
+                            {% endfor %}
+                            {% for item in expedicoes %}
+                                <div class="small py-1">
+                                    Expedido em
+                                    <a href="{% url 'expedicao:detalhe' item.expedicao.pk %}" class="text-decoration-none">{{ item.expedicao.numero }}</a>
+                                    · {{ item.quantidade|floatformat:"-3" }}
+                                    · <a href="{% url 'cadastros:cliente_detalhe' item.expedicao.pedido.cliente.pk %}" class="text-decoration-none">{{ item.expedicao.pedido.cliente }}</a>
+                                    {% if item.expedicao.nota_fiscal %}· NF {{ item.expedicao.nota_fiscal }}{% endif %}
+                                </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                {% endif %}
+
+                <div class="card shadow-sm data-panel">
+                    <div class="card-body">
+                        <div class="section-heading">
+                            <div>
+                                <h2><i class="bi bi-arrow-left-right me-1 text-primary"></i>Movimentações</h2>
+                                <p>Entradas, saídas e transferências do lote.</p>
+                            </div>
+                        </div>
+                        {% if movimentacoes %}
+                            <div class="table-responsive">
+                                <table class="table align-middle mb-0">
+                                    <thead>
+                                        <tr><th>Tipo</th><th>Origem → destino</th><th class="text-end">Qtd.</th></tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for mov in movimentacoes %}
+                                            <tr>
+                                                <td>{{ mov.get_tipo_display }}</td>
+                                                <td class="small text-body-secondary">
+                                                    {{ mov.local_origem|default:"—" }} → {{ mov.local_destino|default:"—" }}
+                                                </td>
+                                                <td class="text-end">{{ mov.quantidade|floatformat:"-3" }}</td>
+                                            </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        {% else %}
+                            <p class="text-body-secondary mb-0">Sem movimentações.</p>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-12 col-lg-5">
+                <div class="card shadow-sm mb-4">
+                    <div class="card-body">
+                        <div class="section-heading">
+                            <div><h2><i class="bi bi-card-text me-1 text-primary"></i>Identificação</h2></div>
+                        </div>
+                        <dl class="row mb-0 small">
+                            <dt class="col-5">Lote interno</dt>
+                            <dd class="col-7">{{ lote.codigo }}</dd>
+                            <dt class="col-5">Lote do fornecedor</dt>
+                            <dd class="col-7">{{ lote.lote_fornecedor|default:"—" }}</dd>
+                            <dt class="col-5">Item</dt>
+                            <dd class="col-7">
+                                {% if lote.materia_prima %}
+                                    <a href="{% url 'cadastros:materiaprima_detalhe' lote.materia_prima.pk %}" class="text-decoration-none">{{ lote.materia_prima }}</a>
+                                {% elif lote.produto %}
+                                    <a href="{% url 'cadastros:produto_detalhe' lote.produto.pk %}" class="text-decoration-none">{{ lote.produto }}</a>
+                                {% else %}
+                                    {{ lote.item }}
+                                {% endif %}
+                            </dd>
+                            <dt class="col-5">Validade</dt>
+                            <dd class="col-7">{{ lote.validade|date:"d/m/Y"|default:"sem validade" }}</dd>
+                            <dt class="col-5">Situação</dt>
+                            <dd class="col-7"><span class="badge {{ lote.badge_situacao }}">{{ lote.get_situacao_display }}</span></dd>
+                        </dl>
+                    </div>
+                </div>
+
+                <div class="card shadow-sm mb-4">
+                    <div class="card-body">
+                        <div class="section-heading">
+                            <div><h2><i class="bi bi-inbox me-1 text-primary"></i>Origem / fornecedor</h2></div>
+                        </div>
+                        {% if item_recebido %}
+                            <dl class="row mb-0 small">
+                                <dt class="col-5">Fornecedor</dt>
+                                <dd class="col-7">{{ item_recebido.recebimento.fornecedor }}</dd>
+                                <dt class="col-5">Recebimento</dt>
+                                <dd class="col-7">
+                                    <a href="{% url 'recebimento:detalhe' item_recebido.recebimento.pk %}" class="text-decoration-none">
+                                        {{ item_recebido.recebimento.numero }}
+                                    </a>
+                                </dd>
+                                <dt class="col-5">Nota fiscal</dt>
+                                <dd class="col-7">{{ item_recebido.recebimento.nota_fiscal }}</dd>
+                                <dt class="col-5">Data</dt>
+                                <dd class="col-7">{{ item_recebido.recebimento.data_recebimento|date:"d/m/Y" }}</dd>
+                                <dt class="col-5">Quantidade</dt>
+                                <dd class="col-7">{{ item_recebido.quantidade|floatformat:"-3" }}</dd>
+                            </dl>
+                        {% else %}
+                            <p class="text-body-secondary small mb-0">
+                                Lote produzido internamente — sem recebimento de fornecedor.
+                            </p>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <div class="card shadow-sm">
+                    <div class="card-body">
+                        <div class="section-heading">
+                            <div><h2><i class="bi bi-clipboard2-pulse me-1 text-primary"></i>Análises</h2></div>
+                        </div>
+                        {% if analises %}
+                            <ul class="list-unstyled small mb-0">
+                                {% for analise in analises %}
+                                    <li class="d-flex flex-wrap gap-2 align-items-center py-1">
+                                        <a href="{% url 'qualidade:detalhe' analise.pk %}" class="text-decoration-none">{{ analise.numero }}</a>
+                                        <span class="badge {{ analise.badge_status }}">{{ analise.get_status_display }}</span>
+                                        {% if analise.decidido_por %}
+                                            <span class="text-body-secondary">{{ analise.decidido_por }}</span>
+                                        {% endif %}
+                                    </li>
+                                {% endfor %}
+                            </ul>
+                        {% else %}
+                            <p class="text-body-secondary small mb-0">Sem análise registrada.</p>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

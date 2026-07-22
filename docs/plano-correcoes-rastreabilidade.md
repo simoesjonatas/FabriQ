@@ -18,7 +18,7 @@
 | 2.4 / 4.2 | Snapshot imutável da fórmula na emissão da OP, com versão | `MaterialOP` congela apenas quantidades escaladas; a `Formula` em si é editável e a OP aponta para ela por FK, sem versão | Etapa 3 |
 | 2.5 | Rastreabilidade para trás e para frente (P1) | Dados parciais em `Movimentacao`; não há telas de consulta | Etapa 11 |
 | 2.6 / 7.2 | Bloqueios sistêmicos com exceção justificada (P2) | Alguns bloqueios existem (saldo, quarentena); faltam: lote vencido/reprovado, equipamento inapto, balança vencida, expedição sem CQ etc. | Etapa 5 |
-| 3.1–3.3 | Navegação por links: cliente, pedido, produto | Telas existem, mas sem fichas consolidadas nem links cruzados completos | Etapa 10 |
+| 3.1–3.3 | Navegação por links: cliente, pedido, produto | Telas existem, mas sem fichas consolidadas nem links cruzados completos | Etapa 10 ✅ |
 | 4.1 | Situação controlada do lote (em produção → aguardando CQ → aprovado → … → expedido/recolhido) | `Lote` não tem campo de situação; quarentena é só por local de estoque | Etapa 5 |
 | 5.1 | Identificação completa da OP (linha, supervisor etc.) | `OrdemProducao` tem equipamento/operador; falta linha, supervisor, prazo | Etapa 6 |
 | 5.3 | Pesagem com dupla conferência e balança calibrada | Não existe | Etapa 6 |
@@ -31,8 +31,8 @@
 | 5.10 | CQ final obrigatório antes de expedir; contra-análise | `Analise` existe sobre `Lote`, mas nada impede expedir sem CQ | Etapa 8 |
 | 5.11 | Assinaturas/aprovações por fase, com perfil | Só `liberado_por` na OP e `decidido_por` na análise | Etapa 8 |
 | 3.2 / 7.2 | Expedição vinculada a lote liberado; expedição parcial | Expedição é só transição de status do pedido (`FINALIZADO → EXPEDIDO`), sem vínculo com lote nem baixa de estoque | Etapa 9 ✅ |
-| 6.1 | Ficha da MP (INCI, CAS, FISPQ, fornecedores aprovados) e do lote recebido | `MateriaPrima` é `ItemBase` simples; recebimento já guarda NF/anexos/quarentena | Etapa 10 |
-| 6.2 | Ficha da embalagem + versão de arte | `Embalagem` simples, sem versão de arte | Etapa 10 |
+| 6.1 | Ficha da MP (INCI, CAS, FISPQ, fornecedores aprovados) e do lote recebido | `MateriaPrima` é `ItemBase` simples; recebimento já guarda NF/anexos/quarentena | Etapa 10 ✅ |
+| 6.2 | Ficha da embalagem + versão de arte | `Embalagem` simples, sem versão de arte | Etapa 10 ✅ |
 | 9 | Roteiro de aceite completo (14 passos) | — | Etapa 13 |
 
 **Observações complementares do cliente (18/07/2026):**
@@ -516,10 +516,40 @@ Abrir um pedido expedido e visualizar quais OPs e lotes atenderam cada item.
 
 ---
 
-## Etapa 10 — Fichas consolidadas e navegação por links (P2)
+## Etapa 10 — Fichas consolidadas e navegação por links (P2) ✅ CONCLUÍDA (22/07/2026)
 
 **Objetivo (PDF 3 e 6):** fluxo navegável nos dois sentidos:
 `Cliente → Pedido → Produto → Lote produzido → Dossiê → OP → Fórmula → Materiais → Lotes usados → Fornecedores`.
+
+> **Status:** implementada e testada (300 testes do projeto passando; os dois critérios
+> de aceite verificados na demo — abrir o cliente pelo pedido e chegar à MP pela OP com
+> lote, fornecedor, validade, análise, consumo e saldo).
+> - **Ficha do cliente**: `DocumentoCliente` (AFE/alvará/licença/contrato com validade e
+>   alerta de vencimento em 30 dias), `Cliente.responsavel_tecnico`, `Cliente.bloqueado` +
+>   `motivo_bloqueio`. Cliente bloqueado sai do seletor de novo pedido e é recusado no
+>   `PedidoForm.clean_cliente`; também impede emitir OP.
+> - **Ficha do produto**: `categoria`, `apresentacao`, `grau`, `registro_anvisa`,
+>   `situacao_regulatoria` (Regularizado/Isento/Em análise/Vencido), `bloqueado`.
+>   `Produto.motivo_impedimento_op()` bloqueia OP para produto inativo, bloqueado ou sem
+>   regularização (`OrdemProducaoForm.clean`). A ficha reúne fórmula vigente + versões,
+>   OPs, lotes, especificações, artes e clientes.
+> - **Ficha da MP**: INCI, CAS, especificação, condições de armazenamento, ficha técnica e
+>   FISPQ; `fornecedores_aprovados` (M2M). Sem lista definida não restringe; com lista, só
+>   lote daqueles fornecedores é consumido.
+> - **Ficha da embalagem**: capacidade, material, cor, fabricante, critérios de inspeção,
+>   `fornecedores_aprovados` e `versao_arte`. Rótulo com arte **obsoleta** bloqueia o
+>   consumo (`Embalagem.motivo_arte_invalida()`).
+> - Os bloqueios de fornecedor/arte entram no apontamento (`_impedimento_do_item` em
+>   `apontar_consumos`) e são liberáveis por **exceção justificada**, como na Etapa 5.
+> - **Ficha do lote** (`estoque:lote_detalhe`): origem (fornecedor, recebimento, NF, data),
+>   validade, situação, saldo por local, consumo em OPs, movimentações, análises e — para
+>   lote de produto — OP de origem e expedições/cliente de destino.
+> - **Navegação**: `get_absolute_url()` em Cliente, Produto, MateriaPrima, Embalagem e Lote
+>   alimenta os links cruzados nas telas de pedidos, ordens, estoque, qualidade, expedição
+>   e nas listas de cadastro. Novo `AcessoQualquerModuloMixin` libera a ficha para quem
+>   acessa qualquer módulo relacionado (a edição continua exigindo Cadastros).
+> - Pendências: seções de reclamações/devoluções (módulo inexistente) e o botão
+>   "Visualizar dossiê" na tabela de lotes, que depende da Etapa 12.
 
 ### Passos
 1. **Ficha do cliente** (PDF 3.1): dados cadastrais, contatos, responsável técnico, documentos sanitários (novo modelo `DocumentoCliente` com validade e **alerta de vencimento**), contratos, produtos, pedidos, lotes, reclamações/devoluções/pendências (seções placeholder onde o módulo ainda não existe). Campo `bloqueado`: cliente bloqueado impede novos pedidos ou exige autorização. Nome do cliente clicável em todas as telas (pedido, OP, dossiê).

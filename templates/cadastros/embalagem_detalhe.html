@@ -1,0 +1,186 @@
+{% extends "base.html" %}
+
+{% block title %}{{ embalagem.codigo }} · {{ embalagem.nome }}{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-12 col-xxl-11">
+
+        <nav class="app-breadcrumb" aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item">
+                    <a href="{% url 'cadastros:embalagem_lista' %}">
+                        <i class="bi bi-arrow-left-short" aria-hidden="true"></i>Embalagens
+                    </a>
+                </li>
+                <li class="breadcrumb-item active" aria-current="page">{{ embalagem.codigo }}</li>
+            </ol>
+        </nav>
+
+        <div class="page-header page-header-actions mb-4">
+            <div>
+                <span class="eyebrow"><i class="bi bi-bag me-1"></i>Embalagem</span>
+                <h1>{{ embalagem.nome }}</h1>
+                <p>
+                    <span class="identifier-cell">{{ embalagem.codigo }}</span>
+                    · {{ embalagem.get_tipo_display }}
+                    {% if embalagem.capacidade %}· {{ embalagem.capacidade }}{% endif %}
+                </p>
+            </div>
+            <div class="d-flex gap-2 align-items-center flex-wrap">
+                <span class="badge text-bg-light border fs-6">{{ embalagem.get_tipo_display }}</span>
+                {% if pode_editar %}
+                    <a href="{% url 'cadastros:embalagem_editar' embalagem.pk %}" class="btn btn-outline-primary">
+                        <i class="bi bi-pencil me-1"></i>Editar
+                    </a>
+                {% endif %}
+            </div>
+        </div>
+
+        {% if embalagem.motivo_arte_invalida %}
+            <div class="alert alert-danger" role="alert">
+                <i class="bi bi-exclamation-octagon me-1"></i>
+                {{ embalagem.motivo_arte_invalida }} — o consumo em OP fica bloqueado.
+            </div>
+        {% endif %}
+
+        <div class="row g-4">
+            <div class="col-12 col-lg-7">
+                <div class="card shadow-sm data-panel mb-4">
+                    <div class="card-body">
+                        <div class="section-heading">
+                            <div>
+                                <h2><i class="bi bi-upc-scan me-1 text-primary"></i>Lotes</h2>
+                                <p>Lotes recebidos com fornecedor, situação e saldo.</p>
+                            </div>
+                        </div>
+                        {% if lotes %}
+                            <div class="table-responsive">
+                                <table class="table align-middle mb-0">
+                                    <thead>
+                                        <tr>
+                                            <th>Lote interno</th>
+                                            <th>Fornecedor</th>
+                                            <th>Situação</th>
+                                            <th class="text-end">Saldo</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for lote in lotes %}
+                                            <tr>
+                                                <td>
+                                                    <a href="{% url 'estoque:lote_detalhe' lote.pk %}" class="text-decoration-none">
+                                                        {{ lote.codigo }}
+                                                    </a>
+                                                </td>
+                                                <td>{{ lote.fornecedor|default:"—" }}</td>
+                                                <td><span class="badge {{ lote.badge_situacao }}">{{ lote.get_situacao_display }}</span></td>
+                                                <td class="text-end">{{ lote.saldo_atual|floatformat:"-3" }}</td>
+                                            </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        {% else %}
+                            <p class="text-body-secondary mb-0">Nenhum lote recebido.</p>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <div class="card shadow-sm data-panel">
+                    <div class="card-body">
+                        <div class="section-heading">
+                            <div>
+                                <h2><i class="bi bi-search me-1 text-primary"></i>Inspeção no recebimento</h2>
+                            </div>
+                        </div>
+                        <p class="mb-0 small">
+                            {{ embalagem.inspecao|linebreaksbr|default:"Sem critérios de inspeção cadastrados." }}
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-12 col-lg-5">
+                <div class="card shadow-sm mb-4">
+                    <div class="card-body">
+                        <div class="section-heading">
+                            <div><h2><i class="bi bi-card-text me-1 text-primary"></i>Dados</h2></div>
+                        </div>
+                        <dl class="row mb-0 small">
+                            <dt class="col-5">Tipo</dt>
+                            <dd class="col-7">{{ embalagem.get_tipo_display }}</dd>
+                            <dt class="col-5">Capacidade</dt>
+                            <dd class="col-7">{{ embalagem.capacidade|default:"—" }}</dd>
+                            <dt class="col-5">Material</dt>
+                            <dd class="col-7">{{ embalagem.material|default:"—" }}</dd>
+                            <dt class="col-5">Cor</dt>
+                            <dd class="col-7">{{ embalagem.cor|default:"—" }}</dd>
+                            <dt class="col-5">Fabricante</dt>
+                            <dd class="col-7">{{ embalagem.fabricante|default:"—" }}</dd>
+                            <dt class="col-5">Unidade</dt>
+                            <dd class="col-7">{{ embalagem.get_unidade_display }}</dd>
+                            <dt class="col-5">Saldo total</dt>
+                            <dd class="col-7 fw-semibold">{{ saldo_total|floatformat:"-3" }}</dd>
+                        </dl>
+                    </div>
+                </div>
+
+                <div class="card shadow-sm mb-4">
+                    <div class="card-body">
+                        <div class="section-heading">
+                            <div><h2><i class="bi bi-palette me-1 text-primary"></i>Versão de arte</h2></div>
+                        </div>
+                        {% if embalagem.versao_arte %}
+                            <dl class="row mb-0 small">
+                                <dt class="col-5">Produto</dt>
+                                <dd class="col-7">
+                                    <a href="{% url 'cadastros:produto_detalhe' embalagem.versao_arte.produto.pk %}" class="text-decoration-none">
+                                        {{ embalagem.versao_arte.produto }}
+                                    </a>
+                                </dd>
+                                <dt class="col-5">Versão</dt>
+                                <dd class="col-7">{{ embalagem.versao_arte.versao }}</dd>
+                                <dt class="col-5">Aprovação</dt>
+                                <dd class="col-7">{{ embalagem.versao_arte.data_aprovacao|date:"d/m/Y"|default:"—" }}</dd>
+                                <dt class="col-5">Situação</dt>
+                                <dd class="col-7">
+                                    <span class="badge {% if embalagem.versao_arte.aprovada %}text-bg-success{% else %}text-bg-danger{% endif %}">
+                                        {{ embalagem.versao_arte.get_status_display }}
+                                    </span>
+                                </dd>
+                            </dl>
+                        {% else %}
+                            <p class="text-body-secondary small mb-0">
+                                Sem arte vinculada{% if embalagem.tipo != "ROTULO" %} (só rótulos exigem){% endif %}.
+                            </p>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <div class="card shadow-sm">
+                    <div class="card-body">
+                        <div class="section-heading">
+                            <div><h2><i class="bi bi-patch-check me-1 text-primary"></i>Fornecedores aprovados</h2></div>
+                        </div>
+                        {% if fornecedores_aprovados %}
+                            <ul class="list-unstyled small mb-2">
+                                {% for fornecedor in fornecedores_aprovados %}
+                                    <li class="py-1"><i class="bi bi-check2 text-success me-1"></i>{{ fornecedor }}</li>
+                                {% endfor %}
+                            </ul>
+                            <p class="text-body-secondary small mb-0">
+                                Só lotes destes fornecedores podem ser consumidos.
+                            </p>
+                        {% else %}
+                            <p class="text-body-secondary small mb-0">
+                                Nenhum fornecedor aprovado definido — consumo não restrito.
+                            </p>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

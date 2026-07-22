@@ -4,7 +4,12 @@
 {% block rotulo_novo %}Novo produto{% endblock %}
 
 {% block celulas %}
-    <td>{{ objeto.codigo }}</td>
+    <td>
+        <a href="{{ objeto.get_absolute_url }}" class="text-decoration-none">{{ objeto.codigo }}</a>
+        {% if objeto.bloqueado %}
+            <span class="badge text-bg-danger">bloqueado</span>
+        {% endif %}
+    </td>
     <td>{{ objeto.nome }}</td>
     <td>{{ objeto.get_unidade_display }}</td>
     <td>{{ objeto.estoque_minimo|floatformat:"-3" }}</td>

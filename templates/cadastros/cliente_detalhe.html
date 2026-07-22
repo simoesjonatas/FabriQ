@@ -1,0 +1,271 @@
+{% extends "base.html" %}
+
+{% block title %}{{ cliente }}{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-12 col-xxl-11">
+
+        <nav class="app-breadcrumb" aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item">
+                    <a href="{% url 'cadastros:cliente_lista' %}">
+                        <i class="bi bi-arrow-left-short" aria-hidden="true"></i>Clientes
+                    </a>
+                </li>
+                <li class="breadcrumb-item active" aria-current="page">{{ cliente }}</li>
+            </ol>
+        </nav>
+
+        <div class="page-header page-header-actions mb-4">
+            <div>
+                <span class="eyebrow"><i class="bi bi-building me-1"></i>Cliente</span>
+                <h1>{{ cliente.razao_social }}</h1>
+                <p>
+                    {% if cliente.nome_fantasia %}{{ cliente.nome_fantasia }} · {% endif %}
+                    {{ cliente.documento_formatado|default:"sem CNPJ/CPF" }}
+                </p>
+            </div>
+            <div class="d-flex gap-2 align-items-center flex-wrap">
+                {% if cliente.bloqueado %}
+                    <span class="badge text-bg-danger fs-6"><i class="bi bi-lock me-1"></i>Bloqueado</span>
+                {% elif not cliente.ativo %}
+                    <span class="badge text-bg-secondary fs-6">Inativo</span>
+                {% else %}
+                    <span class="badge text-bg-success fs-6">Ativo</span>
+                {% endif %}
+                {% if pode_editar %}
+                    <a href="{% url 'cadastros:cliente_editar' cliente.pk %}" class="btn btn-outline-primary">
+                        <i class="bi bi-pencil me-1"></i>Editar
+                    </a>
+                {% endif %}
+            </div>
+        </div>
+
+        {% if cliente.bloqueado %}
+            <div class="alert alert-danger" role="alert">
+                <i class="bi bi-lock me-1"></i>
+                Cliente bloqueado — não pode receber novos pedidos.
+                {% if cliente.motivo_bloqueio %}<strong>{{ cliente.motivo_bloqueio }}</strong>{% endif %}
+            </div>
+        {% endif %}
+        {% if cliente.documentos_vencidos or cliente.documentos_a_vencer %}
+            <div class="alert alert-warning" role="alert">
+                <i class="bi bi-exclamation-triangle me-1"></i>
+                {% if cliente.documentos_vencidos %}
+                    {{ cliente.documentos_vencidos|length }} documento(s) vencido(s).
+                {% endif %}
+                {% if cliente.documentos_a_vencer %}
+                    {{ cliente.documentos_a_vencer|length }} documento(s) a vencer em 30 dias.
+                {% endif %}
+            </div>
+        {% endif %}
+
+        <div class="row g-4">
+            <div class="col-12 col-lg-7">
+                <div class="card shadow-sm data-panel mb-4">
+                    <div class="card-body">
+                        <div class="section-heading">
+                            <div>
+                                <h2><i class="bi bi-shield-check me-1 text-primary"></i>Documentos sanitários</h2>
+                                <p>AFE, alvará, licenças e contratos com controle de validade.</p>
+                            </div>
+                        </div>
+                        {% if documentos %}
+                            <div class="table-responsive">
+                                <table class="table align-middle mb-0">
+                                    <thead>
+                                        <tr>
+                                            <th>Tipo / número</th>
+                                            <th>Órgão</th>
+                                            <th>Validade</th>
+                                            {% if pode_editar %}<th></th>{% endif %}
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for doc in documentos %}
+                                            <tr>
+                                                <td>
+                                                    {{ doc.get_tipo_display }}
+                                                    {% if doc.numero %}<span class="text-body-secondary">· {{ doc.numero }}</span>{% endif %}
+                                                    {% if doc.arquivo %}
+                                                        <a href="{{ doc.arquivo.url }}" target="_blank" rel="noopener" class="ms-1"><i class="bi bi-paperclip"></i></a>
+                                                    {% endif %}
+                                                </td>
+                                                <td>{{ doc.orgao_emissor|default:"—" }}</td>
+                                                <td>
+                                                    {% if doc.validade %}
+                                                        <span class="badge {{ doc.badge_validade }}">{{ doc.validade|date:"d/m/Y" }}</span>
+                                                    {% else %}
+                                                        <span class="text-body-secondary">sem validade</span>
+                                                    {% endif %}
+                                                </td>
+                                                {% if pode_editar %}
+                                                    <td class="text-end">
+                                                        <form method="post" action="{% url 'cadastros:cliente_documento_remover' doc.pk %}"
+                                                              onsubmit="return confirm('Remover este documento?');">
+                                                            {% csrf_token %}
+                                                            <button type="submit" class="btn btn-sm btn-outline-danger" title="Remover">
+                                                                <i class="bi bi-trash"></i>
+                                                            </button>
+                                                        </form>
+                                                    </td>
+                                                {% endif %}
+                                            </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        {% else %}
+                            <p class="text-body-secondary mb-0">Nenhum documento cadastrado.</p>
+                        {% endif %}
+
+                        {% if pode_editar %}
+                            <hr>
+                            <form method="post" action="{% url 'cadastros:cliente_documento_criar' cliente.pk %}"
+                                  enctype="multipart/form-data">
+                                {% csrf_token %}
+                                <div class="row g-2 align-items-end">
+                                    <div class="col-12 col-md-4">{% include "includes/campo.html" with campo=documento_form.tipo %}</div>
+                                    <div class="col-12 col-md-4">{% include "includes/campo.html" with campo=documento_form.numero %}</div>
+                                    <div class="col-6 col-md-4">{% include "includes/campo.html" with campo=documento_form.validade %}</div>
+                                    <div class="col-12 col-md-5">{% include "includes/campo.html" with campo=documento_form.orgao_emissor %}</div>
+                                    <div class="col-12 col-md-4">{% include "includes/campo.html" with campo=documento_form.arquivo %}</div>
+                                    <div class="col-12 col-md-3 d-grid">
+                                        <button type="submit" class="btn btn-outline-primary">
+                                            <i class="bi bi-plus-lg me-1"></i>Adicionar
+                                        </button>
+                                    </div>
+                                </div>
+                            </form>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <div class="card shadow-sm data-panel mb-4">
+                    <div class="card-body">
+                        <div class="section-heading">
+                            <div>
+                                <h2><i class="bi bi-receipt me-1 text-primary"></i>Pedidos</h2>
+                                <p>Histórico de pedidos do cliente.</p>
+                            </div>
+                        </div>
+                        {% if pedidos %}
+                            <ul class="list-group list-group-flush">
+                                {% for pedido in pedidos %}
+                                    <li class="list-group-item px-0 d-flex justify-content-between align-items-center gap-3 flex-wrap">
+                                        <a href="{% url 'pedidos:detalhe' pedido.pk %}" class="text-decoration-none">{{ pedido.numero }}</a>
+                                        <span class="d-flex gap-2 align-items-center">
+                                            <span class="text-body-secondary small">{{ pedido.prazo|date:"d/m/Y" }}</span>
+                                            <span class="badge {{ pedido.badge_status }}">{{ pedido.get_status_display }}</span>
+                                        </span>
+                                    </li>
+                                {% endfor %}
+                            </ul>
+                        {% else %}
+                            <p class="text-body-secondary mb-0">Nenhum pedido registrado.</p>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <div class="card shadow-sm data-panel">
+                    <div class="card-body">
+                        <div class="section-heading">
+                            <div>
+                                <h2><i class="bi bi-box-seam me-1 text-primary"></i>Produtos e lotes</h2>
+                                <p>Produtos já pedidos e lotes produzidos para este cliente.</p>
+                            </div>
+                        </div>
+                        {% if produtos %}
+                            <div class="d-flex flex-wrap gap-2 mb-3">
+                                {% for produto in produtos %}
+                                    <a href="{% url 'cadastros:produto_detalhe' produto.pk %}" class="badge text-bg-light border text-decoration-none">{{ produto.codigo }} · {{ produto.nome }}</a>
+                                {% endfor %}
+                            </div>
+                        {% else %}
+                            <p class="text-body-secondary">Nenhum produto pedido ainda.</p>
+                        {% endif %}
+                        {% if lotes %}
+                            <ul class="list-unstyled small mb-0">
+                                {% for lote in lotes %}
+                                    <li class="d-flex flex-wrap gap-2 align-items-center py-1">
+                                        <a href="{% url 'estoque:lote_detalhe' lote.pk %}" class="text-decoration-none">{{ lote.codigo }}</a>
+                                        <span class="text-body-secondary">{{ lote.produto.nome }}</span>
+                                        <span class="badge {{ lote.badge_situacao }}">{{ lote.get_situacao_display }}</span>
+                                    </li>
+                                {% endfor %}
+                            </ul>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-12 col-lg-5">
+                <div class="card shadow-sm mb-4">
+                    <div class="card-body">
+                        <div class="section-heading">
+                            <div><h2><i class="bi bi-card-text me-1 text-primary"></i>Dados</h2></div>
+                        </div>
+                        <dl class="row mb-0 small">
+                            <dt class="col-5">Razão social</dt>
+                            <dd class="col-7">{{ cliente.razao_social }}</dd>
+                            <dt class="col-5">Nome fantasia</dt>
+                            <dd class="col-7">{{ cliente.nome_fantasia|default:"—" }}</dd>
+                            <dt class="col-5">CNPJ/CPF</dt>
+                            <dd class="col-7">{{ cliente.documento_formatado|default:"—" }}</dd>
+                            <dt class="col-5">E-mail</dt>
+                            <dd class="col-7">{{ cliente.email|default:"—" }}</dd>
+                            <dt class="col-5">Responsável técnico</dt>
+                            <dd class="col-7">{{ cliente.responsavel_tecnico|default:"—" }}</dd>
+                            <dt class="col-5">Observações</dt>
+                            <dd class="col-7">{{ cliente.observacoes|linebreaksbr|default:"—" }}</dd>
+                        </dl>
+                    </div>
+                </div>
+
+                <div class="card shadow-sm mb-4">
+                    <div class="card-body">
+                        <div class="section-heading">
+                            <div><h2><i class="bi bi-telephone me-1 text-primary"></i>Contatos</h2></div>
+                        </div>
+                        {% for telefone in cliente.telefones.all %}
+                            {% if telefone.ativo %}
+                                <div class="small mb-1">
+                                    <i class="bi bi-telephone-fill text-body-secondary me-1"></i>{{ telefone.telefone }}
+                                    {% if telefone.contato %}· {{ telefone.contato }}{% endif %}
+                                    {% if telefone.principal %}<span class="badge text-bg-light border">principal</span>{% endif %}
+                                </div>
+                            {% endif %}
+                        {% empty %}
+                            <p class="text-body-secondary small mb-2">Sem telefones.</p>
+                        {% endfor %}
+                        <hr class="my-2">
+                        {% for endereco in cliente.enderecos.all %}
+                            {% if endereco.ativo %}
+                                <div class="small mb-1">
+                                    <i class="bi bi-geo-alt-fill text-body-secondary me-1"></i>{{ endereco.resumo }}
+                                    {% if endereco.principal %}<span class="badge text-bg-light border">principal</span>{% endif %}
+                                </div>
+                            {% endif %}
+                        {% empty %}
+                            <p class="text-body-secondary small mb-0">Sem endereços.</p>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <div class="card shadow-sm">
+                    <div class="card-body">
+                        <div class="section-heading">
+                            <div><h2><i class="bi bi-chat-left-dots me-1 text-primary"></i>Reclamações e devoluções</h2></div>
+                        </div>
+                        <p class="text-body-secondary small mb-0">
+                            Módulo de reclamações e devoluções ainda não implementado — será
+                            vinculado aqui quando disponível.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
