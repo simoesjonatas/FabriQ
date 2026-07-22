@@ -38,6 +38,11 @@
                         <i class="bi bi-pencil me-1"></i>Editar
                     </a>
                 {% endif %}
+                {% if pode_expedir %}
+                    <a href="{% url 'expedicao:criar' pedido.pk %}" class="btn btn-primary">
+                        <i class="bi bi-truck me-1"></i>Expedir
+                    </a>
+                {% endif %}
             </div>
         </div>
 
@@ -47,34 +52,88 @@
                     <div class="card-body">
                         <div class="section-heading">
                             <div>
-                                <h2><i class="bi bi-box-seam me-1 text-primary"></i>Produtos</h2>
-                                <p>Itens e quantidades do pedido.</p>
+                                <h2><i class="bi bi-box-seam me-1 text-primary"></i>Produtos e atendimento</h2>
+                                <p>Por item: quantidade pedida, produzida, aprovada e expedida, com as OPs e os lotes que atenderam.</p>
                             </div>
                         </div>
-                        <div class="table-responsive">
-                            <table class="table align-middle mb-0">
-                                <thead>
-                                    <tr>
-                                        <th>Código</th>
-                                        <th>Produto</th>
-                                        <th class="text-end">Quantidade</th>
-                                        <th>Unidade</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {% for item in pedido.itens.all %}
-                                        <tr>
-                                            <td class="identifier-cell">{{ item.produto.codigo }}</td>
-                                            <td>{{ item.produto.nome }}</td>
-                                            <td class="text-end">{{ item.quantidade|floatformat:"-3" }}</td>
-                                            <td>{{ item.produto.get_unidade_display }}</td>
-                                        </tr>
-                                    {% endfor %}
-                                </tbody>
-                            </table>
-                        </div>
+                        {% for linha in resumo_itens %}
+                            <div class="{% if not forloop.first %}border-top pt-3 mt-3{% endif %}">
+                                <div class="d-flex justify-content-between align-items-start gap-2 flex-wrap mb-2">
+                                    <div>
+                                        <span class="identifier-cell">{{ linha.item.produto.codigo }}</span>
+                                        <span class="fw-semibold">{{ linha.item.produto.nome }}</span>
+                                    </div>
+                                    <span class="text-body-secondary small">
+                                        pedida {{ linha.pedida|floatformat:"-3" }} {{ linha.item.produto.get_unidade_display|lower }}
+                                    </span>
+                                </div>
+                                <div class="d-flex flex-wrap gap-2 mb-2">
+                                    <span class="badge text-bg-light border">Produzida {{ linha.produzida|floatformat:"-3" }}</span>
+                                    <span class="badge text-bg-light border">Aprovada {{ linha.aprovada|floatformat:"-3" }}</span>
+                                    <span class="badge {% if linha.expedida %}text-bg-success{% else %}text-bg-light border{% endif %}">Expedida {{ linha.expedida|floatformat:"-3" }}</span>
+                                    {% if linha.saldo > 0 %}
+                                        <span class="badge text-bg-warning">Saldo {{ linha.saldo|floatformat:"-3" }}</span>
+                                    {% else %}
+                                        <span class="badge text-bg-success"><i class="bi bi-check2 me-1"></i>Atendido</span>
+                                    {% endif %}
+                                </div>
+                                {% if linha.lotes %}
+                                    <ul class="list-unstyled small mb-0">
+                                        {% for par in linha.lotes %}
+                                            <li class="d-flex flex-wrap gap-2 align-items-center py-1">
+                                                <a href="{{ par.ordem.get_absolute_url }}" class="text-decoration-none">{{ par.ordem.numero }}</a>
+                                                {% if par.lote %}
+                                                    <i class="bi bi-arrow-right-short text-body-secondary"></i>
+                                                    <span>lote {{ par.lote.codigo }}</span>
+                                                    <span class="badge {{ par.lote.badge_situacao }}">{{ par.lote.get_situacao_display }}</span>
+                                                {% else %}
+                                                    <span class="text-body-secondary">— sem lote reservado</span>
+                                                {% endif %}
+                                            </li>
+                                        {% endfor %}
+                                    </ul>
+                                {% else %}
+                                    <p class="text-body-secondary small mb-0">Nenhuma OP para este item ainda.</p>
+                                {% endif %}
+                            </div>
+                        {% endfor %}
                     </div>
                 </div>
+
+                {% if expedicoes %}
+                    <div class="card shadow-sm data-panel mb-4">
+                        <div class="card-body">
+                            <div class="section-heading">
+                                <div>
+                                    <h2><i class="bi bi-truck me-1 text-primary"></i>Expedições</h2>
+                                    <p>Saídas registradas com lote, nota fiscal e transportadora.</p>
+                                </div>
+                            </div>
+                            {% for expedicao in expedicoes %}
+                                <div class="{% if not forloop.first %}border-top pt-3 mt-3{% endif %}">
+                                    <div class="d-flex justify-content-between align-items-start gap-2 flex-wrap mb-2">
+                                        <a href="{{ expedicao.get_absolute_url }}" class="fw-semibold text-decoration-none">{{ expedicao.numero }}</a>
+                                        <span class="text-body-secondary small">
+                                            {{ expedicao.data|date:"d/m/Y" }}
+                                            {% if expedicao.nota_fiscal %}· NF {{ expedicao.nota_fiscal }}{% endif %}
+                                            {% if expedicao.transportadora %}· {{ expedicao.transportadora }}{% endif %}
+                                        </span>
+                                    </div>
+                                    <ul class="list-unstyled small mb-0">
+                                        {% for item in expedicao.itens.all %}
+                                            <li class="d-flex flex-wrap gap-2 align-items-center py-1">
+                                                <span class="identifier-cell">{{ item.item_pedido.produto.codigo }}</span>
+                                                <i class="bi bi-arrow-right-short text-body-secondary"></i>
+                                                <span>lote {{ item.lote.codigo }}</span>
+                                                <span class="text-body-secondary">× {{ item.quantidade|floatformat:"-3" }}</span>
+                                            </li>
+                                        {% endfor %}
+                                    </ul>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                {% endif %}
 
                 <div class="card shadow-sm">
                     <div class="card-body">

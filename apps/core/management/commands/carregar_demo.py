@@ -48,6 +48,7 @@ from apps.estoque.models import (
     SituacaoLote,
     TipoMovimentacao,
 )
+from apps.expedicao.models import registrar_expedicao
 from apps.ordens.models import (
     ComponenteFormula,
     Formula,
@@ -656,22 +657,41 @@ class Command(BaseCommand):
             valor_numerico=Decimal("6.1"),
         )
 
-        # 7) Expedido: ciclo completo com saída de expedição
+        # 7) Expedido: ciclo completo com expedição vinculada ao lote (Etapa 9)
+        rita = self.usuarios["rita.expedicao"]
         p7 = novo_pedido(20, "Aroma Sul", [("PA-001", "500")], -5)
         avancar(p7, StatusPedido.EM_ANALISE, StatusPedido.PROGRAMADO)
         op7 = self._op_liberada(p7.itens.first(), "EQ-ENV-01", marcos, dias=7)
         self._produzir(op7, marcos, "498", "2", "PA1-2026-030", dias_atras=7)
         avancar(p7, StatusPedido.CQ, StatusPedido.FINALIZADO, usuario=marcos)
-        self._mover(
-            TipoMovimentacao.SAIDA, produto["PA-001"], "498",
-            origem=self.locais["Produtos Acabados"],
-            lote=self.lotes["PA1-2026-030"],
-            motivo=f"Expedição {p7.numero}",
-            documento=p7.numero,
-            usuario=self.usuarios["rita.expedicao"],
-            dias_atras=5,
+        # CQ final: lote aprovado e liberado antes da expedição
+        lote_pa1 = self.lotes["PA1-2026-030"]
+        analise_pa1 = Analise.objects.create(
+            lote=lote_pa1,
+            status=StatusAnalise.APROVADA,
+            decidido_por=self.usuarios["paula.qualidade"],
+            decidido_em=self.agora,
+            parecer="Lote aprovado para expedição.",
+            criado_por=self.usuarios["paula.qualidade"],
+            atualizado_por=self.usuarios["paula.qualidade"],
         )
-        avancar(p7, StatusPedido.EXPEDIDO, usuario=self.usuarios["rita.expedicao"])
+        ResultadoAnalise.objects.create(
+            analise=analise_pa1,
+            tipo=TipoAnalise.objects.get(nome="pH"),
+            valor_numerico=Decimal("6.2"),
+        )
+        lote_pa1.situacao = SituacaoLote.APROVADO
+        lote_pa1.save(update_fields=["situacao"])
+        registrar_expedicao(
+            pedido=p7,
+            data=self.hoje - timedelta(days=5),
+            usuario=rita,
+            linhas=[(p7.itens.first(), lote_pa1, Decimal("498"))],
+            nota_fiscal="NF-2026-1042",
+            transportadora="Transportadora Sul Rápido",
+            conferente=rita,
+        )
+        avancar(p7, StatusPedido.EXPEDIDO, usuario=rita)
 
         # 8) Cancelado com motivo
         p8 = novo_pedido(8, "Natural do Vale", [("PA-005", "250")], 12)

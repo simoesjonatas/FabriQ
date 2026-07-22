@@ -160,6 +160,13 @@ class Pedido(ModeloAuditado):
         if novo_status == StatusPedido.CANCELADO and not motivo.strip():
             raise TransicaoInvalida("Informe o motivo do cancelamento.")
 
+        # Etapa 9: pedido só é expedido com vínculo a lote liberado.
+        if novo_status == StatusPedido.EXPEDIDO and not self.expedicoes.exists():
+            raise TransicaoInvalida(
+                "Registre ao menos uma expedição com lote liberado antes "
+                "de marcar o pedido como expedido."
+            )
+
         status_anterior = self.status
         self.status = novo_status
         if novo_status == StatusPedido.CANCELADO:

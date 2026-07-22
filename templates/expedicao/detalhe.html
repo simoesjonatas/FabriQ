@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+
+{% block title %}{{ expedicao.numero }}{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-12 col-xl-10">
+
+        <nav class="app-breadcrumb" aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item">
+                    <a href="{% url 'expedicao:lista' %}">
+                        <i class="bi bi-arrow-left-short" aria-hidden="true"></i>Expedição
+                    </a>
+                </li>
+                <li class="breadcrumb-item active" aria-current="page">{{ expedicao.numero }}</li>
+            </ol>
+        </nav>
+
+        <div class="page-header page-header-actions mb-4">
+            <div>
+                <span class="eyebrow"><i class="bi bi-truck me-1"></i>Expedição</span>
+                <h1>{{ expedicao.numero }}</h1>
+                <p>
+                    <a href="{% url 'pedidos:detalhe' expedicao.pedido.pk %}" class="text-decoration-none">
+                        {{ expedicao.pedido.numero }}
+                    </a>
+                    · {{ expedicao.pedido.cliente }} · {{ expedicao.data|date:"d/m/Y" }}
+                </p>
+            </div>
+        </div>
+
+        <div class="row g-4">
+            <div class="col-12 col-lg-8">
+                <div class="card shadow-sm data-panel">
+                    <div class="card-body">
+                        <div class="section-heading">
+                            <div>
+                                <h2><i class="bi bi-box-seam me-1 text-primary"></i>Itens expedidos</h2>
+                                <p>Cada linha é a baixa de um lote liberado do produto acabado.</p>
+                            </div>
+                        </div>
+                        <div class="table-responsive">
+                            <table class="table align-middle mb-0">
+                                <thead>
+                                    <tr>
+                                        <th>Produto</th>
+                                        <th>Lote</th>
+                                        <th class="text-end">Quantidade</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for item in expedicao.itens.all %}
+                                        <tr>
+                                            <td>
+                                                <span class="identifier-cell">{{ item.item_pedido.produto.codigo }}</span>
+                                                · {{ item.item_pedido.produto.nome }}
+                                            </td>
+                                            <td>
+                                                {{ item.lote.codigo }}
+                                                <span class="badge {{ item.lote.badge_situacao }}">{{ item.lote.get_situacao_display }}</span>
+                                            </td>
+                                            <td class="text-end">{{ item.quantidade|floatformat:"-3" }}</td>
+                                        </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-12 col-lg-4">
+                <div class="card shadow-sm">
+                    <div class="card-body">
+                        <div class="section-heading">
+                            <div>
+                                <h2><i class="bi bi-card-text me-1 text-primary"></i>Dados da expedição</h2>
+                            </div>
+                        </div>
+                        <dl class="row mb-0 small">
+                            <dt class="col-5">Nota fiscal</dt>
+                            <dd class="col-7">{{ expedicao.nota_fiscal|default:"—" }}</dd>
+                            <dt class="col-5">Transportadora</dt>
+                            <dd class="col-7">{{ expedicao.transportadora|default:"—" }}</dd>
+                            <dt class="col-5">Conferente</dt>
+                            <dd class="col-7">{{ expedicao.conferente|default:"—" }}</dd>
+                            <dt class="col-5">Responsável</dt>
+                            <dd class="col-7">{{ expedicao.responsavel|default:"—" }}</dd>
+                            <dt class="col-5">Observações</dt>
+                            <dd class="col-7">{{ expedicao.observacoes|linebreaksbr|default:"—" }}</dd>
+                            <dt class="col-5">Registrada</dt>
+                            <dd class="col-7">
+                                {{ expedicao.criado_em|date:"d/m/Y H:i" }}
+                                {% if expedicao.criado_por %}por {{ expedicao.criado_por }}{% endif %}
+                            </dd>
+                        </dl>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        {% include "includes/trilha_auditoria.html" with registros=registros_auditoria %}
+    </div>
+</div>
+{% endblock %}

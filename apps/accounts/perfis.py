@@ -86,6 +86,13 @@ MODULOS = {
         "url_name": "producao:fila",
         "perfis": {PRODUCAO, PCP, DIRETORIA},
     },
+    "expedicao": {
+        "titulo": "Expedição",
+        "descricao": "Saída de produto acabado por lote liberado, com NF e transportadora",
+        "icone": "bi-truck",
+        "url_name": "expedicao:lista",
+        "perfis": {EXPEDICAO, PCP, DIRETORIA},
+    },
     "cadastros": {
         "titulo": "Cadastros",
         "descricao": (

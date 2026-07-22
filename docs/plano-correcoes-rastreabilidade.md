@@ -30,7 +30,7 @@
 | 5.9 | Desvios com decisão da Qualidade; OP não encerra com desvio pendente | `Ocorrencia` é texto livre, sem fluxo de decisão | Etapa 7 |
 | 5.10 | CQ final obrigatório antes de expedir; contra-análise | `Analise` existe sobre `Lote`, mas nada impede expedir sem CQ | Etapa 8 |
 | 5.11 | Assinaturas/aprovações por fase, com perfil | Só `liberado_por` na OP e `decidido_por` na análise | Etapa 8 |
-| 3.2 / 7.2 | Expedição vinculada a lote liberado; expedição parcial | Expedição é só transição de status do pedido (`FINALIZADO → EXPEDIDO`), sem vínculo com lote nem baixa de estoque | Etapa 9 |
+| 3.2 / 7.2 | Expedição vinculada a lote liberado; expedição parcial | Expedição é só transição de status do pedido (`FINALIZADO → EXPEDIDO`), sem vínculo com lote nem baixa de estoque | Etapa 9 ✅ |
 | 6.1 | Ficha da MP (INCI, CAS, FISPQ, fornecedores aprovados) e do lote recebido | `MateriaPrima` é `ItemBase` simples; recebimento já guarda NF/anexos/quarentena | Etapa 10 |
 | 6.2 | Ficha da embalagem + versão de arte | `Embalagem` simples, sem versão de arte | Etapa 10 |
 | 9 | Roteiro de aceite completo (14 passos) | — | Etapa 13 |
@@ -480,9 +480,24 @@ Tentar selecionar um lote vencido ou em quarentena e confirmar que o sistema imp
 
 ---
 
-## Etapa 9 — Expedição vinculada a lotes (P1 para o fluxo, P2 na origem)
+## Etapa 9 — Expedição vinculada a lotes (P1 para o fluxo, P2 na origem) ✅ CONCLUÍDA (22/07/2026)
 
 **Objetivo (PDF 3.2 e 7.2):** pedido só é expedido com vínculo a lote liberado; hoje `FINALIZADO → EXPEDIDO` é uma simples transição de status sem lote nem baixa de estoque.
+
+> **Status:** implementada e testada (268 testes do projeto passando; critério de aceite
+> verificado na demo — abrir pedido expedido e ver quais OPs e lotes atenderam cada item).
+> - Novo app `apps/expedicao` (`Expedicao`, `ItemExpedicao`) + serviço `registrar_expedicao`:
+>   cada linha valida que o lote está `APROVADO` (`pode_ser_expedido`), é do produto do item
+>   e tem saldo; gera `Movimentacao` de SAÍDA do produto acabado e passa o lote a `EXPEDIDO`.
+> - `Pedido.transicionar` bloqueia `EXPEDIDO` sem ao menos uma `Expedicao` registrada
+>   (não é mais uma transição de status "seca").
+> - Resumo por item (`apps/expedicao/resumo.py`): pedida / produzida / aprovada / expedida /
+>   saldo, com OPs e lotes que atenderam — usado no detalhe do pedido e na tela de expedição.
+>   Expedição **parcial** mantém saldo pendente (verificado: 200 de 297 → saldo 100).
+> - Telas: lista/detalhe de expedição, formulário por lote aprovado, botão "Expedir" e blocos
+>   "Produtos e atendimento" + "Expedições" (NF, transportadora, lote) no detalhe do pedido.
+> - Demo: pedido `PED-00007` fica expedido via `registrar_expedicao` (NF + transportadora);
+>   `PED-00009` fica finalizado com lote aprovado, pronto para expedir.
 
 ### Passos
 1. Novo app `apps/expedicao` com `Expedicao` e `ItemExpedicao`:

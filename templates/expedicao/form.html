@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+
+{% block title %}Expedir {{ pedido.numero }}{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-12 col-xxl-10">
+
+        <nav class="app-breadcrumb" aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item">
+                    <a href="{% url 'expedicao:lista' %}">
+                        <i class="bi bi-arrow-left-short" aria-hidden="true"></i>Expedição
+                    </a>
+                </li>
+                <li class="breadcrumb-item active" aria-current="page">Expedir {{ pedido.numero }}</li>
+            </ol>
+        </nav>
+
+        <div class="page-header mb-4">
+            <div>
+                <span class="eyebrow"><i class="bi bi-truck me-1"></i>Nova expedição</span>
+                <h1>Expedir {{ pedido.numero }}</h1>
+                <p>{{ pedido.cliente }} — selecione os lotes aprovados e as quantidades. Só lotes liberados pelo CQ.</p>
+            </div>
+        </div>
+
+        {% if form.non_field_errors %}
+            <div class="alert alert-danger" role="alert">
+                {% for erro in form.non_field_errors %}<div>{{ erro }}</div>{% endfor %}
+            </div>
+        {% endif %}
+
+        <form method="post">
+            {% csrf_token %}
+
+            <div class="card shadow-sm form-panel mb-4">
+                <div class="card-body">
+                    <h2 class="h6 mb-3"><i class="bi bi-receipt me-1 text-primary"></i>Dados da expedição</h2>
+                    <div class="row g-3">
+                        <div class="col-12 col-md-3">{% include "includes/campo.html" with campo=form.data %}</div>
+                        <div class="col-12 col-md-3">{% include "includes/campo.html" with campo=form.nota_fiscal %}</div>
+                        <div class="col-12 col-md-3">{% include "includes/campo.html" with campo=form.transportadora %}</div>
+                        <div class="col-12 col-md-3">{% include "includes/campo.html" with campo=form.conferente %}</div>
+                        <div class="col-12">{% include "includes/campo.html" with campo=form.observacoes %}</div>
+                    </div>
+                </div>
+            </div>
+
+            {% for bloco in blocos %}
+                <div class="card shadow-sm data-panel mb-3">
+                    <div class="card-body">
+                        <div class="section-heading">
+                            <div>
+                                <h2><i class="bi bi-box-seam me-1 text-primary"></i>{{ bloco.item.produto.codigo }} · {{ bloco.item.produto.nome }}</h2>
+                                <p>
+                                    Pedida {{ bloco.pedida|floatformat:"-3" }} ·
+                                    produzida {{ bloco.produzida|floatformat:"-3" }} ·
+                                    aprovada {{ bloco.aprovada|floatformat:"-3" }} ·
+                                    já expedida {{ bloco.expedida|floatformat:"-3" }} ·
+                                    <strong>saldo {{ bloco.saldo|floatformat:"-3" }}</strong>
+                                </p>
+                            </div>
+                        </div>
+                        {% if bloco.lotes_aprovados %}
+                            <div class="table-responsive">
+                                <table class="table align-middle mb-0">
+                                    <thead>
+                                        <tr>
+                                            <th>Lote aprovado</th>
+                                            <th class="text-end">Disponível</th>
+                                            <th class="text-end" style="width: 160px;">Expedir</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for lote in bloco.lotes_aprovados %}
+                                            <tr>
+                                                <td>
+                                                    {{ lote.codigo }}
+                                                    <span class="badge {{ lote.badge_situacao }}">{{ lote.get_situacao_display }}</span>
+                                                </td>
+                                                <td class="text-end">{{ lote.saldo_disponivel|floatformat:"-3" }}</td>
+                                                <td class="text-end">
+                                                    <input type="number" step="any" min="0"
+                                                           class="form-control form-control-sm text-end"
+                                                           name="qtd-{{ bloco.item.pk }}-{{ lote.pk }}"
+                                                           value="0" aria-label="Quantidade do lote {{ lote.codigo }}">
+                                                </td>
+                                            </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        {% else %}
+                            <div class="alert alert-warning mb-0" role="alert">
+                                <i class="bi bi-exclamation-triangle me-1"></i>
+                                Nenhum lote aprovado disponível para este item. Conclua a produção e o CQ.
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+            {% endfor %}
+
+            <div class="form-actions-bar">
+                <a href="{% url 'expedicao:lista' %}" class="btn btn-outline-secondary">Cancelar</a>
+                <button type="submit" class="btn btn-primary">
+                    <i class="bi bi-truck me-1"></i>Registrar expedição
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

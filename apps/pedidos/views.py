@@ -174,6 +174,22 @@ class PedidoDetalheView(AcessoModuloMixin, TrilhaAuditoriaMixin, DetailView):
             "cliente", "criado_por", "atualizado_por"
         ).prefetch_related("itens__produto", "historico__usuario")
 
+    def get_context_data(self, **kwargs):
+        from apps.accounts.perfis import usuario_acessa_modulo
+        from apps.expedicao.resumo import resumo_pedido
+
+        context = super().get_context_data(**kwargs)
+        context["resumo_itens"] = resumo_pedido(self.object)
+        context["expedicoes"] = (
+            self.object.expedicoes.select_related("conferente", "responsavel")
+            .prefetch_related("itens__lote", "itens__item_pedido__produto")
+        )
+        context["pode_expedir"] = (
+            self.object.status == StatusPedido.FINALIZADO
+            and usuario_acessa_modulo(self.request.user, "expedicao")
+        )
+        return context
+
 
 class PedidoTransicaoView(AcessoModuloMixin, View):
     modulo = MODULO
