@@ -2,6 +2,7 @@ import logging
 
 from django.contrib import messages
 from django.db.models import Q
+from django.shortcuts import get_object_or_404
 from django.urls import reverse_lazy
 from django.views.generic import CreateView, DetailView, ListView, TemplateView
 
@@ -206,6 +207,51 @@ class LocalCriarView(LocalConfig, CadastroCreateView):
 
 class LocalEditarView(LocalConfig, CadastroUpdateView):
     modulo = MODULO
+
+
+class RastreabilidadeView(AcessoQualquerModuloMixin, TemplateView):
+    """
+    Rastreabilidade do lote nos dois sentidos (Etapa 11, PDF 2.5).
+    Busca por lote interno ou lote do fornecedor; o sentido é escolhido
+    pelo tipo do lote e pode ser invertido pela tela.
+    """
+
+    modulos = (
+        "estoque", "cadastros", "producao", "recebimento", "qualidade", "expedicao",
+    )
+    template_name = "estoque/rastreabilidade.html"
+
+    def get_context_data(self, **kwargs):
+        from .rastreabilidade import (
+            buscar_lotes,
+            rastrear,
+            rastrear_para_frente,
+            rastrear_para_tras,
+        )
+
+        context = super().get_context_data(**kwargs)
+        termo = self.request.GET.get("q", "").strip()
+        lote_pk = self.request.GET.get("lote", "").strip()
+        sentido = self.request.GET.get("sentido", "").strip()
+
+        context["termo"] = termo
+        if lote_pk.isdigit():
+            lote = get_object_or_404(
+                Lote.objects.select_related(
+                    "produto", "materia_prima", "embalagem"
+                ),
+                pk=int(lote_pk),
+            )
+            if sentido == "tras":
+                context["resultado"] = rastrear_para_tras(lote)
+            elif sentido == "frente":
+                context["resultado"] = rastrear_para_frente(lote)
+            else:
+                context["resultado"] = rastrear(lote)
+        elif termo:
+            context["lotes"] = buscar_lotes(termo)
+
+        return context
 
 
 class LoteDetalheView(AcessoQualquerModuloMixin, DetailView):

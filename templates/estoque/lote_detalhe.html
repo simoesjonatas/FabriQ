@@ -31,6 +31,9 @@
                 {% if lote.vencido %}
                     <span class="badge text-bg-danger fs-6">Vencido</span>
                 {% endif %}
+                <a href="{% url 'estoque:rastreabilidade' %}?lote={{ lote.pk }}" class="btn btn-outline-primary">
+                    <i class="bi bi-diagram-3 me-1"></i>Rastrear
+                </a>
             </div>
         </div>
 

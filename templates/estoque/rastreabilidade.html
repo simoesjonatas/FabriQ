@@ -1,0 +1,287 @@
+{% extends "base.html" %}
+
+{% block title %}Rastreabilidade{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-12 col-xxl-11">
+
+        <div class="page-header mb-4">
+            <div>
+                <span class="eyebrow"><i class="bi bi-diagram-3 me-1"></i>Rastreabilidade</span>
+                <h1>Rastreabilidade do lote</h1>
+                <p>
+                    De onde veio e para onde foi: da matéria-prima ao cliente e o
+                    caminho inverso, montado pelos vínculos já registrados.
+                </p>
+            </div>
+        </div>
+
+        {% include "estoque/partials/nav_estoque.html" with aba="rastreabilidade" %}
+
+        <div class="card shadow-sm mb-4">
+            <div class="card-body">
+                <form method="get" class="row g-2 align-items-end">
+                    <div class="col-12 col-md-8">
+                        <label class="form-label" for="q">Lote interno ou lote do fornecedor</label>
+                        <input type="search" class="form-control" id="q" name="q"
+                               value="{{ termo }}" placeholder="Ex.: MP-2026-00005 ou ALOE-77">
+                    </div>
+                    <div class="col-12 col-md-4 d-grid">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-search me-1"></i>Rastrear
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        {% if lotes %}
+            <div class="card shadow-sm data-panel mb-4">
+                <div class="card-body">
+                    <div class="section-heading">
+                        <div>
+                            <h2><i class="bi bi-upc-scan me-1 text-primary"></i>Lotes encontrados</h2>
+                            <p>Escolha o lote para reconstruir a cadeia.</p>
+                        </div>
+                    </div>
+                    <ul class="list-group list-group-flush">
+                        {% for lote in lotes %}
+                            <li class="list-group-item px-0 d-flex justify-content-between align-items-center gap-3 flex-wrap">
+                                <span>
+                                    <a href="?lote={{ lote.pk }}" class="text-decoration-none fw-semibold">{{ lote.codigo }}</a>
+                                    <span class="text-body-secondary">· {{ lote.item }}</span>
+                                    {% if lote.lote_fornecedor %}
+                                        <span class="text-body-secondary small">· forn. {{ lote.lote_fornecedor }}</span>
+                                    {% endif %}
+                                </span>
+                                <span class="badge {{ lote.badge_situacao }}">{{ lote.get_situacao_display }}</span>
+                            </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </div>
+        {% elif termo and not resultado %}
+            <div class="alert alert-warning" role="alert">
+                <i class="bi bi-exclamation-triangle me-1"></i>
+                Nenhum lote encontrado para “{{ termo }}”.
+            </div>
+        {% endif %}
+
+        {% if resultado %}
+            <div class="card shadow-sm mb-4">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap">
+                        <div>
+                            <h2 class="h5 mb-1">
+                                <a href="{{ resultado.lote.get_absolute_url }}" class="text-decoration-none">
+                                    {{ resultado.lote.codigo }}
+                                </a>
+                                <span class="badge {{ resultado.lote.badge_situacao }}">{{ resultado.lote.get_situacao_display }}</span>
+                            </h2>
+                            <p class="text-body-secondary mb-0">
+                                {{ resultado.item }}
+                                · saldo atual {{ resultado.saldo|floatformat:"-3" }}
+                                {% if resultado.lote.validade %}· validade {{ resultado.lote.validade|date:"d/m/Y" }}{% endif %}
+                            </p>
+                        </div>
+                        <div class="btn-group" role="group" aria-label="Sentido do rastreio">
+                            <a href="?lote={{ resultado.lote.pk }}&sentido=tras"
+                               class="btn btn-sm {% if resultado.sentido == 'tras' %}btn-primary{% else %}btn-outline-primary{% endif %}">
+                                <i class="bi bi-arrow-left me-1"></i>De onde veio
+                            </a>
+                            <a href="?lote={{ resultado.lote.pk }}&sentido=frente"
+                               class="btn btn-sm {% if resultado.sentido == 'frente' %}btn-primary{% else %}btn-outline-primary{% endif %}">
+                                Para onde foi<i class="bi bi-arrow-right ms-1"></i>
+                            </a>
+                        </div>
+                    </div>
+                    {% if resultado.origem %}
+                        <hr>
+                        <p class="small mb-0">
+                            <i class="bi bi-inbox me-1 text-primary"></i>
+                            Recebido de <strong>{{ resultado.origem.fornecedor }}</strong>
+                            · <a href="{% url 'recebimento:detalhe' resultado.origem.recebimento.pk %}" class="text-decoration-none">{{ resultado.origem.recebimento.numero }}</a>
+                            · NF {{ resultado.origem.nota_fiscal }}
+                            · {{ resultado.origem.data|date:"d/m/Y" }}
+                            · {{ resultado.origem.quantidade|floatformat:"-3" }}
+                        </p>
+                    {% endif %}
+                </div>
+            </div>
+
+            {% if resultado.sentido == "tras" %}
+                <div class="card shadow-sm data-panel mb-4">
+                    <div class="card-body">
+                        <div class="section-heading">
+                            <div>
+                                <h2><i class="bi bi-arrow-left-circle me-1 text-primary"></i>De onde veio</h2>
+                                <p>Ordens que produziram este lote e os materiais consumidos, com fornecedor de cada lote.</p>
+                            </div>
+                        </div>
+                        {% for no in resultado.ordens %}
+                            <div class="{% if not forloop.first %}border-top pt-3 mt-3{% endif %}">
+                                <p class="mb-2">
+                                    <a href="{% url 'ordens:detalhe' no.ordem.pk %}" class="text-decoration-none fw-semibold">{{ no.ordem.numero }}</a>
+                                    · pedido <a href="{% url 'pedidos:detalhe' no.pedido.pk %}" class="text-decoration-none">{{ no.pedido.numero }}</a>
+                                    · <a href="{{ no.cliente.get_absolute_url }}" class="text-decoration-none">{{ no.cliente }}</a>
+                                    {% if no.snapshot %}
+                                        <span class="badge text-bg-light border">fórmula v{{ no.snapshot.versao }}</span>
+                                    {% endif %}
+                                    {% if no.execucao %}
+                                        <span class="text-body-secondary small">
+                                            · produzido {{ no.execucao.quantidade_produzida|floatformat:"-3" }}
+                                        </span>
+                                    {% endif %}
+                                </p>
+                                {% if no.materiais %}
+                                    <div class="table-responsive">
+                                        <table class="table table-sm align-middle mb-0">
+                                            <thead>
+                                                <tr>
+                                                    <th>Material</th>
+                                                    <th>Lote usado</th>
+                                                    <th>Fornecedor / NF</th>
+                                                    <th class="text-end">Consumido</th>
+                                                    <th class="text-end">Saldo</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {% for material in no.materiais %}
+                                                    <tr>
+                                                        <td>
+                                                            <a href="{{ material.item.get_absolute_url }}" class="text-decoration-none">
+                                                                {{ material.item.codigo }}
+                                                            </a>
+                                                        </td>
+                                                        <td>
+                                                            <a href="{{ material.lote.get_absolute_url }}" class="text-decoration-none">{{ material.lote.codigo }}</a>
+                                                            <span class="badge {{ material.lote.badge_situacao }}">{{ material.lote.get_situacao_display }}</span>
+                                                        </td>
+                                                        <td class="small">
+                                                            {% if material.origem %}
+                                                                {{ material.origem.fornecedor }}
+                                                                <span class="text-body-secondary">· NF {{ material.origem.nota_fiscal }}</span>
+                                                            {% else %}
+                                                                <span class="text-body-secondary">produzido internamente</span>
+                                                            {% endif %}
+                                                        </td>
+                                                        <td class="text-end">{{ material.quantidade|floatformat:"-3" }}</td>
+                                                        <td class="text-end">{{ material.saldo|floatformat:"-3" }}</td>
+                                                    </tr>
+                                                {% endfor %}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                {% else %}
+                                    <p class="text-body-secondary small mb-0">Nenhum consumo apontado nesta OP.</p>
+                                {% endif %}
+                            </div>
+                        {% empty %}
+                            <p class="text-body-secondary mb-0">
+                                Nenhuma ordem de produção gerou este lote — provavelmente é um
+                                material comprado. Use “Para onde foi” para seguir a cadeia.
+                            </p>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                {% if resultado.expedicoes %}
+                    <div class="card shadow-sm data-panel">
+                        <div class="card-body">
+                            <div class="section-heading">
+                                <div>
+                                    <h2><i class="bi bi-truck me-1 text-primary"></i>Quem recebeu</h2>
+                                    <p>Clientes que receberam este lote — base para recolhimento.</p>
+                                </div>
+                            </div>
+                            <ul class="list-unstyled small mb-0">
+                                {% for saida in resultado.expedicoes %}
+                                    <li class="d-flex flex-wrap gap-2 align-items-center py-1">
+                                        <a href="{% url 'expedicao:detalhe' saida.expedicao.pk %}" class="text-decoration-none">{{ saida.expedicao.numero }}</a>
+                                        <span class="text-body-secondary">{{ saida.quantidade|floatformat:"-3" }}</span>
+                                        <i class="bi bi-arrow-right-short text-body-secondary"></i>
+                                        <a href="{{ saida.cliente.get_absolute_url }}" class="text-decoration-none">{{ saida.cliente }}</a>
+                                        {% if saida.expedicao.nota_fiscal %}
+                                            <span class="text-body-secondary">· NF {{ saida.expedicao.nota_fiscal }}</span>
+                                        {% endif %}
+                                    </li>
+                                {% endfor %}
+                            </ul>
+                        </div>
+                    </div>
+                {% endif %}
+            {% else %}
+                <div class="card shadow-sm data-panel mb-4">
+                    <div class="card-body">
+                        <div class="section-heading">
+                            <div>
+                                <h2><i class="bi bi-arrow-right-circle me-1 text-primary"></i>Para onde foi</h2>
+                                <p>Ordens que consumiram este lote, lotes acabados gerados e clientes atendidos.</p>
+                            </div>
+                        </div>
+                        {% for no in resultado.ordens %}
+                            <div class="{% if not forloop.first %}border-top pt-3 mt-3{% endif %}">
+                                <p class="mb-2">
+                                    <a href="{% url 'ordens:detalhe' no.ordem.pk %}" class="text-decoration-none fw-semibold">{{ no.ordem.numero }}</a>
+                                    <span class="text-body-secondary">consumiu {{ no.quantidade_consumida|floatformat:"-3" }}</span>
+                                    {% if not no.confirmado %}
+                                        <span class="badge text-bg-warning">apontado</span>
+                                    {% endif %}
+                                    · pedido <a href="{% url 'pedidos:detalhe' no.pedido.pk %}" class="text-decoration-none">{{ no.pedido.numero }}</a>
+                                    · <a href="{{ no.cliente.get_absolute_url }}" class="text-decoration-none">{{ no.cliente }}</a>
+                                </p>
+                                {% if no.lote_produzido %}
+                                    <p class="small mb-1">
+                                        <i class="bi bi-box-seam me-1 text-primary"></i>
+                                        Gerou o lote
+                                        <a href="{{ no.lote_produzido.get_absolute_url }}" class="text-decoration-none">{{ no.lote_produzido.codigo }}</a>
+                                        <span class="badge {{ no.lote_produzido.badge_situacao }}">{{ no.lote_produzido.get_situacao_display }}</span>
+                                        <span class="text-body-secondary">· saldo {{ no.saldo_produzido|floatformat:"-3" }}</span>
+                                    </p>
+                                {% else %}
+                                    <p class="small text-body-secondary mb-1">OP ainda sem lote acabado.</p>
+                                {% endif %}
+                                {% for saida in no.expedicoes %}
+                                    <p class="small mb-0 ms-3">
+                                        <i class="bi bi-truck me-1 text-body-secondary"></i>
+                                        <a href="{% url 'expedicao:detalhe' saida.expedicao.pk %}" class="text-decoration-none">{{ saida.expedicao.numero }}</a>
+                                        · {{ saida.quantidade|floatformat:"-3" }}
+                                        <i class="bi bi-arrow-right-short"></i>
+                                        <a href="{{ saida.cliente.get_absolute_url }}" class="text-decoration-none">{{ saida.cliente }}</a>
+                                        {% if saida.expedicao.nota_fiscal %}· NF {{ saida.expedicao.nota_fiscal }}{% endif %}
+                                    </p>
+                                {% endfor %}
+                            </div>
+                        {% empty %}
+                            <p class="text-body-secondary mb-0">
+                                Este lote ainda não foi consumido em nenhuma OP.
+                            </p>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                {% if resultado.clientes_atendidos %}
+                    <div class="card shadow-sm">
+                        <div class="card-body">
+                            <div class="section-heading">
+                                <div>
+                                    <h2><i class="bi bi-people me-1 text-primary"></i>Clientes atendidos</h2>
+                                    <p>Quem efetivamente recebeu produto feito com este lote.</p>
+                                </div>
+                            </div>
+                            <div class="d-flex flex-wrap gap-2">
+                                {% for cliente in resultado.clientes_atendidos %}
+                                    <a href="{{ cliente.get_absolute_url }}" class="badge text-bg-light border text-decoration-none">
+                                        {{ cliente }}
+                                    </a>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    </div>
+                {% endif %}
+            {% endif %}
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

@@ -16,7 +16,7 @@
 | 2.2 / 4 / 8 | Dossiê do lote consolidado + PDF fechado (P1) | Não existe | Etapa 12 |
 | 2.3 / 7.1 | Trilha de auditoria campo a campo, não apagável (P1) | Só `criado_por`/`atualizado_por` (`ModeloAuditado`) e históricos em texto livre (`HistoricoOP`, `HistoricoPedido`) | Etapa 1 ✅ |
 | 2.4 / 4.2 | Snapshot imutável da fórmula na emissão da OP, com versão | `MaterialOP` congela apenas quantidades escaladas; a `Formula` em si é editável e a OP aponta para ela por FK, sem versão | Etapa 3 |
-| 2.5 | Rastreabilidade para trás e para frente (P1) | Dados parciais em `Movimentacao`; não há telas de consulta | Etapa 11 |
+| 2.5 | Rastreabilidade para trás e para frente (P1) | Dados parciais em `Movimentacao`; não há telas de consulta | Etapa 11 ✅ |
 | 2.6 / 7.2 | Bloqueios sistêmicos com exceção justificada (P2) | Alguns bloqueios existem (saldo, quarentena); faltam: lote vencido/reprovado, equipamento inapto, balança vencida, expedição sem CQ etc. | Etapa 5 |
 | 3.1–3.3 | Navegação por links: cliente, pedido, produto | Telas existem, mas sem fichas consolidadas nem links cruzados completos | Etapa 10 ✅ |
 | 4.1 | Situação controlada do lote (em produção → aguardando CQ → aprovado → … → expedido/recolhido) | `Lote` não tem campo de situação; quarentena é só por local de estoque | Etapa 5 |
@@ -561,9 +561,28 @@ Abrir um pedido expedido e visualizar quais OPs e lotes atenderam cada item.
 
 ---
 
-## Etapa 11 — Consultas de rastreabilidade (P1)
+## Etapa 11 — Consultas de rastreabilidade (P1) ✅ CONCLUÍDA (22/07/2026)
 
 **Objetivo (PDF 2.5):** reconstruir a cadeia nos dois sentidos.
+
+> **Status:** implementada e testada (307 testes do projeto passando; critério de aceite
+> verificado na demo — do lote de MP até OPs, lotes acabados, quantidades e clientes, e
+> depois o caminho inverso).
+> - Serviço em `apps/estoque/rastreabilidade.py`, montado só pelos vínculos já gravados
+>   (`ConsumoMaterialOP`, `OrdemProducao.lote_produto`, `ItemExpedicao`, `ItemRecebimento`):
+>   - `rastrear_para_tras(lote acabado)` → OP(s), fórmula congelada (versão do snapshot),
+>     consumos, lote de cada material, recebimento/fornecedor/NF, **quantidade consumida e
+>     saldo** por linha; inclui também "quem recebeu" (expedições do lote), que fecha o caso
+>     de recolhimento na mesma tela;
+>   - `rastrear_para_frente(lote de MP/embalagem)` → consumos, OPs, lote acabado gerado
+>     (com saldo), expedições, pedidos e `clientes_atendidos`;
+>   - `rastrear(lote)` escolhe o sentido pelo tipo do lote; `buscar_lotes(termo)` procura por
+>     **lote interno ou lote do fornecedor**.
+> - Tela `estoque:rastreabilidade` com busca, alternância "De onde veio / Para onde foi" e
+>   links para OP, pedido, cliente, material, lote, recebimento e expedição. Entradas: aba
+>   Rastreabilidade no módulo Estoque e botão "Rastrear" na ficha do lote.
+> - Casos de uso do PDF cobertos: investigação (de onde veio), bloqueio (quais lotes acabados
+>   usam a MP X) e recolhimento (quais clientes receberam).
 
 ### Passos
 1. **Para trás:** a partir de um lote de produto acabado → OP(s) → snapshot da fórmula → consumos (`ConsumoMaterialOP`) → lotes de MP/embalagem → recebimentos → fornecedores. Tela: `estoque` ou `ordens` → "Rastreabilidade do lote".

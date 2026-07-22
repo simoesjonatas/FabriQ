@@ -423,6 +423,196 @@ class PermissoesTests(TestCase):
                 self.assertEqual(self.client.get(reverse(rota)).status_code, 200)
 
 
+class RastreabilidadeTests(TestCase):
+    """
+    Etapa 11: cadeia nos dois sentidos. Monta MP recebida → consumida na
+    OP → lote acabado → expedido ao cliente e consulta os dois caminhos.
+    """
+
+    def setUp(self):
+        from apps.cadastros.models import Cliente, Equipamento, Fornecedor
+        from apps.expedicao.models import registrar_expedicao
+        from apps.ordens.models import (
+            ComponenteFormula,
+            Formula,
+            OrdemProducao,
+            StatusOP,
+        )
+        from apps.pedidos.models import ItemPedido, Pedido, StatusPedido
+        from apps.producao.models import ConsumoMaterialOP
+        from apps.recebimento.models import ItemRecebimento, Recebimento
+
+        from .models import SituacaoLote
+
+        self.usuario = criar_usuario("rastreador", perfil=ALMOXARIFADO)
+        self.fornecedor = Fornecedor.objects.create(razao_social="Aromas SA")
+        self.cliente = Cliente.objects.create(razao_social="Loja Bela")
+        self.produto = Produto.objects.create(codigo="PA-1", nome="Perfume")
+        self.mp = MateriaPrima.objects.create(codigo="MP-1", nome="Essência")
+        self.deposito = LocalEstoque.objects.create(nome="Almoxarifado MP")
+        self.acabados = LocalEstoque.objects.create(nome="Produtos Acabados")
+
+        # MP recebida de um fornecedor
+        self.lote_mp = Lote.objects.create(
+            codigo="MP-2026-00001",
+            materia_prima=self.mp,
+            lote_fornecedor="ESS-77",
+            situacao=SituacaoLote.APROVADO,
+        )
+        recebimento = Recebimento.objects.create(
+            fornecedor=self.fornecedor, nota_fiscal="NF-555"
+        )
+        ItemRecebimento.objects.create(
+            recebimento=recebimento,
+            materia_prima=self.mp,
+            lote=self.lote_mp,
+            quantidade=Decimal("100"),
+        )
+        self._entrada({"materia_prima": self.mp}, "100", self.deposito, self.lote_mp)
+
+        # Pedido, fórmula e OP que consumiu a MP
+        self.pedido = Pedido.objects.create(
+            cliente=self.cliente,
+            status=StatusPedido.FINALIZADO,
+            prazo=timezone.localdate() + timedelta(days=10),
+        )
+        self.item_pedido = ItemPedido.objects.create(
+            pedido=self.pedido, produto=self.produto, quantidade=Decimal("50")
+        )
+        formula = Formula.objects.create(
+            produto=self.produto, nome="Padrão", rendimento=Decimal("100")
+        )
+        ComponenteFormula.objects.create(
+            formula=formula, materia_prima=self.mp, quantidade=Decimal("40")
+        )
+        equipamento = Equipamento.objects.create(
+            codigo="EQ-1", nome="Envasadora", ultima_limpeza=timezone.localdate()
+        )
+        self.ordem = OrdemProducao.objects.create(
+            item_pedido=self.item_pedido,
+            formula=formula,
+            quantidade=Decimal("50"),
+            equipamento=equipamento,
+            data_programada=timezone.localdate(),
+            status=StatusOP.LIBERADA,
+        )
+        self.ordem.gerar_materiais()
+        ConsumoMaterialOP.objects.create(
+            material=self.ordem.materiais.get(),
+            lote=self.lote_mp,
+            local=self.deposito,
+            quantidade=Decimal("20"),
+            registrado_por=self.usuario,
+        )
+
+        # Lote acabado produzido pela OP e expedido ao cliente
+        self.lote_pa = Lote.objects.create(
+            codigo="PA-2026-00001",
+            produto=self.produto,
+            situacao=SituacaoLote.APROVADO,
+        )
+        self.ordem.lote_produto = self.lote_pa
+        self.ordem.save(update_fields=["lote_produto"])
+        self._entrada({"produto": self.produto}, "50", self.acabados, self.lote_pa)
+        registrar_expedicao(
+            pedido=self.pedido,
+            data=timezone.localdate(),
+            usuario=self.usuario,
+            linhas=[(self.item_pedido, self.lote_pa, Decimal("50"))],
+            nota_fiscal="NF-9001",
+        )
+
+    def _entrada(self, item_kwargs, quantidade, local, lote):
+        movimentacao = Movimentacao(
+            tipo=TipoMovimentacao.ENTRADA,
+            quantidade=Decimal(quantidade),
+            local_destino=local,
+            lote=lote,
+            motivo="carga de teste",
+            **item_kwargs,
+        )
+        movimentacao.full_clean()
+        movimentacao.save()
+
+    def test_para_frente_da_mp_chega_a_op_lote_e_cliente(self):
+        """Critério de aceite: da MP às OPs, lotes acabados, quantidades e clientes."""
+        from .rastreabilidade import rastrear_para_frente
+
+        resultado = rastrear_para_frente(self.lote_mp)
+
+        self.assertEqual(len(resultado["ordens"]), 1)
+        no = resultado["ordens"][0]
+        self.assertEqual(no["ordem"], self.ordem)
+        self.assertEqual(no["quantidade_consumida"], Decimal("20"))
+        self.assertEqual(no["lote_produzido"], self.lote_pa)
+        self.assertEqual(no["cliente"], self.cliente)
+        self.assertEqual(len(no["expedicoes"]), 1)
+        self.assertEqual(no["expedicoes"][0]["quantidade"], Decimal("50"))
+        self.assertIn(self.cliente, resultado["clientes_atendidos"])
+        self.assertEqual(resultado["origem"]["fornecedor"], self.fornecedor)
+
+    def test_para_tras_do_lote_acabado_chega_ao_fornecedor(self):
+        """Caminho inverso: do lote acabado até o fornecedor da MP."""
+        from .rastreabilidade import rastrear_para_tras
+
+        resultado = rastrear_para_tras(self.lote_pa)
+
+        self.assertEqual(len(resultado["ordens"]), 1)
+        no = resultado["ordens"][0]
+        self.assertEqual(no["ordem"], self.ordem)
+        self.assertEqual(no["cliente"], self.cliente)
+        self.assertEqual(len(no["materiais"]), 1)
+        material = no["materiais"][0]
+        self.assertEqual(material["item"], self.mp)
+        self.assertEqual(material["lote"], self.lote_mp)
+        self.assertEqual(material["quantidade"], Decimal("20"))
+        self.assertEqual(material["origem"]["fornecedor"], self.fornecedor)
+        self.assertEqual(material["origem"]["nota_fiscal"], "NF-555")
+
+    def test_rastrear_escolhe_o_sentido_pelo_tipo_do_lote(self):
+        from .rastreabilidade import rastrear
+
+        self.assertEqual(rastrear(self.lote_pa)["sentido"], "tras")
+        self.assertEqual(rastrear(self.lote_mp)["sentido"], "frente")
+
+    def test_busca_por_lote_interno_ou_do_fornecedor(self):
+        from .rastreabilidade import buscar_lotes
+
+        self.assertIn(self.lote_mp, buscar_lotes("MP-2026"))
+        self.assertIn(self.lote_mp, buscar_lotes("ESS-77"))
+        self.assertEqual(list(buscar_lotes("")), [])
+
+    def test_tela_busca_pelo_lote_do_fornecedor(self):
+        self.client.force_login(self.usuario)
+        response = self.client.get(
+            reverse("estoque:rastreabilidade"), {"q": "ESS-77"}
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "MP-2026-00001")
+
+    def test_tela_mostra_cadeia_da_mp_ate_o_cliente(self):
+        self.client.force_login(self.usuario)
+        response = self.client.get(
+            reverse("estoque:rastreabilidade"), {"lote": self.lote_mp.pk}
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["resultado"]["sentido"], "frente")
+        self.assertContains(response, self.ordem.numero)
+        self.assertContains(response, "PA-2026-00001")
+        self.assertContains(response, "Loja Bela")
+
+    def test_tela_inverte_o_sentido_do_lote_acabado(self):
+        self.client.force_login(self.usuario)
+        response = self.client.get(
+            reverse("estoque:rastreabilidade"),
+            {"lote": self.lote_pa.pk, "sentido": "tras"},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["resultado"]["sentido"], "tras")
+        self.assertContains(response, "MP-2026-00001")
+        self.assertContains(response, "Aromas SA")
+
+
 class FichaLoteTests(TestCase):
     """Etapa 10: ficha do lote com origem, saldo, análise e consumo."""
 
