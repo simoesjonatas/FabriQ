@@ -156,7 +156,25 @@
                                 <dd class="col-7">{{ analise.decidido_em|date:"d/m/Y H:i"|default:"—" }}</dd>
                                 <dt class="col-5">Parecer</dt>
                                 <dd class="col-7">{{ analise.parecer|linebreaksbr|default:"—" }}</dd>
+                                {% if analise.analise_anterior_id %}
+                                    <dt class="col-5">Contra-análise de</dt>
+                                    <dd class="col-7">
+                                        <a href="{% url 'qualidade:detalhe' analise.analise_anterior_id %}">
+                                            {{ analise.analise_anterior.numero }}
+                                        </a>
+                                    </dd>
+                                {% endif %}
                             </dl>
+                            <form method="post" action="{% url 'qualidade:contra_analise' analise.pk %}" class="mt-3">
+                                {% csrf_token %}
+                                <button type="submit" class="btn btn-sm btn-outline-primary">
+                                    <i class="bi bi-arrow-repeat me-1"></i>Abrir contra-análise
+                                </button>
+                            </form>
+                            <p class="small text-body-secondary mt-2 mb-0">
+                                A contra-análise cria uma nova análise vinculada — os resultados
+                                desta ficam preservados.
+                            </p>
                         </div>
                     </div>
                 {% endif %}

@@ -63,8 +63,11 @@ from apps.pedidos.models import HistoricoPedido, ItemPedido, Pedido, StatusPedid
 from apps.producao.models import (
     AtividadeOP,
     ConsumoMaterialOP,
+    Desvio,
     ExecucaoOP,
+    FaseOP,
     FotoProducao,
+    LiberacaoFase,
     Ocorrencia,
     Parada,
     TipoAtividadeOP,
@@ -169,10 +172,12 @@ class Command(BaseCommand):
         # demo usa o caminho interno para limpar o ambiente.
         models.QuerySet.delete(ConsumoMaterialOP.objects.all())
         MaterialOP.objects.all().delete()
-        # Atividades e snapshots são imutáveis para usuários; a recarga da
-        # demo usa o caminho interno para limpar o ambiente de demonstração.
+        # Atividades, snapshots, desvios e assinaturas são imutáveis para
+        # usuários; a recarga da demo usa o caminho interno para limpar.
         models.QuerySet.delete(AtividadeOP.objects.all())
         models.QuerySet.delete(SnapshotFormulaOP.objects.all())
+        models.QuerySet.delete(LiberacaoFase.objects.all())
+        Desvio.objects.all().delete()
         OrdemProducao.objects.all().delete()
         AnexoAnalise.objects.all().delete()
         ResultadoAnalise.objects.all().delete()
@@ -696,7 +701,15 @@ class Command(BaseCommand):
             tipo=TipoAnalise.objects.get(nome="pH"),
             valor_numerico=Decimal("6.0"),
         )
-        avancar(p9, StatusPedido.FINALIZADO, usuario=self.usuarios["paula.qualidade"])
+        # Lote aprovado no CQ final: situação e assinaturas por fase
+        paula = self.usuarios["paula.qualidade"]
+        lote_pa5 = self.lotes["PA5-2026-018"]
+        lote_pa5.situacao = SituacaoLote.APROVADO
+        lote_pa5.save(update_fields=["situacao"])
+        LiberacaoFase.assinar(op9, FaseOP.ANALISE, paula, analise_pa5.numero)
+        LiberacaoFase.assinar(op9, FaseOP.APROVACAO, paula)
+        LiberacaoFase.assinar(op9, FaseOP.LIBERACAO_TECNICA, diretor)
+        avancar(p9, StatusPedido.FINALIZADO, usuario=paula)
 
         # OP em rascunho com pendência no checklist (sem operador)
         op_rascunho = OrdemProducao.objects.create(
@@ -747,6 +760,7 @@ class Command(BaseCommand):
             ana,
             f"Lote interno {lote.codigo} reservado",
         )
+        LiberacaoFase.assinar(ordem, FaseOP.EMISSAO, ana)
         HistoricoOP.registrar(ordem, ana, "OP emitida")
         HistoricoOP.registrar(
             ordem,

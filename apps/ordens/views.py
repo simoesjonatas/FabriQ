@@ -97,12 +97,17 @@ class OrdemFormBase(AcessoModuloMixin, SalvarComUsuarioMixin):
     template_name = "ordens/form.html"
 
     def form_valid(self, form):
+        from apps.producao.models import FaseOP, LiberacaoFase
+
         criando = form.instance.pk is None
         with transaction.atomic():
             response = super().form_valid(form)
             self.object.gerar_materiais()
 
             if criando:
+                LiberacaoFase.assinar(
+                    self.object, FaseOP.EMISSAO, self.request.user
+                )
                 HistoricoOP.registrar(
                     self.object,
                     self.request.user,
@@ -186,13 +191,25 @@ class OrdemDetalheView(AcessoModuloMixin, TrilhaAuditoriaMixin, DetailView):
             "materiais__consumos__local",
             "historico__usuario",
             "atividades__funcionario",
+            "liberacoes_fase__responsavel",
         )
 
     def get_context_data(self, **kwargs):
+        from apps.accounts.perfis import pode_autorizar_excecao
+        from apps.producao.models import FaseOP
+
         context = super().get_context_data(**kwargs)
         context["condicoes"] = self.object.condicoes_liberacao()
         context["pode_liberar"] = self.object.editavel and all(
             condicao["ok"] for condicao in context["condicoes"]
+        )
+        ja_liberado = self.object.liberacoes_fase.filter(
+            fase=FaseOP.LIBERACAO_TECNICA
+        ).exists()
+        context["pode_liberacao_tecnica"] = (
+            self.object.status == StatusOP.CONCLUIDA
+            and not ja_liberado
+            and pode_autorizar_excecao(self.request.user)
         )
         return context
 
@@ -271,6 +288,39 @@ class OrdemLiberarView(AcessoModuloMixin, View):
             f"lote interno {lote.codigo} reservado.",
         )
         logger.info("OP %s liberada por %s", ordem.numero, request.user)
+        return redirect(ordem.get_absolute_url())
+
+
+class OrdemLiberacaoTecnicaView(AcessoModuloMixin, View):
+    """Assinatura de liberação técnica da OP (Etapa 8, PDF 5.11)."""
+
+    modulo = MODULO
+
+    def post(self, request, pk):
+        from apps.accounts.perfis import pode_autorizar_excecao
+        from apps.producao.models import FaseOP, LiberacaoFase
+
+        ordem = get_object_or_404(OrdemProducao, pk=pk)
+        if not pode_autorizar_excecao(request.user):
+            messages.error(
+                request, "Sem permissão para dar a liberação técnica."
+            )
+            return redirect(ordem.get_absolute_url())
+        if ordem.status != StatusOP.CONCLUIDA:
+            messages.error(
+                request, "A liberação técnica é dada após concluir a produção."
+            )
+            return redirect(ordem.get_absolute_url())
+        if ordem.liberacoes_fase.filter(fase=FaseOP.LIBERACAO_TECNICA).exists():
+            messages.warning(request, "A OP já tem liberação técnica.")
+            return redirect(ordem.get_absolute_url())
+
+        LiberacaoFase.assinar(
+            ordem, FaseOP.LIBERACAO_TECNICA, request.user,
+            request.POST.get("observacao", "").strip(),
+        )
+        messages.success(request, "Liberação técnica registrada.")
+        logger.info("Liberação técnica da %s por %s", ordem.numero, request.user)
         return redirect(ordem.get_absolute_url())
 
 

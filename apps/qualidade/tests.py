@@ -6,8 +6,8 @@ from django.test import TestCase
 from django.urls import reverse
 
 from apps.accounts.perfis import PRODUCAO, QUALIDADE
-from apps.cadastros.models import MateriaPrima
-from apps.estoque.models import Lote
+from apps.cadastros.models import MateriaPrima, Produto
+from apps.estoque.models import Lote, SituacaoLote
 
 from .models import Analise, ResultadoAnalise, StatusAnalise, TipoAnalise
 
@@ -202,6 +202,62 @@ class DecidirTests(BaseQualidade):
         self.decidir(StatusAnalise.REPROVADA, parecer="mudei de ideia")
         self.analise.refresh_from_db()
         self.assertEqual(self.analise.status, StatusAnalise.APROVADA)
+
+
+class CQFinalTests(BaseQualidade):
+    """Etapa 8: a decisão do CQ muda a situação do lote de produto acabado."""
+
+    def setUp(self):
+        super().setUp()
+        self.produto = Produto.objects.create(codigo="PA-1", nome="Perfume")
+        self.lote_pa = Lote.objects.create(
+            codigo="PA-2026-00001", produto=self.produto,
+            situacao=SituacaoLote.AGUARDANDO_CQ,
+        )
+
+    def criar_e_decidir(self, decisao, parecer=""):
+        self.client.post(
+            reverse("qualidade:criar"),
+            self.dados_analise(lote=self.lote_pa.pk),
+        )
+        analise = Analise.objects.latest("id")
+        self.client.post(
+            reverse("qualidade:decidir", args=[analise.pk]),
+            {"decisao": decisao, "parecer": parecer},
+        )
+        return analise
+
+    def test_aprovar_produto_muda_lote_para_aprovado(self):
+        self.criar_e_decidir(StatusAnalise.APROVADA)
+        self.lote_pa.refresh_from_db()
+        self.assertEqual(self.lote_pa.situacao, SituacaoLote.APROVADO)
+        self.assertTrue(self.lote_pa.pode_ser_expedido())
+
+    def test_reprovar_produto_muda_lote_para_reprovado(self):
+        self.criar_e_decidir(StatusAnalise.REPROVADA, parecer="Fora de especificação")
+        self.lote_pa.refresh_from_db()
+        self.assertEqual(self.lote_pa.situacao, SituacaoLote.REPROVADO)
+        self.assertFalse(self.lote_pa.pode_ser_expedido())
+
+    def test_lote_aguardando_cq_nao_e_expedivel(self):
+        # Antes de qualquer decisão, o lote nasce AGUARDANDO_CQ e não expede
+        self.assertFalse(self.lote_pa.pode_ser_expedido())
+
+    def test_contra_analise_preserva_resultados_da_anterior(self):
+        analise = self.criar_e_decidir(StatusAnalise.REPROVADA, parecer="pH baixo")
+        resultados_originais = analise.resultados.count()
+
+        response = self.client.post(
+            reverse("qualidade:contra_analise", args=[analise.pk])
+        )
+        nova = Analise.objects.latest("id")
+        self.assertRedirects(response, reverse("qualidade:editar", args=[nova.pk]))
+        self.assertEqual(nova.analise_anterior, analise)
+        self.assertEqual(nova.status, StatusAnalise.EM_ANALISE)
+        # Os resultados da análise original continuam intactos
+        analise.refresh_from_db()
+        self.assertEqual(analise.resultados.count(), resultados_originais)
+        self.assertEqual(nova.resultados.count(), 0)
 
 
 class PermissoesTests(TestCase):

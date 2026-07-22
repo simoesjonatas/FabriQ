@@ -154,6 +154,34 @@ class Analise(ModeloAuditado):
     )
     observacoes = models.TextField("observações", blank=True)
 
+    # CQ final (Etapa 8): amostra, coleta, laudo/certificado
+    amostra = models.CharField("amostra", max_length=60, blank=True)
+    data_coleta = models.DateTimeField("data da coleta", null=True, blank=True)
+    analista = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        verbose_name="analista",
+        on_delete=models.PROTECT,
+        related_name="+",
+        null=True,
+        blank=True,
+    )
+    laudo = models.FileField(
+        "laudo / certificado",
+        upload_to="laudos/%Y/%m/",
+        validators=[FileExtensionValidator(["pdf"])],
+        null=True,
+        blank=True,
+    )
+    # Contra-análise: nova análise vinculada à anterior (Etapa 8)
+    analise_anterior = models.ForeignKey(
+        "self",
+        verbose_name="análise anterior",
+        on_delete=models.PROTECT,
+        related_name="contra_analises",
+        null=True,
+        blank=True,
+    )
+
     decidido_por = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         verbose_name="decidido por",
@@ -193,6 +221,14 @@ class Analise(ModeloAuditado):
         return any(
             resultado.fora_da_referencia for resultado in self.resultados.all()
         )
+
+    @property
+    def e_contra_analise(self) -> bool:
+        return self.analise_anterior_id is not None
+
+    @property
+    def e_produto_acabado(self) -> bool:
+        return self.lote.produto_id is not None
 
 
 class ResultadoAnalise(models.Model):

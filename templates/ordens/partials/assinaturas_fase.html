@@ -1,0 +1,28 @@
+{% comment %}
+Assinaturas por fase da OP (Etapa 8). Uso:
+{% include "ordens/partials/assinaturas_fase.html" with assinaturas=ordem.liberacoes_fase.all %}
+{% endcomment %}
+<div class="table-responsive">
+    <table class="table table-sm align-middle mb-0">
+        <thead>
+            <tr>
+                <th>Fase</th>
+                <th>Responsável</th>
+                <th>Data/hora</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for assinatura in assinaturas %}
+                <tr>
+                    <td>{{ assinatura.get_fase_display }}</td>
+                    <td>{{ assinatura.responsavel }}</td>
+                    <td class="text-nowrap small">{{ assinatura.data|date:"d/m/Y H:i" }}</td>
+                </tr>
+            {% empty %}
+                <tr>
+                    <td colspan="3" class="text-body-secondary">Sem assinaturas de fase.</td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>

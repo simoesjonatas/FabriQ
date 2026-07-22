@@ -50,14 +50,33 @@ class AnaliseForm(BootstrapFormMixin, forms.ModelForm):
 
     class Meta:
         model = Analise
-        fields = ["lote", "observacoes"]
-        widgets = {"observacoes": forms.Textarea(attrs={"rows": 3})}
+        fields = [
+            "lote",
+            "amostra",
+            "data_coleta",
+            "analista",
+            "laudo",
+            "observacoes",
+        ]
+        widgets = {
+            "observacoes": forms.Textarea(attrs={"rows": 3}),
+            "data_coleta": forms.DateTimeInput(
+                attrs={"type": "datetime-local"}, format="%Y-%m-%dT%H:%M"
+            ),
+        }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["lote"].queryset = Lote.objects.select_related(
             "produto", "materia_prima", "embalagem"
         ).order_by("-id")
+        analistas = self.fields["analista"].queryset.filter(is_active=True)
+        self.fields["analista"].queryset = analistas.order_by(
+            "first_name", "username"
+        )
+        self.fields["analista"].required = False
+        for campo in ("amostra", "data_coleta", "laudo"):
+            self.fields[campo].required = False
         if self.instance.pk:
             # A análise pertence ao lote: para outro lote, cria-se outra análise
             self.fields["lote"].disabled = True

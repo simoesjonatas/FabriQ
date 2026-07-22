@@ -435,9 +435,35 @@ Tentar selecionar um lote vencido ou em quarentena e confirmar que o sistema imp
 
 ---
 
-## Etapa 8 — CQ final, liberação e assinaturas por fase (P1)
+## Etapa 8 — CQ final, liberação e assinaturas por fase (P1) ✅ CONCLUÍDA (20/07/2026)
 
 **Objetivo (PDF 5.10 e 5.11):** produção concluída ≠ produto liberado; cada fase tem responsável identificado.
+
+> **Status:** implementada e testada (261 testes do projeto passando; ambos os critérios
+> de aceite verificados — assinaturas por fase na tela da OP; bloqueio/mudança de situação
+> do lote por decisão de CQ coberto por testes).
+> - Lote acabado já nasce `AGUARDANDO_CQ` na conclusão (Etapa 5); a situação (não o
+>   local físico) é o que impede a expedição. O local de quarentena de PA fica para a
+>   Etapa 9/expedição.
+> - `Analise` estendida: amostra, data_coleta, analista, laudo (PDF) e
+>   `analise_anterior` (contra-análise). A **decisão do CQ sobre lote de produto** muda a
+>   situação: APROVADA→`APROVADO` (expedível), REPROVADA→`REPROVADO` (na trilha). Lotes de
+>   MP seguem a decisão da quarentena.
+> - **Contra-análise:** `ContraAnaliseView` cria nova análise vinculada à anterior — os
+>   resultados da original ficam **preservados**; botão na tela de detalhe.
+> - `LiberacaoFase` (imutável): assinatura por fase (emissão, produção, encerramento,
+>   análise, aprovação, liberação técnica...). Registro automático em emitir OP, iniciar
+>   e concluir produção, e na decisão do CQ (análise + aprovação). **Liberação técnica**
+>   manual (`OrdemLiberacaoTecnicaView`, só perfil que autoriza exceção — Admin/Diretoria/
+>   Qualidade), após concluída. Painel "Assinaturas por fase" no detalhe e na impressão da
+>   OP.
+> - Limites da especificação do produto (Etapa 6e): o controle em processo já os usa;
+>   o casamento automático dos ensaios da análise final com a especificação fica como
+>   evolução (hoje o analista registra os resultados e decide).
+> - `carregar_demo`: OP-00004 com todas as fases assinadas e liberação técnica; lote
+>   PA aprovado no CQ vira APROVADO.
+> - Pendências: perfis por fase mais granulares e o alerta de "mesma pessoa em etapas
+>   incompatíveis" (executou e conferiu) ficam para um refinamento posterior.
 
 ### Passos
 1. Ao concluir a OP, o lote acabado nasce com situação `AGUARDANDO_CQ` (e entra em local de quarentena de produto acabado, reusando a mecânica de `local_quarentena()`).

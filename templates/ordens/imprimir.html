@@ -136,6 +136,28 @@
         </table>
     {% endif %}
 
+    {% if ordem.liberacoes_fase.all %}
+        <h2>Assinaturas por fase</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Fase</th>
+                    <th>Responsável</th>
+                    <th>Data/hora</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for assinatura in ordem.liberacoes_fase.all %}
+                    <tr>
+                        <td>{{ assinatura.get_fase_display }}</td>
+                        <td>{{ assinatura.responsavel }}</td>
+                        <td>{{ assinatura.data|date:"d/m/Y H:i" }}</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% endif %}
+
     <h2>Observações</h2>
     <div class="obs">{{ ordem.observacoes|linebreaksbr }}</div>
 

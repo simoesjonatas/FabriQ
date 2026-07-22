@@ -245,6 +245,30 @@ class DecidirAnaliseView(AcessoModuloMixin, View):
         analise._justificativa_auditoria = parecer
         analise.save()
 
+        # CQ final do produto acabado (Etapa 8): a decisão muda a
+        # situação controlada do lote — aprovado libera para expedição,
+        # reprovado bloqueia. Lotes de MP seguem a decisão da quarentena.
+        if analise.e_produto_acabado:
+            from apps.estoque.models import SituacaoLote
+            from apps.producao.models import FaseOP, LiberacaoFase
+
+            lote = analise.lote
+            lote.situacao = (
+                SituacaoLote.APROVADO
+                if decisao == StatusAnalise.APROVADA
+                else SituacaoLote.REPROVADO
+            )
+            lote._justificativa_auditoria = parecer
+            lote.salvar_com_usuario(request.user)
+
+            # Assinatura por fase (Etapa 8): análise e, se aprovado, aprovação
+            for ordem in lote.ordens_de_producao.all():
+                LiberacaoFase.assinar(
+                    ordem, FaseOP.ANALISE, request.user, analise.numero
+                )
+                if decisao == StatusAnalise.APROVADA:
+                    LiberacaoFase.assinar(ordem, FaseOP.APROVACAO, request.user)
+
         if decisao == StatusAnalise.APROVADA:
             auditoria.registrar_evento(
                 analise,
@@ -263,6 +287,44 @@ class DecidirAnaliseView(AcessoModuloMixin, View):
             "Análise %s %s por %s", analise.numero, decisao, request.user
         )
         return redirect(analise.get_absolute_url())
+
+
+class ContraAnaliseView(AcessoModuloMixin, View):
+    """
+    Cria uma contra-análise (Etapa 8): nova análise para o mesmo lote,
+    vinculada à anterior. Os resultados da análise original são
+    preservados — a nova começa vazia.
+    """
+
+    modulo = MODULO
+
+    def post(self, request, pk):
+        anterior = get_object_or_404(Analise.objects.select_related("lote"), pk=pk)
+        if anterior.editavel:
+            messages.error(
+                request,
+                "Só é possível abrir contra-análise depois de decidir a análise.",
+            )
+            return redirect(anterior.get_absolute_url())
+
+        nova = Analise(
+            lote=anterior.lote,
+            analise_anterior=anterior,
+            observacoes=f"Contra-análise de {anterior.numero}.",
+            criado_por=request.user,
+            atualizado_por=request.user,
+        )
+        nova.save()
+        messages.success(
+            request,
+            f"Contra-análise {nova.numero} aberta — os resultados de "
+            f"{anterior.numero} foram preservados.",
+        )
+        logger.info(
+            "Contra-análise %s de %s por %s",
+            nova.numero, anterior.numero, request.user,
+        )
+        return redirect("qualidade:editar", pk=nova.pk)
 
 
 # Tipos de análise — CRUD genérico

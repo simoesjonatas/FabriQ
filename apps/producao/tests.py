@@ -880,6 +880,57 @@ class PerdasTests(BaseProducao):
         self.assertIn("Vazamento", ordem.execucao.perda_justificativa)
 
 
+class AssinaturaFaseTests(BaseProducao):
+    """Etapa 8b: assinaturas por fase identificam quem fez o quê."""
+
+    def test_iniciar_e_concluir_assinam_fases(self):
+        from .models import FaseOP, LiberacaoFase
+
+        lote = Lote.objects.create(
+            codigo="MP-AS", materia_prima=self.mp,
+            validade=timezone.localdate() + timedelta(days=180),
+        )
+        entrada({"materia_prima": self.mp}, "30", self.deposito, lote=lote)
+        ordem = self.criar_op_liberada("50")
+        ordem.reservar_lote_produto(self.operador)
+        self.client.post(reverse("producao:iniciar", args=[ordem.pk]))
+        ordem.refresh_from_db()
+        apontar_consumos_fefo(ordem, self.operador)
+        self.client.post(
+            reverse("producao:concluir", args=[ordem.pk]),
+            {
+                "quantidade_produzida": "48", "perdas": "2",
+                "lote_validade": "", "local_destino": str(self.acabados.pk),
+                "justificativa_divergencia": "", "justificativa_perda": "",
+            },
+        )
+        fases = set(
+            LiberacaoFase.objects.filter(ordem=ordem).values_list("fase", flat=True)
+        )
+        self.assertIn(FaseOP.PRODUCAO, fases)
+        self.assertIn(FaseOP.ENCERRAMENTO, fases)
+
+        # A tela da OP mostra as assinaturas por fase (consulta pelo PCP)
+        criar_usuario("pcp.ver", perfil=PCP)
+        self.client.login(username="pcp.ver", password="senha-forte-123")
+        response = self.client.get(reverse("ordens:detalhe", args=[ordem.pk]))
+        self.assertContains(response, "Assinaturas por fase")
+        self.assertContains(response, "Encerramento")
+
+    def test_assinatura_e_imutavel(self):
+        from apps.auditoria.models import TrilhaImutavelError
+
+        from .models import FaseOP, LiberacaoFase
+
+        ordem = self.criar_op_liberada("50")
+        a = LiberacaoFase.assinar(ordem, FaseOP.EMISSAO, self.operador)
+        a.observacao = "x"
+        with self.assertRaises(TrilhaImutavelError):
+            a.save()
+        with self.assertRaises(TrilhaImutavelError):
+            a.delete()
+
+
 class DesvioTests(BaseProducao):
     """Etapa 7c: OP não encerra com desvio pendente; decisão da Qualidade."""
 

@@ -41,6 +41,74 @@ from apps.ordens.models import MaterialOP, OrdemProducao, StatusOP
 from apps.pedidos.models import HistoricoPedido, StatusPedido
 
 
+class FaseOP(models.TextChoices):
+    EMISSAO = "EMISSAO", "Emissão"
+    SEPARACAO = "SEPARACAO", "Separação"
+    PESAGEM = "PESAGEM", "Pesagem"
+    CONFERENCIA = "CONFERENCIA", "Conferência"
+    PRODUCAO = "PRODUCAO", "Produção"
+    ENCERRAMENTO = "ENCERRAMENTO", "Encerramento"
+    ANALISE = "ANALISE", "Análise / CQ"
+    APROVACAO = "APROVACAO", "Aprovação"
+    LIBERACAO_TECNICA = "LIBERACAO_TECNICA", "Liberação técnica"
+
+
+class LiberacaoFaseQuerySet(models.QuerySet):
+    def update(self, **kwargs):
+        raise TrilhaImutavelError("Assinaturas de fase não podem ser alteradas.")
+
+    def delete(self):
+        raise TrilhaImutavelError("Assinaturas de fase não podem ser excluídas.")
+
+
+class LiberacaoFase(models.Model):
+    """
+    Assinatura por fase da OP (Etapa 8, PDF 5.11): quem executou/conferiu/
+    aprovou/liberou cada fase, com data e hora. Registro imutável — a
+    fonte de "quem fez o quê" formal, além das AtividadeOP.
+    """
+
+    ordem = models.ForeignKey(
+        OrdemProducao,
+        verbose_name="ordem de produção",
+        on_delete=models.PROTECT,
+        related_name="liberacoes_fase",
+    )
+    fase = models.CharField("fase", max_length=20, choices=FaseOP.choices)
+    responsavel = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        verbose_name="responsável",
+        on_delete=models.PROTECT,
+        related_name="+",
+    )
+    data = models.DateTimeField("data", auto_now_add=True)
+    observacao = models.CharField("observação", max_length=200, blank=True)
+
+    objects = LiberacaoFaseQuerySet.as_manager()
+
+    class Meta:
+        verbose_name = "assinatura de fase da OP"
+        verbose_name_plural = "assinaturas de fase da OP"
+        ordering = ["data", "id"]
+
+    def __str__(self) -> str:
+        return f"{self.ordem.numero} · {self.get_fase_display()} · {self.responsavel}"
+
+    def save(self, *args, **kwargs):
+        if not self._state.adding:
+            raise TrilhaImutavelError("Assinaturas de fase não podem ser alteradas.")
+        super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise TrilhaImutavelError("Assinaturas de fase não podem ser excluídas.")
+
+    @classmethod
+    def assinar(cls, ordem, fase, responsavel, observacao=""):
+        return cls.objects.create(
+            ordem=ordem, fase=fase, responsavel=responsavel, observacao=observacao
+        )
+
+
 class TipoAtividadeOP(models.TextChoices):
     LIBERACAO = "LIBERACAO", "Liberação da OP"
     ATRIBUICAO_LOTE = "ATRIBUICAO_LOTE", "Atribuição de lote"
@@ -467,6 +535,7 @@ class ExecucaoOP(ModeloAuditado):
         AtividadeOP.registrar(
             ordem, TipoAtividadeOP.PRODUCAO, usuario, "Produção iniciada"
         )
+        LiberacaoFase.assinar(ordem, FaseOP.PRODUCAO, usuario, "Produção iniciada")
 
         pedido = ordem.pedido
         if pedido.status == StatusPedido.PROGRAMADO:
@@ -679,6 +748,10 @@ class ExecucaoOP(ModeloAuditado):
             self.ordem,
             TipoAtividadeOP.PRODUCAO,
             usuario,
+            f"Produção concluída no lote {lote_codigo}",
+        )
+        LiberacaoFase.assinar(
+            self.ordem, FaseOP.ENCERRAMENTO, usuario,
             f"Produção concluída no lote {lote_codigo}",
         )
 

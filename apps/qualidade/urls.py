@@ -10,6 +10,11 @@ urlpatterns = [
     path("<int:pk>/", views.AnaliseDetalheView.as_view(), name="detalhe"),
     path("<int:pk>/editar/", views.AnaliseEditarView.as_view(), name="editar"),
     path("<int:pk>/decidir/", views.DecidirAnaliseView.as_view(), name="decidir"),
+    path(
+        "<int:pk>/contra-analise/",
+        views.ContraAnaliseView.as_view(),
+        name="contra_analise",
+    ),
     path("tipos/", views.TipoAnaliseListView.as_view(), name="tipo_lista"),
     path("tipos/novo/", views.TipoAnaliseCriarView.as_view(), name="tipo_criar"),
     path(
