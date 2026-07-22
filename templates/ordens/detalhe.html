@@ -248,8 +248,13 @@
                             <dt class="col-5">Lote do produto</dt>
                             <dd class="col-7">
                                 {% if ordem.lote_produto %}
-                                    {{ ordem.lote_produto.codigo }}
-                                    <span class="text-body-secondary small">(interno)</span>
+                                    <a href="{{ ordem.lote_produto.get_absolute_url }}" class="text-decoration-none">
+                                        {{ ordem.lote_produto.codigo }}
+                                    </a>
+                                    <a href="{% url 'dossie:detalhe' ordem.lote_produto.pk %}"
+                                       class="badge text-bg-light border text-decoration-none ms-1">
+                                        <i class="bi bi-journal-text me-1"></i>dossiê
+                                    </a>
                                 {% else %}
                                     <span class="text-body-secondary">reservado na liberação</span>
                                 {% endif %}

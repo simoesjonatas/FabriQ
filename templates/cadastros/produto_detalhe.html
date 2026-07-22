@@ -123,7 +123,7 @@
                         <div class="section-heading">
                             <div>
                                 <h2><i class="bi bi-box2 me-1 text-primary"></i>Lotes produzidos</h2>
-                                <p>Lotes do produto acabado. O dossiê completo vem na Etapa 12.</p>
+                                <p>Lotes do produto acabado, com acesso ao dossiê completo.</p>
                             </div>
                         </div>
                         {% if lotes %}
@@ -133,6 +133,9 @@
                                         <a href="{% url 'estoque:lote_detalhe' lote.pk %}" class="text-decoration-none">{{ lote.codigo }}</a>
                                         {% if lote.validade %}<span class="text-body-secondary">val. {{ lote.validade|date:"d/m/Y" }}</span>{% endif %}
                                         <span class="badge {{ lote.badge_situacao }}">{{ lote.get_situacao_display }}</span>
+                                        <a href="{% url 'dossie:detalhe' lote.pk %}" class="btn btn-sm btn-outline-primary py-0">
+                                            <i class="bi bi-journal-text me-1"></i>Visualizar dossiê
+                                        </a>
                                     </li>
                                 {% endfor %}
                             </ul>

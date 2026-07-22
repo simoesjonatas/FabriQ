@@ -1,0 +1,87 @@
+{% load static %}<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="utf-8">
+    <title>Dossiê {{ codigo }} · lote {{ lote.codigo }}</title>
+    <style>
+        @page {
+            size: A4;
+            margin: 16mm 14mm 20mm 14mm;
+            @bottom-left {
+                content: "Gerado pelo FabriQ em {{ gerado_em|date:'d/m/Y H:i' }} por {{ gerado_por }} · {{ codigo }} · v{{ versao }}";
+                font-size: 7pt; color: #555;
+            }
+            @bottom-right {
+                content: "página " counter(page) " de " counter(pages);
+                font-size: 7pt; color: #555;
+            }
+        }
+        @page :first { margin-top: 24mm; }
+
+        body { font-family: "Helvetica", "Arial", sans-serif; font-size: 8.5pt; color: #111; }
+        h1 { font-size: 18pt; margin: 0 0 .2rem 0; }
+        h2 {
+            font-size: 10pt; margin: 0 0 .35rem 0; padding-bottom: .2rem;
+            border-bottom: 1px solid #999; page-break-after: avoid;
+        }
+        .capa { page-break-after: always; }
+        .capa .marca { font-size: 10pt; letter-spacing: .18em; color: #0a7; text-transform: uppercase; }
+        .capa .titulo { margin-top: 28mm; }
+        .capa table { margin-top: 12mm; width: 100%; font-size: 9.5pt; }
+        .capa table th { text-align: left; width: 32%; padding: .28rem .4rem; color: #555; font-weight: 600; }
+        .capa table td { padding: .28rem .4rem; border-bottom: .5px solid #ddd; }
+        .capa .rodape-capa {
+            margin-top: 22mm; font-size: 8pt; color: #555;
+            border-top: .5px solid #ccc; padding-top: 3mm;
+        }
+
+        .bloco { margin-bottom: 5mm; page-break-inside: avoid; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 2mm; }
+        table.grade th, table.grade td {
+            border: .5px solid #bbb; padding: 1.2mm 1.6mm; vertical-align: top; font-size: 7.8pt;
+        }
+        table.grade th { background: #f1f1f1; text-align: left; font-weight: 600; }
+        table.dados th, table.dados td {
+            padding: 1.1mm 1.6mm; border-bottom: .5px solid #ddd; font-size: 8pt; text-align: left;
+        }
+        table.dados th { width: 15%; color: #555; font-weight: 600; }
+        .num { text-align: right; }
+        .vazio { color: #777; font-style: italic; font-size: 8pt; }
+        .menor { font-size: 7pt; color: #555; }
+        .obs, .linha-resumo { font-size: 8pt; margin: 0 0 1.5mm 0; }
+        a { color: #111; text-decoration: none; }
+    </style>
+</head>
+<body>
+
+<section class="capa">
+    <div class="marca">FabriQ · ERP Industrial</div>
+    <div class="titulo">
+        <h1>Dossiê do lote</h1>
+        <div style="font-size: 13pt; margin-top: 1mm;">{{ lote.codigo }}</div>
+    </div>
+
+    <table>
+        <tr><th>Produto</th><td>{{ dossie.identificacao.produto }}</td></tr>
+        <tr><th>Cliente</th><td>{{ dossie.identificacao.cliente|default:"—" }}</td></tr>
+        <tr><th>Pedido</th><td>{{ dossie.identificacao.pedido.numero|default:"—" }}</td></tr>
+        <tr><th>Fabricação</th><td>{{ dossie.identificacao.fabricacao|date:"d/m/Y"|default:"—" }}</td></tr>
+        <tr><th>Validade</th><td>{{ dossie.identificacao.validade|date:"d/m/Y"|default:"—" }}</td></tr>
+        <tr><th>Quantidade produzida</th><td>{{ dossie.identificacao.quantidade_produzida|floatformat:"-3" }}</td></tr>
+        <tr><th>Situação do lote</th><td>{{ dossie.identificacao.situacao }}</td></tr>
+        <tr><th>Código do dossiê</th><td>{{ codigo }} (versão {{ versao }})</td></tr>
+    </table>
+
+    <div class="rodape-capa">
+        Documento gerado automaticamente pelo FabriQ a partir dos registros do sistema,
+        em {{ gerado_em|date:"d/m/Y H:i" }}, por <strong>{{ gerado_por }}</strong>.<br>
+        O banco de dados do ERP é a fonte oficial; este PDF é a evidência consolidada
+        do lote no momento da emissão.<br>
+        Origem: {{ origem }}
+    </div>
+</section>
+
+{% include "dossie/_blocos.html" with links=False %}
+
+</body>
+</html>

@@ -2,3 +2,6 @@
 Django>=5.2,<5.3
 psycopg[binary]>=3.2
 django-environ>=0.12
+# Geração do PDF do dossiê do lote (Etapa 12).
+# Precisa das libs de sistema pango/cairo/gdk-pixbuf (macOS: brew install pango).
+weasyprint>=62

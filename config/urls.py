@@ -18,6 +18,7 @@ urlpatterns = [
     path("ordens/", include("apps.ordens.urls")),
     path("producao/", include("apps.producao.urls")),
     path("expedicao/", include("apps.expedicao.urls")),
+    path("dossie/", include("apps.dossie.urls")),
 ]
 
 if settings.DEBUG or getattr(settings, "SERVE_MEDIA_FILES", False):

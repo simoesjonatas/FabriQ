@@ -88,6 +88,9 @@
                                                     <i class="bi bi-arrow-right-short text-body-secondary"></i>
                                                     <a href="{{ par.lote.get_absolute_url }}" class="text-decoration-none">lote {{ par.lote.codigo }}</a>
                                                     <span class="badge {{ par.lote.badge_situacao }}">{{ par.lote.get_situacao_display }}</span>
+                                                    <a href="{% url 'dossie:detalhe' par.lote.pk %}" class="badge text-bg-light border text-decoration-none">
+                                                        <i class="bi bi-journal-text me-1"></i>dossiê
+                                                    </a>
                                                 {% else %}
                                                     <span class="text-body-secondary">— sem lote reservado</span>
                                                 {% endif %}

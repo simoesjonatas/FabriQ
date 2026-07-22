@@ -561,6 +561,114 @@ class Command(BaseCommand):
         )
         self.stdout.write("✓ Estoque extra (lote vencido para o alerta)")
 
+    def _execucao_no_chao(self, ordem, operador, conferente):
+        """
+        Registros de chão de fábrica da OP (Etapas 6 e 7) para o dossiê da
+        Etapa 12 sair completo: pesagem com dupla conferência, checklist do
+        equipamento, etapas do processo, controle em processo, envase e um
+        desvio já avaliado.
+        """
+        from apps.cadastros.models import Balanca, VersaoArte
+        from apps.producao.models import (
+            ChecklistEquipamentoOP,
+            DecisaoDesvio,
+            StatusDesvio,
+            TipoChecklistEquipamento,
+            TipoDesvio,
+            registrar_controle,
+            registrar_envase,
+            registrar_etapa,
+            registrar_pesagem,
+        )
+
+        balanca = Balanca.objects.filter(codigo="BAL-01").first()
+
+        # Pesagem das matérias-primas, com dupla conferência
+        if balanca and not balanca.calibracao_vencida:
+            for material in ordem.materiais.filter(materia_prima__isnull=False):
+                consumo = material.consumos.first()
+                if consumo is None:
+                    continue
+                registrar_pesagem(
+                    material=material,
+                    lote=consumo.lote,
+                    balanca=balanca,
+                    quantidade_pesada=material.quantidade_necessaria,
+                    tolerancia_percentual=Decimal("2"),
+                    operador=operador,
+                    conferente=conferente,
+                    etiqueta=f"ETQ-{material.item.codigo}",
+                )
+
+        # Checklist do equipamento antes de usar
+        ChecklistEquipamentoOP.objects.create(
+            ordem=ordem,
+            equipamento=ordem.equipamento,
+            tipo=TipoChecklistEquipamento.PRE_USO,
+            itens_verificados="Limpeza, vedação, ausência de resíduo da campanha anterior.",
+            condicao_final="Liberado para uso",
+            responsavel=operador,
+        )
+
+        # Etapas do processo, na sequência congelada no snapshot da OP
+        snapshot = getattr(ordem, "snapshot_formula", None)
+        etapas = snapshot.etapas.order_by("sequencia") if snapshot else []
+        for etapa in etapas:
+            registrar_etapa(
+                ordem=ordem,
+                etapa=etapa,
+                operador=operador,
+                conferente=conferente,
+                temperatura_real=etapa.temperatura_prevista,
+                tempo_real_min=etapa.tempo_previsto_min,
+                velocidade_real=etapa.velocidade_prevista,
+                observacoes=f"{MARCADOR} etapa executada conforme instrução",
+            )
+
+        # Controle em processo dentro da especificação do produto
+        ph = TipoAnalise.objects.filter(nome="pH").first()
+        if ph:
+            registrar_controle(
+                ordem=ordem,
+                tipo=ph,
+                analista=self.usuarios["paula.qualidade"],
+                resultado=Decimal("6.3"),
+                metodo="Potenciométrico",
+            )
+
+        # Envase com a arte aprovada do produto
+        arte = VersaoArte.objects.filter(
+            produto=ordem.produto, status="APROVADA"
+        ).first()
+        execucao = getattr(ordem, "execucao", None)
+        if arte and execucao and execucao.quantidade_produzida:
+            registrar_envase(
+                ordem=ordem,
+                versao_arte=arte,
+                quantidade_envasada=execucao.quantidade_produzida,
+                operador=operador,
+                conferente=conferente,
+                linha=ordem.linha,
+                perdas=Decimal("1"),
+                controles="Torque de tampa e alinhamento do rótulo conferidos.",
+            )
+
+        # Desvio já avaliado pela Qualidade (não bloqueia o lote)
+        Desvio.objects.create(
+            ordem=ordem,
+            tipo=TipoDesvio.PROCESSO,
+            descricao=f"{MARCADOR} temperatura oscilou 2 °C acima na etapa 1.",
+            impacto="Sem impacto no produto — faixa de segurança do processo.",
+            acao_imediata="Ajuste do setpoint e acompanhamento até estabilizar.",
+            critico=False,
+            responsavel=operador,
+            status=StatusDesvio.ENCERRADO,
+            decisao=DecisaoDesvio.ACEITO,
+            avaliador=self.usuarios["paula.qualidade"],
+            decidido_em=self.agora,
+            justificativa_decisao="Desvio sem impacto na qualidade do lote.",
+        )
+
     def _fichas_etapa10(self):
         """
         Etapa 10: dados das fichas consolidadas — documentos sanitários do
@@ -800,6 +908,8 @@ class Command(BaseCommand):
         avancar(p7, StatusPedido.EM_ANALISE, StatusPedido.PROGRAMADO)
         op7 = self._op_liberada(p7.itens.first(), "EQ-ENV-01", marcos, dias=7)
         self._produzir(op7, marcos, "498", "2", "PA1-2026-030", dias_atras=7)
+        # Chão de fábrica completo nesta OP: o dossiê deste lote sai cheio
+        self._execucao_no_chao(op7, marcos, self.usuarios["paula.qualidade"])
         avancar(p7, StatusPedido.CQ, StatusPedido.FINALIZADO, usuario=marcos)
         # CQ final: lote aprovado e liberado antes da expedição
         lote_pa1 = self.lotes["PA1-2026-030"]

@@ -1,0 +1,515 @@
+{% comment %}
+Blocos do dossiê do lote, na ordem do PDF do cliente (Etapa 12).
+Compartilhado entre a tela (dossie.html) e o PDF (dossie_pdf.html).
+Espera `dossie` (de apps.dossie.servicos.montar_dossie) e `links` (bool):
+no PDF os textos saem sem hiperlink.
+{% endcomment %}
+
+{# ---------------------------------------------- 1. Identificação #}
+<section class="bloco">
+    <h2>1. Identificação e situação</h2>
+    <table class="dados">
+        <tr>
+            <th>Produto</th>
+            <td>
+                {% if links %}<a href="{{ dossie.identificacao.produto.get_absolute_url }}">{{ dossie.identificacao.produto }}</a>
+                {% else %}{{ dossie.identificacao.produto }}{% endif %}
+            </td>
+            <th>Lote acabado</th>
+            <td>{{ dossie.lote.codigo }}</td>
+        </tr>
+        <tr>
+            <th>Cliente</th>
+            <td>
+                {% if dossie.identificacao.cliente %}
+                    {% if links %}<a href="{{ dossie.identificacao.cliente.get_absolute_url }}">{{ dossie.identificacao.cliente }}</a>
+                    {% else %}{{ dossie.identificacao.cliente }}{% endif %}
+                {% else %}—{% endif %}
+            </td>
+            <th>Pedido</th>
+            <td>
+                {% if dossie.identificacao.pedido %}
+                    {% if links %}<a href="{% url 'pedidos:detalhe' dossie.identificacao.pedido.pk %}">{{ dossie.identificacao.pedido.numero }}</a>
+                    {% else %}{{ dossie.identificacao.pedido.numero }}{% endif %}
+                {% else %}—{% endif %}
+            </td>
+        </tr>
+        <tr>
+            <th>Fabricação</th>
+            <td>{{ dossie.identificacao.fabricacao|date:"d/m/Y H:i"|default:"—" }}</td>
+            <th>Validade</th>
+            <td>{{ dossie.identificacao.validade|date:"d/m/Y"|default:"—" }}</td>
+        </tr>
+        <tr>
+            <th>Qtd. prevista</th>
+            <td>{{ dossie.identificacao.quantidade_prevista|floatformat:"-3" }}</td>
+            <th>Qtd. produzida</th>
+            <td>{{ dossie.identificacao.quantidade_produzida|floatformat:"-3" }}</td>
+        </tr>
+        <tr>
+            <th>Perdas</th>
+            <td>{{ dossie.identificacao.perdas|floatformat:"-3" }}</td>
+            <th>Rendimento</th>
+            <td>{% if dossie.identificacao.rendimento %}{{ dossie.identificacao.rendimento|floatformat:"-2" }}%{% else %}—{% endif %}</td>
+        </tr>
+        <tr>
+            <th>Situação</th>
+            <td>{{ dossie.identificacao.situacao }}</td>
+            <th>Saldo atual</th>
+            <td>{{ dossie.identificacao.saldo|floatformat:"-3" }}</td>
+        </tr>
+    </table>
+</section>
+
+{% for no in dossie.ordens %}
+    <section class="bloco">
+        <h2>Ordem de produção {{ no.ordem.numero }}</h2>
+        <p class="linha-resumo">
+            {% if links %}<a href="{% url 'ordens:detalhe' no.ordem.pk %}">{{ no.ordem.numero }}</a>{% else %}{{ no.ordem.numero }}{% endif %}
+            · equipamento {{ no.equipamento|default:"—" }}
+            {% if no.ordem.linha %}· linha {{ no.ordem.linha }}{% endif %}
+            {% if no.ordem.operador %}· operador {{ no.ordem.operador }}{% endif %}
+            {% if no.ordem.supervisor %}· supervisor {{ no.ordem.supervisor }}{% endif %}
+        </p>
+    </section>
+
+    {# ------------------------------------------ 2. Fórmula #}
+    <section class="bloco">
+        <h2>2. Fórmula e versão utilizadas</h2>
+        {% if no.snapshot %}
+            <p class="linha-resumo">
+                {{ no.snapshot.nome }} · versão congelada <strong>v{{ no.snapshot.versao }}</strong>
+                · rendimento {{ no.snapshot.rendimento|floatformat:"-3" }}
+                · congelada em {{ no.snapshot.congelado_em|date:"d/m/Y H:i" }}
+                {% if no.snapshot.congelado_por %}por {{ no.snapshot.congelado_por }}{% endif %}
+            </p>
+            <table class="grade">
+                <thead>
+                    <tr>
+                        <th>Material</th>
+                        <th class="num">Teórica</th>
+                        <th class="num">Escalada</th>
+                        <th class="num">Pesado</th>
+                        <th class="num">Diferença</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in no.snapshot.itens.all %}
+                        <tr>
+                            <td>{{ item.item_codigo }} · {{ item.item_nome }}</td>
+                            <td class="num">{{ item.quantidade_teorica|floatformat:"-3" }}</td>
+                            <td class="num">{{ item.quantidade_escalada|floatformat:"-3" }}</td>
+                            <td class="num">
+                                {% for pesagem in no.pesagens %}
+                                    {% if pesagem.material.item.codigo == item.item_codigo %}
+                                        {{ pesagem.quantidade_pesada|floatformat:"-3" }}
+                                    {% endif %}
+                                {% empty %}—{% endfor %}
+                            </td>
+                            <td class="num">
+                                {% for pesagem in no.pesagens %}
+                                    {% if pesagem.material.item.codigo == item.item_codigo %}
+                                        {{ pesagem.diferenca_percentual|floatformat:"-2" }}%
+                                    {% endif %}
+                                {% endfor %}
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% if no.snapshot.instrucoes %}
+                <p class="obs"><strong>Instruções:</strong> {{ no.snapshot.instrucoes|linebreaksbr }}</p>
+            {% endif %}
+        {% else %}
+            <p class="vazio">Sem snapshot de fórmula (OP anterior à Etapa 3).</p>
+        {% endif %}
+    </section>
+
+    {# ------------------------------------------ 3. Materiais #}
+    <section class="bloco">
+        <h2>3. Materiais, lotes e documentos</h2>
+        <table class="grade">
+            <thead>
+                <tr>
+                    <th>Tipo</th>
+                    <th>Material</th>
+                    <th>Lote usado</th>
+                    <th>Fornecedor / NF</th>
+                    <th class="num">Consumido</th>
+                    <th>Análise</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for linha in no.materiais %}
+                    <tr>
+                        <td>{{ linha.tipo }}</td>
+                        <td>
+                            {% if links %}<a href="{{ linha.item.get_absolute_url }}">{{ linha.item.codigo }}</a>
+                            {% else %}{{ linha.item.codigo }}{% endif %}
+                            · {{ linha.item.nome }}
+                        </td>
+                        <td>
+                            {% if linha.lote %}
+                                {% if links %}<a href="{{ linha.lote.get_absolute_url }}">{{ linha.lote.codigo }}</a>
+                                {% else %}{{ linha.lote.codigo }}{% endif %}
+                                {% if linha.lote.lote_fornecedor %}<br><span class="menor">forn. {{ linha.lote.lote_fornecedor }}</span>{% endif %}
+                            {% else %}
+                                <span class="vazio">sem apontamento</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if linha.origem %}
+                                {{ linha.origem.fornecedor }}<br>
+                                <span class="menor">
+                                    {% if links %}<a href="{% url 'recebimento:detalhe' linha.origem.recebimento.pk %}">{{ linha.origem.recebimento.numero }}</a>
+                                    {% else %}{{ linha.origem.recebimento.numero }}{% endif %}
+                                    · NF {{ linha.origem.nota_fiscal }}
+                                </span>
+                            {% else %}—{% endif %}
+                        </td>
+                        <td class="num">{{ linha.quantidade|floatformat:"-3" }}</td>
+                        <td>
+                            {% for analise in linha.analises %}
+                                {% if links %}<a href="{% url 'qualidade:detalhe' analise.pk %}">{{ analise.numero }}</a>
+                                {% else %}{{ analise.numero }}{% endif %}
+                                ({{ analise.get_status_display }})
+                            {% empty %}—{% endfor %}
+                        </td>
+                    </tr>
+                {% empty %}
+                    <tr><td colspan="6" class="vazio">Nenhum material registrado.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </section>
+
+    {# ------------------------------------------ 4. Pesagens #}
+    <section class="bloco">
+        <h2>4. Pesagens e conferências</h2>
+        {% if no.pesagens %}
+            <table class="grade">
+                <thead>
+                    <tr>
+                        <th>Material</th><th>Lote</th><th class="num">Prevista</th>
+                        <th class="num">Pesada</th><th>Balança</th><th>Operador</th><th>Conferente</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for pesagem in no.pesagens %}
+                        <tr>
+                            <td>{{ pesagem.material.item.codigo }}</td>
+                            <td>{{ pesagem.lote.codigo }}</td>
+                            <td class="num">{{ pesagem.quantidade_prevista|floatformat:"-3" }}</td>
+                            <td class="num">{{ pesagem.quantidade_pesada|floatformat:"-3" }}</td>
+                            <td>{{ pesagem.balanca.codigo }}</td>
+                            <td>{{ pesagem.operador }}</td>
+                            <td>{{ pesagem.conferente|default:"—" }}</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% else %}
+            <p class="vazio">Nenhuma pesagem registrada.</p>
+        {% endif %}
+    </section>
+
+    {# ------------------------------------------ 5. Equipamentos #}
+    <section class="bloco">
+        <h2>5. Equipamentos e checklists</h2>
+        <p class="linha-resumo">Equipamento da OP: <strong>{{ no.equipamento|default:"—" }}</strong></p>
+        {% if no.checklists %}
+            <table class="grade">
+                <thead>
+                    <tr><th>Equipamento</th><th>Tipo</th><th>Condição final</th><th>Responsável</th><th>Data</th></tr>
+                </thead>
+                <tbody>
+                    {% for check in no.checklists %}
+                        <tr>
+                            <td>{{ check.equipamento.codigo }}</td>
+                            <td>{{ check.get_tipo_display }}</td>
+                            <td>{{ check.condicao_final|default:"—" }}</td>
+                            <td>{{ check.responsavel|default:"—" }}</td>
+                            <td>{{ check.data|date:"d/m/Y H:i" }}</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% else %}
+            <p class="vazio">Nenhum checklist registrado.</p>
+        {% endif %}
+    </section>
+
+    {# ------------------------------------------ 6. Etapas #}
+    <section class="bloco">
+        <h2>6. Etapas do processo</h2>
+        {% if no.etapas %}
+            <table class="grade">
+                <thead>
+                    <tr>
+                        <th>Etapa</th><th class="num">Temp.</th><th class="num">Tempo</th>
+                        <th class="num">Velocidade</th><th>Operador</th><th>Situação</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for etapa in no.etapas %}
+                        <tr>
+                            <td>{{ etapa.etapa.sequencia }}. {{ etapa.etapa.nome }}</td>
+                            <td class="num">{{ etapa.temperatura_real|floatformat:"-2"|default:"—" }}</td>
+                            <td class="num">{{ etapa.tempo_real_min|default:"—" }}</td>
+                            <td class="num">{{ etapa.velocidade_real|floatformat:"-2"|default:"—" }}</td>
+                            <td>{{ etapa.operador|default:"—" }}</td>
+                            <td>
+                                {% if etapa.pulada %}Pulada — {{ etapa.justificativa }}{% else %}Executada{% endif %}
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% else %}
+            <p class="vazio">Nenhuma etapa registrada.</p>
+        {% endif %}
+    </section>
+
+    {# ------------------------------------------ 7. Controles #}
+    <section class="bloco">
+        <h2>7. Controles em processo</h2>
+        {% if no.controles %}
+            <table class="grade">
+                <thead>
+                    <tr>
+                        <th>Parâmetro</th><th class="num">Mín.</th><th class="num">Máx.</th>
+                        <th class="num">Resultado</th><th>Analista</th><th>Situação</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for controle in no.controles %}
+                        <tr>
+                            <td>{{ controle.tipo.nome }}</td>
+                            <td class="num">{{ controle.valor_minimo|floatformat:"-3"|default:"—" }}</td>
+                            <td class="num">{{ controle.valor_maximo|floatformat:"-3"|default:"—" }}</td>
+                            <td class="num">
+                                {% if controle.resultado is not None %}{{ controle.resultado|floatformat:"-3" }}
+                                {% else %}{{ controle.resultado_texto|default:"—" }}{% endif %}
+                            </td>
+                            <td>{{ controle.analista|default:"—" }}</td>
+                            <td>{% if controle.fora_especificacao %}Fora da especificação{% else %}Conforme{% endif %}</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% else %}
+            <p class="vazio">Nenhum controle em processo registrado.</p>
+        {% endif %}
+    </section>
+
+    {# ------------------------------------------ 8. Envase #}
+    <section class="bloco">
+        <h2>8. Envase, embalagem e rotulagem</h2>
+        {% if no.envases %}
+            <table class="grade">
+                <thead>
+                    <tr>
+                        <th>Lote a granel</th><th>Linha</th><th>Versão de arte</th>
+                        <th class="num">Envasado</th><th class="num">Perdas</th><th>Operador</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for envase in no.envases %}
+                        <tr>
+                            <td>{{ envase.lote_granel.codigo|default:"—" }}</td>
+                            <td>{{ envase.linha|default:"—" }}</td>
+                            <td>
+                                {% if envase.versao_arte %}
+                                    {{ envase.versao_arte.versao }} ({{ envase.versao_arte.get_status_display }})
+                                {% else %}—{% endif %}
+                            </td>
+                            <td class="num">{{ envase.quantidade_envasada|floatformat:"-3" }}</td>
+                            <td class="num">{{ envase.perdas|floatformat:"-3" }}</td>
+                            <td>{{ envase.operador|default:"—" }}</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% else %}
+            <p class="vazio">Nenhum envase registrado.</p>
+        {% endif %}
+    </section>
+
+    {# ------------------------------------------ 9. Perdas #}
+    <section class="bloco">
+        <h2>9. Perdas e rendimento</h2>
+        {% if no.execucao %}
+            <table class="dados">
+                <tr>
+                    <th>Produzida</th><td>{{ no.execucao.quantidade_produzida|floatformat:"-3" }}</td>
+                    <th>Perdas</th><td>{{ no.execucao.perdas|floatformat:"-3" }}</td>
+                </tr>
+                <tr>
+                    <th>Perda (%)</th><td>{{ no.execucao.perda_percentual|floatformat:"-2"|default:"—" }}</td>
+                    <th>Rendimento (%)</th><td>{{ no.execucao.rendimento_percentual|floatformat:"-2"|default:"—" }}</td>
+                </tr>
+                {% if no.execucao.perda_justificativa %}
+                    <tr>
+                        <th>Justificativa da perda</th>
+                        <td colspan="3">
+                            {{ no.execucao.perda_justificativa }}
+                            {% if no.execucao.perda_aprovada_por %}
+                                — aprovada por {{ no.execucao.perda_aprovada_por }}
+                            {% endif %}
+                        </td>
+                    </tr>
+                {% endif %}
+            </table>
+        {% else %}
+            <p class="vazio">Produção ainda não concluída.</p>
+        {% endif %}
+    </section>
+
+    {# ------------------------------------------ 10. Desvios #}
+    <section class="bloco">
+        <h2>10. Desvios e decisões</h2>
+        {% if no.desvios %}
+            <table class="grade">
+                <thead>
+                    <tr><th>Tipo</th><th>Descrição</th><th>Crítico</th><th>Decisão</th><th>Avaliador</th></tr>
+                </thead>
+                <tbody>
+                    {% for desvio in no.desvios %}
+                        <tr>
+                            <td>{{ desvio.get_tipo_display }}</td>
+                            <td>{{ desvio.descricao }}</td>
+                            <td>{% if desvio.critico %}Sim{% else %}Não{% endif %}</td>
+                            <td>
+                                {{ desvio.get_status_display }}
+                                {% if desvio.decisao %}· {{ desvio.get_decisao_display }}{% endif %}
+                            </td>
+                            <td>{{ desvio.avaliador|default:"—" }}</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% else %}
+            <p class="vazio">Nenhum desvio registrado.</p>
+        {% endif %}
+    </section>
+
+    {# ------------------------------------------ 11. Assinaturas #}
+    <section class="bloco">
+        <h2>11. Liberações e assinaturas por fase</h2>
+        {% if no.liberacoes %}
+            <table class="grade">
+                <thead><tr><th>Fase</th><th>Responsável</th><th>Data</th><th>Observação</th></tr></thead>
+                <tbody>
+                    {% for liberacao in no.liberacoes %}
+                        <tr>
+                            <td>{{ liberacao.get_fase_display }}</td>
+                            <td>{{ liberacao.responsavel }}</td>
+                            <td>{{ liberacao.data|date:"d/m/Y H:i" }}</td>
+                            <td>{{ liberacao.observacao|default:"—" }}</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% else %}
+            <p class="vazio">Nenhuma assinatura registrada.</p>
+        {% endif %}
+    </section>
+{% empty %}
+    <section class="bloco">
+        <p class="vazio">Nenhuma ordem de produção gerou este lote.</p>
+    </section>
+{% endfor %}
+
+{# ---------------------------------------------- 11b. CQ final #}
+<section class="bloco">
+    <h2>11b. Controle de qualidade final</h2>
+    {% if dossie.analises %}
+        {% for analise in dossie.analises %}
+            <p class="linha-resumo">
+                {% if links %}<a href="{% url 'qualidade:detalhe' analise.pk %}">{{ analise.numero }}</a>
+                {% else %}{{ analise.numero }}{% endif %}
+                · <strong>{{ analise.get_status_display }}</strong>
+                {% if analise.analista %}· analista {{ analise.analista }}{% endif %}
+                {% if analise.decidido_por %}· decidido por {{ analise.decidido_por }} em {{ analise.decidido_em|date:"d/m/Y H:i" }}{% endif %}
+            </p>
+            {% if analise.resultados.all %}
+                <table class="grade">
+                    <thead><tr><th>Parâmetro</th><th class="num">Resultado</th><th>Referência</th></tr></thead>
+                    <tbody>
+                        {% for resultado in analise.resultados.all %}
+                            <tr>
+                                <td>{{ resultado.tipo.nome }}</td>
+                                <td class="num">
+                                    {% if resultado.valor_numerico is not None %}{{ resultado.valor_numerico|floatformat:"-3" }}
+                                    {% else %}{{ resultado.valor_texto|default:"—" }}{% endif %}
+                                </td>
+                                <td>{{ resultado.tipo.referencia|default:"—" }}</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            {% endif %}
+            {% if analise.parecer %}<p class="obs"><strong>Parecer:</strong> {{ analise.parecer }}</p>{% endif %}
+        {% endfor %}
+    {% else %}
+        <p class="vazio">Nenhuma análise registrada para este lote.</p>
+    {% endif %}
+</section>
+
+{# ---------------------------------------------- 12. Expedições #}
+<section class="bloco">
+    <h2>12. Expedições</h2>
+    {% if dossie.expedicoes %}
+        <table class="grade">
+            <thead>
+                <tr><th>Expedição</th><th>Data</th><th>Cliente</th><th>NF / transportadora</th><th class="num">Qtd.</th></tr>
+            </thead>
+            <tbody>
+                {% for item in dossie.expedicoes %}
+                    <tr>
+                        <td>
+                            {% if links %}<a href="{% url 'expedicao:detalhe' item.expedicao.pk %}">{{ item.expedicao.numero }}</a>
+                            {% else %}{{ item.expedicao.numero }}{% endif %}
+                        </td>
+                        <td>{{ item.expedicao.data|date:"d/m/Y" }}</td>
+                        <td>{{ item.expedicao.pedido.cliente }}</td>
+                        <td>
+                            {{ item.expedicao.nota_fiscal|default:"—" }}
+                            {% if item.expedicao.transportadora %}<br><span class="menor">{{ item.expedicao.transportadora }}</span>{% endif %}
+                        </td>
+                        <td class="num">{{ item.quantidade|floatformat:"-3" }}</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% else %}
+        <p class="vazio">Lote ainda não expedido.</p>
+    {% endif %}
+</section>
+
+{# ---------------------------------------------- 13. Trilha #}
+<section class="bloco">
+    <h2>13. Trilha de auditoria do lote</h2>
+    {% if dossie.trilha %}
+        <table class="grade">
+            <thead><tr><th>Quando</th><th>Ação</th><th>Campo</th><th>De → para</th><th>Usuário</th></tr></thead>
+            <tbody>
+                {% for registro in dossie.trilha %}
+                    <tr>
+                        <td>{{ registro.data|date:"d/m/Y H:i" }}</td>
+                        <td>{{ registro.get_acao_display }}</td>
+                        <td>{{ registro.campo|default:"—" }}</td>
+                        <td>
+                            {% if registro.valor_anterior or registro.valor_novo %}
+                                {{ registro.valor_anterior|default:"—" }} → {{ registro.valor_novo|default:"—" }}
+                            {% else %}—{% endif %}
+                        </td>
+                        <td>{{ registro.usuario|default:"—" }}</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% else %}
+        <p class="vazio">Sem registros na trilha.</p>
+    {% endif %}
+</section>

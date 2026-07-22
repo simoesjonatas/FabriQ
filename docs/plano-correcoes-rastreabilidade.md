@@ -13,7 +13,7 @@
 | # PDF | Exigência | Estado atual | Etapa do plano |
 |---|---|---|---|
 | 2.1 / 5.2 | OP não pode concluir com material sem lote; consumo real por lote (P1) | Consumo é automático em FEFO na conclusão (`ExecucaoOP.concluir`); `MaterialOP` não guarda lote — coluna "Lote usado" fica vazia | Etapa 4 |
-| 2.2 / 4 / 8 | Dossiê do lote consolidado + PDF fechado (P1) | Não existe | Etapa 12 |
+| 2.2 / 4 / 8 | Dossiê do lote consolidado + PDF fechado (P1) | Não existe | Etapa 12 ✅ |
 | 2.3 / 7.1 | Trilha de auditoria campo a campo, não apagável (P1) | Só `criado_por`/`atualizado_por` (`ModeloAuditado`) e históricos em texto livre (`HistoricoOP`, `HistoricoPedido`) | Etapa 1 ✅ |
 | 2.4 / 4.2 | Snapshot imutável da fórmula na emissão da OP, com versão | `MaterialOP` congela apenas quantidades escaladas; a `Formula` em si é editável e a OP aponta para ela por FK, sem versão | Etapa 3 |
 | 2.5 | Rastreabilidade para trás e para frente (P1) | Dados parciais em `Movimentacao`; não há telas de consulta | Etapa 11 ✅ |
@@ -596,9 +596,30 @@ Selecionar um lote de matéria-prima e localizar todas as OPs, lotes acabados, q
 
 ---
 
-## Etapa 12 — Dossiê do lote + geração de PDF (P1)
+## Etapa 12 — Dossiê do lote + geração de PDF (P1) ✅ CONCLUÍDA (22/07/2026)
 
 **Objetivo (PDF 2.2, 4 e 8):** visão única e completa do lote, gerada automaticamente a partir dos vínculos do banco, com exportação em PDF fechado.
+
+> **Status:** implementada e testada (317 testes do projeto passando; os dois critérios de
+> aceite verificados na demo — do pedido expedido até o dossiê completo, e PDF com todos os
+> blocos identificando quando e por quem foi gerado).
+> - Novo app `apps/dossie`. `servicos.montar_dossie(lote)` monta os 13 blocos **só pelos
+>   vínculos do banco** (consumos, snapshot, pesagens, etapas, controles, envase, desvios,
+>   liberações, análises, expedições e trilha) — nada é digitado. Recusa lote que não seja
+>   de produto acabado.
+> - Tela `dossie:detalhe` com os blocos e links para produto, cliente, pedido, OP, material,
+>   lote, recebimento, análise e expedição. Acesso pelo pedido expedido, pela ficha do
+>   produto (botão "Visualizar dossiê" na tabela de lotes), pela ficha do lote e pela OP.
+> - **PDF com WeasyPrint** (`weasyprint>=62` em requirements/base.txt; precisa de
+>   pango/cairo/gdk-pixbuf no sistema): capa + todos os blocos, rodapé em toda página com
+>   "Gerado pelo FabriQ em … por … · código · versão" e paginação.
+> - **Cada geração é um registro**: `GeracaoDossie` imutável (lote, versão sequencial,
+>   usuário, data/hora, SHA-256 e o próprio PDF). A tela lista o histórico de gerações.
+> - O banco segue sendo a fonte oficial; o PDF é a evidência consolidada do instante.
+> - `carregar_demo` ganhou `_execucao_no_chao()`: a OP do pedido expedido passou a ter
+>   pesagem com dupla conferência, checklist, etapas, controle em processo, envase e um
+>   desvio já avaliado — assim o dossiê da demo sai com os 13 blocos preenchidos.
+> - Pendência: anexos grandes ainda são listados por vínculo, não embutidos no PDF.
 
 ### Passos
 1. Nova view "Dossiê do lote" (por lote de produto acabado), montada **automaticamente pelos vínculos do banco** — sem digitação manual. Blocos, na ordem do PDF:

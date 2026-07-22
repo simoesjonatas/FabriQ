@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+
+{% block title %}Dossiê do lote {{ lote.codigo }}{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-12 col-xxl-11">
+
+        <nav class="app-breadcrumb" aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item">
+                    <a href="{{ lote.get_absolute_url }}">
+                        <i class="bi bi-arrow-left-short" aria-hidden="true"></i>Lote {{ lote.codigo }}
+                    </a>
+                </li>
+                <li class="breadcrumb-item active" aria-current="page">Dossiê</li>
+            </ol>
+        </nav>
+
+        <div class="page-header page-header-actions mb-4">
+            <div>
+                <span class="eyebrow"><i class="bi bi-journal-text me-1"></i>Dossiê do lote</span>
+                <h1>{{ lote.codigo }}</h1>
+                <p>
+                    {{ dossie.identificacao.produto }}
+                    {% if dossie.identificacao.cliente %}· {{ dossie.identificacao.cliente }}{% endif %}
+                    — montado automaticamente pelos vínculos do sistema.
+                </p>
+            </div>
+            <div class="d-flex gap-2 align-items-center flex-wrap">
+                <span class="badge {{ lote.badge_situacao }} fs-6">{{ lote.get_situacao_display }}</span>
+                <form method="post" action="{% url 'dossie:pdf' lote.pk %}">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-file-earmark-pdf me-1"></i>Gerar PDF
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        {% if geracoes %}
+            <div class="card shadow-sm mb-4">
+                <div class="card-body">
+                    <div class="section-heading">
+                        <div>
+                            <h2><i class="bi bi-clock-history me-1 text-primary"></i>Gerações do dossiê</h2>
+                            <p>Cada PDF emitido fica registrado com autor, data e hash.</p>
+                        </div>
+                    </div>
+                    <ul class="list-group list-group-flush">
+                        {% for geracao in geracoes %}
+                            <li class="list-group-item px-0 d-flex justify-content-between align-items-center gap-3 flex-wrap">
+                                <span>
+                                    <strong>{{ geracao.codigo }}</strong>
+                                    {% if geracao.arquivo %}
+                                        <a href="{{ geracao.arquivo.url }}" target="_blank" rel="noopener" class="ms-1">
+                                            <i class="bi bi-file-earmark-pdf"></i>
+                                        </a>
+                                    {% endif %}
+                                    <span class="text-body-secondary small d-block font-monospace">
+                                        SHA-256 {{ geracao.hash_arquivo|slice:":16" }}…
+                                    </span>
+                                </span>
+                                <span class="text-body-secondary small text-nowrap">
+                                    {{ geracao.gerado_em|date:"d/m/Y H:i" }} · {{ geracao.gerado_por }}
+                                </span>
+                            </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </div>
+        {% endif %}
+
+        <div class="card shadow-sm data-panel dossie-blocos">
+            <div class="card-body">
+                {% include "dossie/_blocos.html" with links=True %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .dossie-blocos .bloco { margin-bottom: 1.75rem; }
+    .dossie-blocos .bloco h2 {
+        font-size: 1rem; font-weight: 600; margin-bottom: .5rem;
+        padding-bottom: .35rem; border-bottom: 1px solid var(--bs-border-color);
+    }
+    .dossie-blocos table { width: 100%; font-size: .875rem; margin-bottom: .5rem; }
+    .dossie-blocos table.grade th, .dossie-blocos table.grade td {
+        border: 1px solid var(--bs-border-color); padding: .35rem .5rem; vertical-align: top;
+    }
+    .dossie-blocos table.dados th, .dossie-blocos table.dados td {
+        padding: .3rem .5rem; border-bottom: 1px solid var(--bs-border-color);
+    }
+    .dossie-blocos table.dados th { width: 15%; font-weight: 600; }
+    .dossie-blocos .num { text-align: right; }
+    .dossie-blocos .vazio { color: var(--bs-secondary-color); font-size: .875rem; }
+    .dossie-blocos .menor { font-size: .8em; color: var(--bs-secondary-color); }
+    .dossie-blocos .obs, .dossie-blocos .linha-resumo { font-size: .875rem; }
+</style>
+{% endblock %}
