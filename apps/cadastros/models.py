@@ -43,6 +43,9 @@ class Setor(ModeloBase):
     def __str__(self) -> str:
         return self.nome
 
+    def get_absolute_url(self) -> str:
+        return reverse("cadastros:setor_detalhe", args=[self.pk])
+
 
 class StatusEquipamento(models.TextChoices):
     LIBERADO = "LIBERADO", "Liberado"
@@ -136,6 +139,9 @@ class Equipamento(ModeloBase):
 
     def pode_ser_usado(self) -> bool:
         return self.motivo_impedimento_uso() == ""
+
+    def get_absolute_url(self) -> str:
+        return reverse("cadastros:equipamento_detalhe", args=[self.pk])
 
 
 class PessoaBase(ModeloBase):
@@ -251,6 +257,9 @@ class Fornecedor(PessoaBase):
                 violation_error_message="Já existe um fornecedor com este CNPJ/CPF.",
             ),
         ]
+
+    def get_absolute_url(self) -> str:
+        return reverse("cadastros:fornecedor_detalhe", args=[self.pk])
 
 
 class TipoTelefone(models.TextChoices):
@@ -749,6 +758,9 @@ class VersaoArte(ModeloBase):
     def aprovada(self) -> bool:
         return self.status == StatusVersaoArte.APROVADA
 
+    def get_absolute_url(self) -> str:
+        return reverse("cadastros:versaoarte_detalhe", args=[self.pk])
+
 
 class Balanca(ModeloBase):
     """
@@ -781,6 +793,9 @@ class Balanca(ModeloBase):
 
     def __str__(self) -> str:
         return f"{self.codigo} · {self.descricao}"
+
+    def get_absolute_url(self) -> str:
+        return reverse("cadastros:balanca_detalhe", args=[self.pk])
 
     @property
     def calibracao_vencida(self) -> bool:

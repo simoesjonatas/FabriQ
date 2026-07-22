@@ -4,7 +4,9 @@
 {% block rotulo_novo %}Nova balança{% endblock %}
 
 {% block celulas %}
-    <td><span class="identifier-cell">{{ objeto.codigo }}</span></td>
+    <td>
+        <a href="{{ objeto.get_absolute_url }}" class="identifier-cell text-decoration-none">{{ objeto.codigo }}</a>
+    </td>
     <td>{{ objeto.descricao }}</td>
     <td>{{ objeto.calibracao_validade|date:"d/m/Y"|default:"—" }}</td>
     <td>

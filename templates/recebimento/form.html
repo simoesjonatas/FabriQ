@@ -32,84 +32,133 @@
                 <form method="post" enctype="multipart/form-data" novalidate>
                     {% csrf_token %}
 
-                    <div class="form-section-panel mb-3">
-                        <div class="form-section-heading">
-                            <div>
-                                <h2><i class="bi bi-receipt me-1" aria-hidden="true"></i>Nota fiscal</h2>
-                                <p>Fornecedor, número da nota e data do recebimento.</p>
-                            </div>
-                        </div>
-                        <div class="row g-3">
-                            <div class="col-12 col-md-6">
-                                {% include "includes/campo.html" with campo=form.fornecedor %}
-                            </div>
-                            <div class="col-6 col-md-3">
-                                {% include "includes/campo.html" with campo=form.nota_fiscal %}
-                            </div>
-                            <div class="col-6 col-md-3">
-                                {% include "includes/campo.html" with campo=form.data_recebimento %}
-                            </div>
-                            <div class="col-12 col-md-6">
-                                {% include "includes/campo.html" with campo=form.cliente %}
-                            </div>
-                            <div class="col-12">
-                                {% include "includes/campo.html" with campo=form.observacoes %}
-                            </div>
-                        </div>
-                    </div>
+                    <div class="person-form-shell">
+                        <ul class="nav form-tabs" role="tablist">
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link{% if aba_recebimento_ativa == 'nota' %} active{% endif %}"
+                                        id="tab-nota-tab" data-bs-toggle="tab"
+                                        data-bs-target="#tab-nota" type="button" role="tab"
+                                        aria-controls="tab-nota"
+                                        aria-selected="{% if aba_recebimento_ativa == 'nota' %}true{% else %}false{% endif %}">
+                                    <i class="bi bi-receipt" aria-hidden="true"></i>Nota fiscal
+                                    {% if form.errors %}<span class="tab-alert-dot" aria-hidden="true"></span>{% endif %}
+                                </button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link{% if aba_recebimento_ativa == 'itens' %} active{% endif %}"
+                                        id="tab-itens-tab" data-bs-toggle="tab"
+                                        data-bs-target="#tab-itens" type="button" role="tab"
+                                        aria-controls="tab-itens"
+                                        aria-selected="{% if aba_recebimento_ativa == 'itens' %}true{% else %}false{% endif %}">
+                                    <i class="bi bi-box-seam" aria-hidden="true"></i>Itens recebidos
+                                    {% if itens_formset_tem_erros %}<span class="tab-alert-dot" aria-hidden="true"></span>{% endif %}
+                                </button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link{% if aba_recebimento_ativa == 'anexos' %} active{% endif %}"
+                                        id="tab-anexos-tab" data-bs-toggle="tab"
+                                        data-bs-target="#tab-anexos" type="button" role="tab"
+                                        aria-controls="tab-anexos"
+                                        aria-selected="{% if aba_recebimento_ativa == 'anexos' %}true{% else %}false{% endif %}">
+                                    <i class="bi bi-paperclip" aria-hidden="true"></i>Anexos
+                                    {% if anexos_formset_tem_erros %}<span class="tab-alert-dot" aria-hidden="true"></span>{% endif %}
+                                </button>
+                            </li>
+                        </ul>
 
-                    <div class="repeatable-section mb-3" data-formset data-formset-prefix="itens">
-                        <div class="repeatable-section-header">
-                            <div>
-                                <h2><i class="bi bi-box-seam me-1" aria-hidden="true"></i>Itens recebidos</h2>
-                                <p>Todos entram automaticamente no local “Quarentena”, aguardando a Qualidade.</p>
-                            </div>
-                            <button type="button" class="btn btn-outline-primary" data-formset-add="itens">
-                                <i class="bi bi-plus-lg me-1" aria-hidden="true"></i>Adicionar item
-                            </button>
-                        </div>
+                        <div class="tab-content person-tab-content">
+                            <section class="tab-pane fade{% if aba_recebimento_ativa == 'nota' %} show active{% endif %}"
+                                     id="tab-nota" role="tabpanel" aria-labelledby="tab-nota-tab"
+                                     tabindex="0">
+                                <div class="form-section-panel">
+                                    <div class="form-section-heading">
+                                        <div>
+                                            <h2><i class="bi bi-receipt me-1" aria-hidden="true"></i>Nota fiscal</h2>
+                                            <p>Fornecedor, número da nota e data do recebimento.</p>
+                                        </div>
+                                    </div>
+                                    <div class="row g-3">
+                                        <div class="col-12 col-md-6">
+                                            {% include "includes/campo.html" with campo=form.fornecedor %}
+                                        </div>
+                                        <div class="col-6 col-md-3">
+                                            {% include "includes/campo.html" with campo=form.nota_fiscal %}
+                                        </div>
+                                        <div class="col-6 col-md-3">
+                                            {% include "includes/campo.html" with campo=form.data_recebimento %}
+                                        </div>
+                                        <div class="col-12 col-md-6">
+                                            {% include "includes/campo.html" with campo=form.cliente %}
+                                        </div>
+                                        <div class="col-12">
+                                            {% include "includes/campo.html" with campo=form.observacoes %}
+                                        </div>
+                                    </div>
+                                </div>
+                            </section>
 
-                        {{ itens_formset.management_form }}
-                        {% if itens_formset.non_form_errors %}
-                            <div class="alert alert-danger" role="alert">
-                                {% for erro in itens_formset.non_form_errors %}{{ erro }}{% endfor %}
-                            </div>
-                        {% endif %}
-                        <div class="repeatable-list" data-formset-list="itens">
-                            {% for subform in itens_formset %}
-                                {% include "recebimento/partials/item_formset_item.html" with subform=subform %}
-                            {% endfor %}
-                        </div>
-                        <template data-formset-template="itens">
-                            {% include "recebimento/partials/item_formset_item.html" with subform=itens_formset.empty_form %}
-                        </template>
-                    </div>
+                            <section class="tab-pane fade{% if aba_recebimento_ativa == 'itens' %} show active{% endif %}"
+                                     id="tab-itens" role="tabpanel" aria-labelledby="tab-itens-tab"
+                                     tabindex="0">
+                                <div class="repeatable-section" data-formset data-formset-prefix="itens">
+                                    <div class="repeatable-section-header">
+                                        <div>
+                                            <h2><i class="bi bi-box-seam me-1" aria-hidden="true"></i>Itens recebidos</h2>
+                                            <p>Todos entram automaticamente no local “Quarentena”, aguardando a Qualidade.</p>
+                                        </div>
+                                        <button type="button" class="btn btn-outline-primary" data-formset-add="itens">
+                                            <i class="bi bi-plus-lg me-1" aria-hidden="true"></i>Adicionar item
+                                        </button>
+                                    </div>
 
-                    <div class="repeatable-section" data-formset data-formset-prefix="anexos">
-                        <div class="repeatable-section-header">
-                            <div>
-                                <h2><i class="bi bi-paperclip me-1" aria-hidden="true"></i>Anexos</h2>
-                                <p>COA, FISPQ, fotos do material — PDF ou imagem, até 10 MB cada.</p>
-                            </div>
-                            <button type="button" class="btn btn-outline-primary" data-formset-add="anexos">
-                                <i class="bi bi-plus-lg me-1" aria-hidden="true"></i>Adicionar anexo
-                            </button>
-                        </div>
+                                    {{ itens_formset.management_form }}
+                                    {% if itens_formset.non_form_errors %}
+                                        <div class="alert alert-danger" role="alert">
+                                            {% for erro in itens_formset.non_form_errors %}{{ erro }}{% endfor %}
+                                        </div>
+                                    {% endif %}
+                                    <div class="repeatable-list" data-formset-list="itens">
+                                        {% for subform in itens_formset %}
+                                            {% include "recebimento/partials/item_formset_item.html" with subform=subform %}
+                                        {% endfor %}
+                                    </div>
+                                    <template data-formset-template="itens">
+                                        {% include "recebimento/partials/item_formset_item.html" with subform=itens_formset.empty_form %}
+                                    </template>
+                                </div>
+                            </section>
 
-                        {{ anexos_formset.management_form }}
-                        {% if anexos_formset.non_form_errors %}
-                            <div class="alert alert-danger" role="alert">
-                                {% for erro in anexos_formset.non_form_errors %}{{ erro }}{% endfor %}
-                            </div>
-                        {% endif %}
-                        <div class="repeatable-list" data-formset-list="anexos">
-                            {% for subform in anexos_formset %}
-                                {% include "recebimento/partials/anexo_formset_item.html" with subform=subform %}
-                            {% endfor %}
+                            <section class="tab-pane fade{% if aba_recebimento_ativa == 'anexos' %} show active{% endif %}"
+                                     id="tab-anexos" role="tabpanel" aria-labelledby="tab-anexos-tab"
+                                     tabindex="0">
+                                <div class="repeatable-section" data-formset data-formset-prefix="anexos">
+                                    <div class="repeatable-section-header">
+                                        <div>
+                                            <h2><i class="bi bi-paperclip me-1" aria-hidden="true"></i>Anexos</h2>
+                                            <p>COA, FISPQ, fotos do material — PDF ou imagem, até 10 MB cada.</p>
+                                        </div>
+                                        <button type="button" class="btn btn-outline-primary" data-formset-add="anexos">
+                                            <i class="bi bi-plus-lg me-1" aria-hidden="true"></i>Adicionar anexo
+                                        </button>
+                                    </div>
+
+                                    {{ anexos_formset.management_form }}
+                                    {% if anexos_formset.non_form_errors %}
+                                        <div class="alert alert-danger" role="alert">
+                                            {% for erro in anexos_formset.non_form_errors %}{{ erro }}{% endfor %}
+                                        </div>
+                                    {% endif %}
+                                    <div class="repeatable-list" data-formset-list="anexos">
+                                        {% for subform in anexos_formset %}
+                                            {% include "recebimento/partials/anexo_formset_item.html" with subform=subform %}
+                                        {% endfor %}
+                                    </div>
+                                    <template data-formset-template="anexos">
+                                        {% include "recebimento/partials/anexo_formset_item.html" with subform=anexos_formset.empty_form %}
+                                    </template>
+                                </div>
+                            </section>
                         </div>
-                        <template data-formset-template="anexos">
-                            {% include "recebimento/partials/anexo_formset_item.html" with subform=anexos_formset.empty_form %}
-                        </template>
                     </div>
 
                     <div class="form-actions-bar">

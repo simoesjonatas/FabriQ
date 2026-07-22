@@ -5,7 +5,7 @@
 
 {% block celulas %}
     <td>
-        {{ objeto.razao_social }}
+        <a href="{{ objeto.get_absolute_url }}" class="text-decoration-none">{{ objeto.razao_social }}</a>
         {% if objeto.nome_fantasia %}
             <div class="small text-body-secondary">{{ objeto.nome_fantasia }}</div>
         {% endif %}

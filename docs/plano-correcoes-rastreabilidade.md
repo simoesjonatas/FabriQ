@@ -12,38 +12,39 @@
 
 | # PDF | Exigência | Estado atual | Etapa do plano |
 |---|---|---|---|
-| 2.1 / 5.2 | OP não pode concluir com material sem lote; consumo real por lote (P1) | Consumo é automático em FEFO na conclusão (`ExecucaoOP.concluir`); `MaterialOP` não guarda lote — coluna "Lote usado" fica vazia | Etapa 4 |
+| 2.1 / 5.2 | OP não pode concluir com material sem lote; consumo real por lote (P1) | Consumo é automático em FEFO na conclusão (`ExecucaoOP.concluir`); `MaterialOP` não guarda lote — coluna "Lote usado" fica vazia | Etapa 4 ✅ |
 | 2.2 / 4 / 8 | Dossiê do lote consolidado + PDF fechado (P1) | Não existe | Etapa 12 ✅ |
 | 2.3 / 7.1 | Trilha de auditoria campo a campo, não apagável (P1) | Só `criado_por`/`atualizado_por` (`ModeloAuditado`) e históricos em texto livre (`HistoricoOP`, `HistoricoPedido`) | Etapa 1 ✅ |
-| 2.4 / 4.2 | Snapshot imutável da fórmula na emissão da OP, com versão | `MaterialOP` congela apenas quantidades escaladas; a `Formula` em si é editável e a OP aponta para ela por FK, sem versão | Etapa 3 |
+| 2.4 / 4.2 | Snapshot imutável da fórmula na emissão da OP, com versão | `MaterialOP` congela apenas quantidades escaladas; a `Formula` em si é editável e a OP aponta para ela por FK, sem versão | Etapa 3 ✅ |
 | 2.5 | Rastreabilidade para trás e para frente (P1) | Dados parciais em `Movimentacao`; não há telas de consulta | Etapa 11 ✅ |
-| 2.6 / 7.2 | Bloqueios sistêmicos com exceção justificada (P2) | Alguns bloqueios existem (saldo, quarentena); faltam: lote vencido/reprovado, equipamento inapto, balança vencida, expedição sem CQ etc. | Etapa 5 |
+| 2.6 / 7.2 | Bloqueios sistêmicos com exceção justificada (P2) | Alguns bloqueios existem (saldo, quarentena); faltam: lote vencido/reprovado, equipamento inapto, balança vencida, expedição sem CQ etc. | Etapa 5 ✅ |
 | 3.1–3.3 | Navegação por links: cliente, pedido, produto | Telas existem, mas sem fichas consolidadas nem links cruzados completos | Etapa 10 ✅ |
-| 4.1 | Situação controlada do lote (em produção → aguardando CQ → aprovado → … → expedido/recolhido) | `Lote` não tem campo de situação; quarentena é só por local de estoque | Etapa 5 |
-| 5.1 | Identificação completa da OP (linha, supervisor etc.) | `OrdemProducao` tem equipamento/operador; falta linha, supervisor, prazo | Etapa 6 |
-| 5.3 | Pesagem com dupla conferência e balança calibrada | Não existe | Etapa 6 |
-| 5.4 | Equipamento: limpeza, calibração, checklist pré/pós-uso | `Equipamento` é cadastro simples, sem status/limpeza/calibração | Etapa 6 |
-| 5.5 | Etapas do processo com parâmetros previsto × real | `Formula` não tem etapas; execução não registra etapas | Etapa 6 |
-| 5.6 | Controle em processo com limites da especificação | `TipoAnalise` tem faixas, mas não há controle em processo vinculado à OP | Etapa 6 |
-| 5.7 | Envase/embalagem/rotulagem com lotes e versão de arte | Não existe (embalagens são consumidas como material comum) | Etapa 7 |
-| 5.8 | Perdas e rendimento com limite e aprovação | `ExecucaoOP.perdas` é um número simples, sem limite/justificativa | Etapa 7 |
-| 5.9 | Desvios com decisão da Qualidade; OP não encerra com desvio pendente | `Ocorrencia` é texto livre, sem fluxo de decisão | Etapa 7 |
-| 5.10 | CQ final obrigatório antes de expedir; contra-análise | `Analise` existe sobre `Lote`, mas nada impede expedir sem CQ | Etapa 8 |
-| 5.11 | Assinaturas/aprovações por fase, com perfil | Só `liberado_por` na OP e `decidido_por` na análise | Etapa 8 |
+| 4.1 | Situação controlada do lote (em produção → aguardando CQ → aprovado → … → expedido/recolhido) | `Lote` não tem campo de situação; quarentena é só por local de estoque | Etapa 5 ✅ |
+| 5.1 | Identificação completa da OP (linha, supervisor etc.) | `OrdemProducao` tem equipamento/operador; falta linha, supervisor, prazo | Etapa 6 ✅ |
+| 5.3 | Pesagem com dupla conferência e balança calibrada | Não existe | Etapa 6 ✅ |
+| 5.4 | Equipamento: limpeza, calibração, checklist pré/pós-uso | `Equipamento` é cadastro simples, sem status/limpeza/calibração | Etapa 6 ✅ |
+| 5.5 | Etapas do processo com parâmetros previsto × real | `Formula` não tem etapas; execução não registra etapas | Etapa 6 ✅ |
+| 5.6 | Controle em processo com limites da especificação | `TipoAnalise` tem faixas, mas não há controle em processo vinculado à OP | Etapa 6 ✅ |
+| 5.7 | Envase/embalagem/rotulagem com lotes e versão de arte | Não existe (embalagens são consumidas como material comum) | Etapa 7 ✅ |
+| 5.8 | Perdas e rendimento com limite e aprovação | `ExecucaoOP.perdas` é um número simples, sem limite/justificativa | Etapa 7 ✅ |
+| 5.9 | Desvios com decisão da Qualidade; OP não encerra com desvio pendente | `Ocorrencia` é texto livre, sem fluxo de decisão | Etapa 7 ✅ |
+| 5.10 | CQ final obrigatório antes de expedir; contra-análise | `Analise` existe sobre `Lote`, mas nada impede expedir sem CQ | Etapa 8 ✅ |
+| 5.11 | Assinaturas/aprovações por fase, com perfil | Só `liberado_por` na OP e `decidido_por` na análise | Etapa 8 ✅ |
 | 3.2 / 7.2 | Expedição vinculada a lote liberado; expedição parcial | Expedição é só transição de status do pedido (`FINALIZADO → EXPEDIDO`), sem vínculo com lote nem baixa de estoque | Etapa 9 ✅ |
 | 6.1 | Ficha da MP (INCI, CAS, FISPQ, fornecedores aprovados) e do lote recebido | `MateriaPrima` é `ItemBase` simples; recebimento já guarda NF/anexos/quarentena | Etapa 10 ✅ |
 | 6.2 | Ficha da embalagem + versão de arte | `Embalagem` simples, sem versão de arte | Etapa 10 ✅ |
-| 9 | Roteiro de aceite completo (14 passos) | — | Etapa 13 |
+| 9 | Roteiro de aceite completo (14 passos) | — | Etapa 13 ✅ |
 
 **Observações complementares do cliente (18/07/2026):**
 
 | Observação | Estado atual | Etapa do plano |
 |---|---|---|
-| Na OP, registrar o que cada funcionário fez (quem produziu, envasou, passou lote) | Só `iniciado_por`/`concluido_por` na execução e `liberado_por` na OP — nada por atividade | Etapa 2 |
-| Lote interno automático, alfanumérico e sequencial (MP no recebimento e produto acabado na OP) | `Lote.codigo` é digitado manualmente; não há campo separado para o lote do fornecedor | Etapa 2 |
-| Etiqueta de identificação da MP (modelo no Anexo A) com status e liberação CQ | Não existe impressão de etiqueta | Etapa 2 |
+| Na OP, registrar o que cada funcionário fez (quem produziu, envasou, passou lote) | Só `iniciado_por`/`concluido_por` na execução e `liberado_por` na OP — nada por atividade | Etapa 2 ✅ |
+| Lote interno automático, alfanumérico e sequencial (MP no recebimento e produto acabado na OP) | `Lote.codigo` é digitado manualmente; não há campo separado para o lote do fornecedor | Etapa 2 ✅ |
+| Etiqueta de identificação da MP (modelo no Anexo A) com status e liberação CQ | Não existe impressão de etiqueta | Etapa 2 ✅ |
 
-**Ordem de execução recomendada:** 1 ✅ → 2 → 3 → 4 → 5 → 6 → 7 → 8 → 9 → 10 → 11 → 12 → 13.
+**Ordem de execução recomendada:** 1 ✅ → 2 ✅ → 3 ✅ → 4 ✅ → 5 ✅ → 6 ✅ → 7 ✅ → 8 ✅ → 9 ✅ → 10 ✅ → 11 ✅ → 12 ✅ → **13**.
+Etapas 1 a 12 concluídas (22/07/2026), além do Anexo A. Falta só a Etapa 13 — homologação com o roteiro de aceite final.
 A trilha de auditoria veio primeiro porque todas as demais etapas gravam nela. A Etapa 2 entra na sequência por decisão do cliente (observações de 18/07/2026). O dossiê vem por último porque apenas consolida o que as etapas anteriores passam a registrar.
 
 ---
@@ -651,7 +652,25 @@ Selecionar um lote de matéria-prima e localizar todas as OPs, lotes acabados, q
 
 ---
 
-## Etapa 13 — Homologação: roteiro de aceite final (PDF 9)
+## Etapa 13 — Homologação: roteiro de aceite final (PDF 9) ✅ CONCLUÍDA (22/07/2026)
+
+> **Status:** roteiro automatizado e documentado (334 testes do projeto passando).
+> - **Caminho feliz:** `apps/core/tests_homologacao.py` executa os 14 passos de ponta a
+>   ponta com dados fictícios, pelas mesmas telas e serviços do operador e com **um
+>   usuário por perfil** (almoxarifado, qualidade, PCP, produção, expedição, diretoria) —
+>   o roteiro também valida o modelo de permissões.
+> - **Contraprova:** `apps/core/tests_violacoes.py` tenta furar cada bloqueio da lista
+>   abaixo e confirma que o sistema recusa (13 testes, um por item).
+> - **Para rodar com o cliente:** `docs/roteiro-homologacao.md` traz o passo a passo na
+>   tela (o que fazer, onde clicar, resultado esperado), a tabela de violações e o
+>   quadro de registro do aceite.
+> - Observação sobre "em quarentena": o bloqueio é pelo **local** — o saldo em Quarentena
+>   não é oferecido para apontamento. A situação `AGUARDANDO_CQ` em si não impede o
+>   consumo; o que impede é vencimento, reprovação ou bloqueio.
+>
+> ```bash
+> .venv/bin/python manage.py test apps.core.tests_homologacao apps.core.tests_violacoes
+> ```
 
 Executar com **dados fictícios**, sem depender de planilhas paralelas:
 
@@ -698,9 +717,55 @@ Executar com **dados fictícios**, sem depender de planilhas paralelas:
 
 ---
 
-## Anexo A — Modelo de etiqueta de matéria-prima (referência do cliente, 18/07/2026)
+## Anexo A — Modelo de etiqueta de matéria-prima (referência do cliente, 18/07/2026) ✅ ATENDIDO (22/07/2026)
 
 Layout livre — o modelo abaixo é **apenas base**; o conteúdo listado é o que deve constar (ver Etapa 2b).
+
+> **Status:** implementado na Etapa 2b e conferido campo a campo em 22/07/2026 na tela
+> `recebimento:etiqueta` (`templates/recebimento/etiqueta.html`). Todos os campos do modelo
+> saem preenchidos a partir do banco — nada é digitado na etiqueta.
+
+### Correspondência: modelo do cliente × origem no sistema
+
+| Campo do Anexo A | De onde o sistema tira |
+| --- | --- |
+| Nome da Matéria-Prima | `ItemRecebimento.item.nome` (o título muda para Embalagem/Produto conforme o item) |
+| Código Interno | `ItemRecebimento.item.codigo` |
+| Fornecedor | `Recebimento.fornecedor` |
+| Nº da Nota Fiscal | `Recebimento.nota_fiscal` |
+| Lote do Fornecedor | `Lote.lote_fornecedor` (Etapa 2a) |
+| Lote Interno | `Lote.codigo` — gerado automaticamente, sequencial (Etapa 2a) |
+| Data de Recebimento | `Recebimento.data_recebimento` |
+| Data de Validade | `Lote.validade` |
+| Cliente | `Recebimento.cliente` — preenchido só em terceirização |
+| STATUS | `ItemRecebimento.status` (`StatusQuarentena`), com “X” na situação atual |
+| Data da Liberação CQ | última `DecisaoQuarentena` liberada do item |
+| Responsável pela Liberação | `DecisaoQuarentena.responsavel` |
+| Localização | `locais_do_lote(lote)` — locais com saldo positivo |
+
+### Vocabulário do bloco STATUS
+
+O sistema usa os termos do fluxo de quarentena, equivalentes aos do modelo:
+
+| Modelo do cliente | Sistema | Observação |
+| --- | --- | --- |
+| QUARENTENA | Em quarentena | — |
+| EM ANÁLISE | Em análise | criado na Etapa 2b para este modelo |
+| APROVADO | **Liberado** | mesma decisão; “liberar” é o verbo usado em toda a quarentena |
+| REJEITADO | **Reprovado** | mesma decisão |
+| DEVOLVIDO | Devolvido | criado na Etapa 2b para este modelo |
+| — | Bloqueado | situação extra do sistema, sem equivalente no modelo |
+
+> Se a Corpo & Cheiro preferir imprimir exatamente “APROVADO/REJEITADO”, basta trocar os
+> rótulos de `StatusQuarentena` — mas isso muda o texto em todas as telas de quarentena,
+> não só na etiqueta.
+
+### Além do modelo
+
+- **Quantidade recebida** com unidade, para conferência física na prateleira.
+- **Rodapé de origem**: “Gerada pelo FabriQ em `<data/hora>` · `REC-00001`”.
+- Cada visualização/impressão grava um evento **IMPRESSAO** na trilha do lote (Etapa 1),
+  permitindo identificar etiquetas impressas antes de uma decisão do CQ.
 
 ```
 MATÉRIA-PRIMA

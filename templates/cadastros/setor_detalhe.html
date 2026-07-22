@@ -1,0 +1,169 @@
+{% extends "base.html" %}
+
+{% block title %}{{ setor }}{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-12 col-xxl-11">
+
+        <nav class="app-breadcrumb" aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item">
+                    <a href="{% url 'cadastros:setor_lista' %}">
+                        <i class="bi bi-arrow-left-short" aria-hidden="true"></i>Setores
+                    </a>
+                </li>
+                <li class="breadcrumb-item active" aria-current="page">{{ setor }}</li>
+            </ol>
+        </nav>
+
+        <div class="page-header page-header-actions mb-4">
+            <div>
+                <span class="eyebrow"><i class="bi bi-diagram-3 me-1"></i>Setor</span>
+                <h1>{{ setor.nome }}</h1>
+                <p>{{ setor.descricao|truncatechars:120|default:"sem descrição" }}</p>
+            </div>
+            <div class="d-flex gap-2 align-items-center flex-wrap">
+                {% if setor.ativo %}
+                    <span class="badge text-bg-success fs-6">Ativo</span>
+                {% else %}
+                    <span class="badge text-bg-secondary fs-6">Inativo</span>
+                {% endif %}
+                {% if pode_editar %}
+                    <a href="{% url 'cadastros:setor_editar' setor.pk %}" class="btn btn-outline-primary">
+                        <i class="bi bi-pencil me-1"></i>Editar
+                    </a>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="row g-4">
+            <div class="col-12 col-lg-7">
+                <div class="card shadow-sm data-panel mb-4">
+                    <div class="card-body">
+                        <div class="section-heading">
+                            <div>
+                                <h2><i class="bi bi-gear-wide-connected me-1 text-primary"></i>Equipamentos</h2>
+                                <p>Equipamentos vinculados a este setor.</p>
+                            </div>
+                        </div>
+                        {% if equipamentos %}
+                            <div class="table-responsive">
+                                <table class="table align-middle mb-0">
+                                    <thead>
+                                        <tr>
+                                            <th>Código</th>
+                                            <th>Nome</th>
+                                            <th>Situação</th>
+                                            <th>Capacidade</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for equipamento in equipamentos %}
+                                            <tr>
+                                                <td>
+                                                    <a href="{{ equipamento.get_absolute_url }}" class="text-decoration-none">
+                                                        {{ equipamento.codigo }}
+                                                    </a>
+                                                </td>
+                                                <td>{{ equipamento.nome }}</td>
+                                                <td><span class="badge {{ equipamento.badge_status }}">{{ equipamento.get_status_display }}</span></td>
+                                                <td>
+                                                    {% if equipamento.capacidade %}
+                                                        {{ equipamento.capacidade|floatformat:"-3" }} {{ equipamento.unidade_capacidade }}
+                                                    {% else %}—{% endif %}
+                                                </td>
+                                            </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        {% else %}
+                            <p class="text-body-secondary mb-0">Nenhum equipamento vinculado.</p>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <div class="card shadow-sm data-panel mb-4">
+                    <div class="card-body">
+                        <div class="section-heading">
+                            <div>
+                                <h2><i class="bi bi-journal-check me-1 text-primary"></i>Ordens na linha</h2>
+                                <p>OPs emitidas para este setor/linha.</p>
+                            </div>
+                        </div>
+                        {% if ordens %}
+                            <div class="table-responsive">
+                                <table class="table align-middle mb-0">
+                                    <thead>
+                                        <tr>
+                                            <th>OP</th>
+                                            <th>Produto</th>
+                                            <th>Equipamento</th>
+                                            <th>Situação</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for ordem in ordens %}
+                                            <tr>
+                                                <td><a href="{% url 'ordens:detalhe' ordem.pk %}" class="text-decoration-none">{{ ordem.numero }}</a></td>
+                                                <td>{{ ordem.item_pedido.produto }}</td>
+                                                <td>{{ ordem.equipamento.codigo|default:"—" }}</td>
+                                                <td><span class="badge {{ ordem.badge_status }}">{{ ordem.get_status_display }}</span></td>
+                                            </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        {% else %}
+                            <p class="text-body-secondary mb-0">Nenhuma OP vinculada.</p>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <div class="card shadow-sm data-panel">
+                    <div class="card-body">
+                        <div class="section-heading">
+                            <div>
+                                <h2><i class="bi bi-box-arrow-in-down me-1 text-primary"></i>Envases</h2>
+                            </div>
+                        </div>
+                        {% if envases %}
+                            <ul class="list-unstyled small mb-0">
+                                {% for envase in envases %}
+                                    <li class="d-flex flex-wrap gap-2 align-items-center py-1">
+                                        <a href="{% url 'ordens:detalhe' envase.ordem.pk %}" class="text-decoration-none">{{ envase.ordem.numero }}</a>
+                                        <span>{{ envase.versao_arte.produto }}</span>
+                                        <span class="text-body-secondary">{{ envase.quantidade_envasada|floatformat:"-3" }}</span>
+                                        <span class="text-body-secondary">{{ envase.registrado_em|date:"d/m/Y H:i" }}</span>
+                                    </li>
+                                {% endfor %}
+                            </ul>
+                        {% else %}
+                            <p class="text-body-secondary mb-0">Nenhum envase registrado nesta linha.</p>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-12 col-lg-5">
+                <div class="card shadow-sm">
+                    <div class="card-body">
+                        <div class="section-heading">
+                            <div><h2><i class="bi bi-card-text me-1 text-primary"></i>Dados</h2></div>
+                        </div>
+                        <dl class="row mb-0 small">
+                            <dt class="col-5">Nome</dt>
+                            <dd class="col-7">{{ setor.nome }}</dd>
+                            <dt class="col-5">Descrição</dt>
+                            <dd class="col-7">{{ setor.descricao|linebreaksbr|default:"—" }}</dd>
+                            <dt class="col-5">Situação</dt>
+                            <dd class="col-7">{% if setor.ativo %}Ativo{% else %}Inativo{% endif %}</dd>
+                        </dl>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

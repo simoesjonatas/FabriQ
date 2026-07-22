@@ -1,0 +1,223 @@
+{% extends "base.html" %}
+
+{% block title %}{{ equipamento }}{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-12 col-xxl-11">
+
+        <nav class="app-breadcrumb" aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item">
+                    <a href="{% url 'cadastros:equipamento_lista' %}">
+                        <i class="bi bi-arrow-left-short" aria-hidden="true"></i>Equipamentos
+                    </a>
+                </li>
+                <li class="breadcrumb-item active" aria-current="page">{{ equipamento.codigo }}</li>
+            </ol>
+        </nav>
+
+        <div class="page-header page-header-actions mb-4">
+            <div>
+                <span class="eyebrow"><i class="bi bi-gear-wide-connected me-1"></i>Equipamento</span>
+                <h1>{{ equipamento.nome }}</h1>
+                <p><span class="identifier-cell">{{ equipamento.codigo }}</span>{% if equipamento.setor %} · {{ equipamento.setor }}{% endif %}</p>
+            </div>
+            <div class="d-flex gap-2 align-items-center flex-wrap">
+                <span class="badge {{ equipamento.badge_status }} fs-6">{{ equipamento.get_status_display }}</span>
+                {% if not equipamento.ativo %}<span class="badge text-bg-secondary fs-6">Inativo</span>{% endif %}
+                {% if pode_editar %}
+                    <a href="{% url 'cadastros:equipamento_editar' equipamento.pk %}" class="btn btn-outline-primary">
+                        <i class="bi bi-pencil me-1"></i>Editar
+                    </a>
+                {% endif %}
+            </div>
+        </div>
+
+        {% if equipamento.motivo_impedimento_uso %}
+            <div class="alert alert-warning" role="alert">
+                <i class="bi bi-exclamation-triangle me-1"></i>
+                {{ equipamento.motivo_impedimento_uso }}.
+            </div>
+        {% endif %}
+
+        <div class="row g-4">
+            <div class="col-12 col-lg-7">
+                <div class="card shadow-sm data-panel mb-4">
+                    <div class="card-body">
+                        <div class="section-heading">
+                            <div>
+                                <h2><i class="bi bi-calendar3 me-1 text-primary"></i>Programações</h2>
+                                <p>Próximas programações ativas para este equipamento.</p>
+                            </div>
+                        </div>
+                        {% if programacoes %}
+                            <div class="table-responsive">
+                                <table class="table align-middle mb-0">
+                                    <thead>
+                                        <tr>
+                                            <th>Data</th>
+                                            <th>Produto</th>
+                                            <th>Cliente</th>
+                                            <th class="text-end">Quantidade</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for programacao in programacoes %}
+                                            <tr>
+                                                <td>{{ programacao.data|date:"d/m/Y" }}</td>
+                                                <td>{{ programacao.item.produto }}</td>
+                                                <td>{{ programacao.item.pedido.cliente }}</td>
+                                                <td class="text-end">{{ programacao.quantidade|floatformat:"-3" }}</td>
+                                            </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        {% else %}
+                            <p class="text-body-secondary mb-0">Nenhuma programação ativa.</p>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <div class="card shadow-sm data-panel mb-4">
+                    <div class="card-body">
+                        <div class="section-heading">
+                            <div>
+                                <h2><i class="bi bi-journal-check me-1 text-primary"></i>Ordens de produção</h2>
+                            </div>
+                        </div>
+                        {% if ordens %}
+                            <div class="table-responsive">
+                                <table class="table align-middle mb-0">
+                                    <thead>
+                                        <tr>
+                                            <th>OP</th>
+                                            <th>Produto</th>
+                                            <th>Cliente</th>
+                                            <th>Situação</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for ordem in ordens %}
+                                            <tr>
+                                                <td><a href="{% url 'ordens:detalhe' ordem.pk %}" class="text-decoration-none">{{ ordem.numero }}</a></td>
+                                                <td>{{ ordem.item_pedido.produto }}</td>
+                                                <td>{{ ordem.item_pedido.pedido.cliente }}</td>
+                                                <td><span class="badge {{ ordem.badge_status }}">{{ ordem.get_status_display }}</span></td>
+                                            </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        {% else %}
+                            <p class="text-body-secondary mb-0">Nenhuma OP vinculada.</p>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <div class="card shadow-sm data-panel">
+                    <div class="card-body">
+                        <div class="section-heading">
+                            <div>
+                                <h2><i class="bi bi-clipboard2-pulse me-1 text-primary"></i>Controles em processo</h2>
+                            </div>
+                        </div>
+                        {% if controles %}
+                            <ul class="list-unstyled small mb-0">
+                                {% for controle in controles %}
+                                    <li class="d-flex flex-wrap gap-2 align-items-center py-1">
+                                        <a href="{% url 'ordens:detalhe' controle.ordem.pk %}" class="text-decoration-none">{{ controle.ordem.numero }}</a>
+                                        <span>{{ controle.tipo.nome }}</span>
+                                        {% if controle.resultado is not None %}
+                                            <span>{{ controle.resultado|floatformat:"-4" }}</span>
+                                        {% elif controle.resultado_texto %}
+                                            <span>{{ controle.resultado_texto }}</span>
+                                        {% else %}
+                                            <span class="text-body-secondary">sem resultado</span>
+                                        {% endif %}
+                                        {% if controle.fora_especificacao %}<span class="badge text-bg-danger">fora da especificação</span>{% endif %}
+                                    </li>
+                                {% endfor %}
+                            </ul>
+                        {% else %}
+                            <p class="text-body-secondary mb-0">Nenhum controle registrado com este equipamento.</p>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-12 col-lg-5">
+                <div class="card shadow-sm mb-4">
+                    <div class="card-body">
+                        <div class="section-heading">
+                            <div><h2><i class="bi bi-card-text me-1 text-primary"></i>Dados</h2></div>
+                        </div>
+                        <dl class="row mb-0 small">
+                            <dt class="col-5">Código</dt>
+                            <dd class="col-7">{{ equipamento.codigo }}</dd>
+                            <dt class="col-5">Nome</dt>
+                            <dd class="col-7">{{ equipamento.nome }}</dd>
+                            <dt class="col-5">Setor</dt>
+                            <dd class="col-7">
+                                {% if equipamento.setor %}
+                                    <a href="{{ equipamento.setor.get_absolute_url }}" class="text-decoration-none">{{ equipamento.setor }}</a>
+                                {% else %}—{% endif %}
+                            </dd>
+                            <dt class="col-5">Localização</dt>
+                            <dd class="col-7">{{ equipamento.localizacao|default:"—" }}</dd>
+                            <dt class="col-5">Capacidade</dt>
+                            <dd class="col-7">
+                                {% if equipamento.capacidade %}
+                                    {{ equipamento.capacidade|floatformat:"-3" }} {{ equipamento.unidade_capacidade }}
+                                {% else %}—{% endif %}
+                            </dd>
+                            <dt class="col-5">Observações</dt>
+                            <dd class="col-7">{{ equipamento.observacoes|linebreaksbr|default:"—" }}</dd>
+                        </dl>
+                    </div>
+                </div>
+
+                <div class="card shadow-sm mb-4">
+                    <div class="card-body">
+                        <div class="section-heading">
+                            <div><h2><i class="bi bi-tools me-1 text-primary"></i>Manutenção e limpeza</h2></div>
+                        </div>
+                        <dl class="row mb-0 small">
+                            <dt class="col-5">Última limpeza</dt>
+                            <dd class="col-7">{{ equipamento.ultima_limpeza|date:"d/m/Y"|default:"—" }}</dd>
+                            <dt class="col-5">Última sanitização</dt>
+                            <dd class="col-7">{{ equipamento.ultima_sanitizacao|date:"d/m/Y"|default:"—" }}</dd>
+                            <dt class="col-5">Manutenção</dt>
+                            <dd class="col-7">{{ equipamento.manutencao_validade|date:"d/m/Y"|default:"—" }}</dd>
+                            <dt class="col-5">Calibração</dt>
+                            <dd class="col-7">{{ equipamento.calibracao_validade|date:"d/m/Y"|default:"—" }}</dd>
+                        </dl>
+                    </div>
+                </div>
+
+                <div class="card shadow-sm">
+                    <div class="card-body">
+                        <div class="section-heading">
+                            <div><h2><i class="bi bi-check2-square me-1 text-primary"></i>Checklists</h2></div>
+                        </div>
+                        {% if checklists %}
+                            <ul class="list-unstyled small mb-0">
+                                {% for checklist in checklists %}
+                                    <li class="py-1">
+                                        <a href="{% url 'ordens:detalhe' checklist.ordem.pk %}" class="text-decoration-none">{{ checklist.ordem.numero }}</a>
+                                        · {{ checklist.get_tipo_display }}
+                                        {% if checklist.condicao_final %}<span class="text-body-secondary">· {{ checklist.condicao_final }}</span>{% endif %}
+                                    </li>
+                                {% endfor %}
+                            </ul>
+                        {% else %}
+                            <p class="text-body-secondary small mb-0">Nenhum checklist registrado.</p>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

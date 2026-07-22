@@ -8,7 +8,7 @@ A view (CadastroCreateView/CadastroUpdateView) fornece: titulo, url_lista.
 
 {% block content %}
 <div class="row justify-content-center">
-    <div class="col-12 {% if usa_contatos_multiplos %}col-xl-10{% else %}col-md-10 col-lg-8{% endif %}">
+    <div class="col-12 {% if usa_contatos_multiplos or form_tabs %}col-xl-10{% else %}col-md-10 col-lg-8{% endif %}">
 
         <nav class="app-breadcrumb" aria-label="breadcrumb">
             <ol class="breadcrumb">
@@ -40,8 +40,9 @@ A view (CadastroCreateView/CadastroUpdateView) fornece: titulo, url_lista.
                     </div>
                 {% endif %}
 
-                <form method="post" novalidate>
+                <form method="post"{% if form_tem_arquivo %} enctype="multipart/form-data"{% endif %} novalidate>
                     {% csrf_token %}
+                    {% for campo_oculto in form.hidden_fields %}{{ campo_oculto }}{% endfor %}
 
                     {% if usa_contatos_multiplos %}
                         <div class="person-form-shell">
@@ -162,6 +163,47 @@ A view (CadastroCreateView/CadastroUpdateView) fornece: titulo, url_lista.
                                         </template>
                                     </div>
                                 </section>
+                            </div>
+                        </div>
+                    {% elif form_tabs %}
+                        <div class="person-form-shell">
+                            <ul class="nav form-tabs" role="tablist">
+                                {% for aba in form_tabs %}
+                                    <li class="nav-item" role="presentation">
+                                        <button class="nav-link{% if aba_form_ativa == aba.id %} active{% endif %}"
+                                                id="{{ aba.id }}-tab" data-bs-toggle="tab"
+                                                data-bs-target="#{{ aba.id }}" type="button" role="tab"
+                                                aria-controls="{{ aba.id }}"
+                                                aria-selected="{% if aba_form_ativa == aba.id %}true{% else %}false{% endif %}">
+                                            <i class="bi {{ aba.icon }}" aria-hidden="true"></i>{{ aba.label }}
+                                            {% if aba.has_errors %}<span class="tab-alert-dot" aria-hidden="true"></span>{% endif %}
+                                        </button>
+                                    </li>
+                                {% endfor %}
+                            </ul>
+
+                            <div class="tab-content person-tab-content">
+                                {% for aba in form_tabs %}
+                                    <section class="tab-pane fade{% if aba_form_ativa == aba.id %} show active{% endif %}"
+                                             id="{{ aba.id }}" role="tabpanel"
+                                             aria-labelledby="{{ aba.id }}-tab" tabindex="0">
+                                        <div class="form-section-panel">
+                                            <div class="form-section-heading">
+                                                <div>
+                                                    <h2><i class="bi {{ aba.icon }} me-1" aria-hidden="true"></i>{{ aba.label }}</h2>
+                                                    {% if aba.description %}<p>{{ aba.description }}</p>{% endif %}
+                                                </div>
+                                            </div>
+                                            <div class="person-main-grid">
+                                                {% for campo in aba.fields %}
+                                                    <div class="person-field{% if campo.name in aba.full_width_fields %} person-field-full{% endif %}">
+                                                        {% include "includes/campo.html" with campo=campo %}
+                                                    </div>
+                                                {% endfor %}
+                                            </div>
+                                        </div>
+                                    </section>
+                                {% endfor %}
                             </div>
                         </div>
                     {% else %}

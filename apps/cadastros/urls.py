@@ -9,10 +9,16 @@ urlpatterns = [
     # Setores
     path("setores/", views.SetorListView.as_view(), name="setor_lista"),
     path("setores/novo/", views.SetorCriarView.as_view(), name="setor_criar"),
+    path("setores/<int:pk>/", views.SetorDetalheView.as_view(), name="setor_detalhe"),
     path("setores/<int:pk>/editar/", views.SetorEditarView.as_view(), name="setor_editar"),
     # Balanças
     path("balancas/", views.BalancaListView.as_view(), name="balanca_lista"),
     path("balancas/nova/", views.BalancaCriarView.as_view(), name="balanca_criar"),
+    path(
+        "balancas/<int:pk>/",
+        views.BalancaDetalheView.as_view(),
+        name="balanca_detalhe",
+    ),
     path(
         "balancas/<int:pk>/editar/",
         views.BalancaEditarView.as_view(),
@@ -22,6 +28,11 @@ urlpatterns = [
     path("artes/", views.VersaoArteListView.as_view(), name="versaoarte_lista"),
     path("artes/nova/", views.VersaoArteCriarView.as_view(), name="versaoarte_criar"),
     path(
+        "artes/<int:pk>/",
+        views.VersaoArteDetalheView.as_view(),
+        name="versaoarte_detalhe",
+    ),
+    path(
         "artes/<int:pk>/editar/",
         views.VersaoArteEditarView.as_view(),
         name="versaoarte_editar",
@@ -29,6 +40,11 @@ urlpatterns = [
     # Equipamentos
     path("equipamentos/", views.EquipamentoListView.as_view(), name="equipamento_lista"),
     path("equipamentos/novo/", views.EquipamentoCriarView.as_view(), name="equipamento_criar"),
+    path(
+        "equipamentos/<int:pk>/",
+        views.EquipamentoDetalheView.as_view(),
+        name="equipamento_detalhe",
+    ),
     path(
         "equipamentos/<int:pk>/editar/",
         views.EquipamentoEditarView.as_view(),
@@ -52,6 +68,11 @@ urlpatterns = [
     # Fornecedores
     path("fornecedores/", views.FornecedorListView.as_view(), name="fornecedor_lista"),
     path("fornecedores/novo/", views.FornecedorCriarView.as_view(), name="fornecedor_criar"),
+    path(
+        "fornecedores/<int:pk>/",
+        views.FornecedorDetalheView.as_view(),
+        name="fornecedor_detalhe",
+    ),
     path(
         "fornecedores/<int:pk>/editar/",
         views.FornecedorEditarView.as_view(),

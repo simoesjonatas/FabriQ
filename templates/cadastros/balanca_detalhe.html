@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+
+{% block title %}{{ balanca }}{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-12 col-xxl-11">
+
+        <nav class="app-breadcrumb" aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item">
+                    <a href="{% url 'cadastros:balanca_lista' %}">
+                        <i class="bi bi-arrow-left-short" aria-hidden="true"></i>Balanças
+                    </a>
+                </li>
+                <li class="breadcrumb-item active" aria-current="page">{{ balanca.codigo }}</li>
+            </ol>
+        </nav>
+
+        <div class="page-header page-header-actions mb-4">
+            <div>
+                <span class="eyebrow"><i class="bi bi-speedometer2 me-1"></i>Balança</span>
+                <h1>{{ balanca.descricao }}</h1>
+                <p><span class="identifier-cell">{{ balanca.codigo }}</span>{% if balanca.localizacao %} · {{ balanca.localizacao }}{% endif %}</p>
+            </div>
+            <div class="d-flex gap-2 align-items-center flex-wrap">
+                {% if balanca.calibracao_vencida %}
+                    <span class="badge text-bg-danger fs-6">Calibração vencida</span>
+                {% else %}
+                    <span class="badge text-bg-success fs-6">Em dia</span>
+                {% endif %}
+                {% if not balanca.ativo %}<span class="badge text-bg-secondary fs-6">Inativa</span>{% endif %}
+                {% if pode_editar %}
+                    <a href="{% url 'cadastros:balanca_editar' balanca.pk %}" class="btn btn-outline-primary">
+                        <i class="bi bi-pencil me-1"></i>Editar
+                    </a>
+                {% endif %}
+            </div>
+        </div>
+
+        {% if balanca.calibracao_vencida %}
+            <div class="alert alert-danger" role="alert">
+                <i class="bi bi-exclamation-triangle me-1"></i>
+                Calibração vencida em {{ balanca.calibracao_validade|date:"d/m/Y" }} — a balança não deve ser usada na pesagem.
+            </div>
+        {% endif %}
+
+        <div class="row g-4">
+            <div class="col-12 col-lg-7">
+                <div class="card shadow-sm data-panel">
+                    <div class="card-body">
+                        <div class="section-heading">
+                            <div>
+                                <h2><i class="bi bi-list-check me-1 text-primary"></i>Últimas pesagens</h2>
+                            </div>
+                        </div>
+                        {% if pesagens %}
+                            <div class="table-responsive">
+                                <table class="table align-middle mb-0">
+                                    <thead>
+                                        <tr>
+                                            <th>OP</th>
+                                            <th>Material</th>
+                                            <th>Lote</th>
+                                            <th class="text-end">Pesado</th>
+                                            <th>Data</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for pesagem in pesagens %}
+                                            <tr>
+                                                <td><a href="{% url 'ordens:detalhe' pesagem.material.ordem.pk %}" class="text-decoration-none">{{ pesagem.material.ordem.numero }}</a></td>
+                                                <td>{{ pesagem.material.item }}</td>
+                                                <td>{{ pesagem.lote.codigo }}</td>
+                                                <td class="text-end">{{ pesagem.quantidade_pesada|floatformat:"-3" }}</td>
+                                                <td>{{ pesagem.data|date:"d/m/Y H:i" }}</td>
+                                            </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        {% else %}
+                            <p class="text-body-secondary mb-0">Nenhuma pesagem registrada.</p>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-12 col-lg-5">
+                <div class="card shadow-sm">
+                    <div class="card-body">
+                        <div class="section-heading">
+                            <div><h2><i class="bi bi-card-text me-1 text-primary"></i>Dados</h2></div>
+                        </div>
+                        <dl class="row mb-0 small">
+                            <dt class="col-5">Código</dt>
+                            <dd class="col-7">{{ balanca.codigo }}</dd>
+                            <dt class="col-5">Descrição</dt>
+                            <dd class="col-7">{{ balanca.descricao }}</dd>
+                            <dt class="col-5">Capacidade</dt>
+                            <dd class="col-7">
+                                {% if balanca.capacidade %}
+                                    {{ balanca.capacidade|floatformat:"-3" }} {{ balanca.unidade_capacidade }}
+                                {% else %}—{% endif %}
+                            </dd>
+                            <dt class="col-5">Calibração</dt>
+                            <dd class="col-7">{{ balanca.calibracao_validade|date:"d/m/Y"|default:"—" }}</dd>
+                            <dt class="col-5">Localização</dt>
+                            <dd class="col-7">{{ balanca.localizacao|default:"—" }}</dd>
+                            <dt class="col-5">Situação</dt>
+                            <dd class="col-7">{% if balanca.ativo %}Ativa{% else %}Inativa{% endif %}</dd>
+                        </dl>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

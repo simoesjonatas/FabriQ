@@ -4,6 +4,6 @@
 {% block rotulo_novo %}Novo setor{% endblock %}
 
 {% block celulas %}
-    <td>{{ objeto.nome }}</td>
+    <td><a href="{{ objeto.get_absolute_url }}" class="text-decoration-none">{{ objeto.nome }}</a></td>
     <td>{{ objeto.descricao|truncatechars:60|default:"—" }}</td>
 {% endblock %}

@@ -9,6 +9,7 @@ from django.utils import timezone
 from apps.accounts.perfis import COMPRAS, EXPEDICAO, PCP, PRODUCAO
 
 from .models import (
+    Balanca,
     Cliente,
     ClienteEndereco,
     ClienteTelefone,
@@ -131,6 +132,99 @@ class CrudEAuditoriaTests(TestCase):
         self.assertContains(response, "Última alteração em")
 
 
+class CadastroFormTabsTests(TestCase):
+    def setUp(self):
+        criar_usuario("pcp-abas", perfil=PCP)
+        self.client.login(username="pcp-abas", password="senha-forte-123")
+
+    def assert_form_usa_abas(self, rota, ids_das_abas):
+        response = self.client.get(reverse(rota))
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.context["form_tabs"])
+        for id_da_aba in ids_das_abas:
+            self.assertContains(response, f'id="form-tab-{id_da_aba}-tab"')
+        return response
+
+    def test_produto_usa_abas(self):
+        self.assert_form_usa_abas(
+            "cadastros:produto_criar",
+            [
+                "produto-dados",
+                "produto-regulatorio",
+                "produto-producao",
+                "produto-observacoes",
+            ],
+        )
+
+    def test_materia_prima_usa_abas_e_envio_de_arquivos(self):
+        response = self.assert_form_usa_abas(
+            "cadastros:materiaprima_criar",
+            [
+                "materiaprima-dados",
+                "materiaprima-tecnica",
+                "materiaprima-documentos",
+                "materiaprima-fornecedores",
+                "materiaprima-observacoes",
+            ],
+        )
+        self.assertTrue(response.context["form_tem_arquivo"])
+        self.assertContains(response, 'enctype="multipart/form-data"')
+
+    def test_embalagem_usa_abas(self):
+        self.assert_form_usa_abas(
+            "cadastros:embalagem_criar",
+            [
+                "embalagem-dados",
+                "embalagem-caracteristicas",
+                "embalagem-arte",
+                "embalagem-fornecedores",
+            ],
+        )
+
+    def test_equipamento_usa_abas(self):
+        self.assert_form_usa_abas(
+            "cadastros:equipamento_criar",
+            [
+                "equipamento-dados",
+                "equipamento-operacao",
+                "equipamento-manutencao",
+                "equipamento-observacoes",
+            ],
+        )
+
+    def test_cadastro_curto_continua_sem_abas(self):
+        response = self.client.get(reverse("cadastros:setor_criar"))
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.context["form_tabs"])
+        self.assertNotContains(response, 'data-bs-toggle="tab"')
+
+    def test_erro_abre_aba_correspondente(self):
+        response = self.client.post(
+            reverse("cadastros:produto_criar"),
+            {
+                "codigo": "P001",
+                "nome": "Creme Hidratante",
+                "descricao": "",
+                "unidade": "UN",
+                "estoque_minimo": "0",
+                "categoria": "",
+                "apresentacao": "",
+                "grau": "",
+                "registro_anvisa": "",
+                "situacao_regulatoria": "REGULARIZADO",
+                "limite_perda_percentual": "5",
+                "bloqueado": "on",
+                "motivo_bloqueio": "",
+                "observacoes": "",
+                "ativo": "on",
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["aba_form_ativa"], "form-tab-produto-producao")
+        self.assertContains(response, "Informe o motivo ao bloquear o produto.")
+        self.assertContains(response, "tab-alert-dot")
+
+
 class ListaTests(TestCase):
     def setUp(self):
         criar_usuario("pcp", perfil=PCP)
@@ -159,6 +253,52 @@ class ListaTests(TestCase):
         self.assertContains(response, "Página 1 de 2")
         response = self.client.get(reverse("cadastros:produto_lista"), {"page": 2})
         self.assertContains(response, "Página 2 de 2")
+
+
+class FichasOperacionaisTests(TestCase):
+    def setUp(self):
+        self.pcp = criar_usuario("pcp-fichas", perfil=PCP)
+        self.produto = Produto.objects.create(codigo="P-DET", nome="Creme")
+        self.setor = Setor.objects.create(nome="Envase")
+        self.balanca = Balanca.objects.create(
+            codigo="BAL-01", descricao="Balança bancada"
+        )
+        self.equipamento = Equipamento.objects.create(
+            codigo="EQ-01", nome="Misturador", setor=self.setor
+        )
+        self.versao_arte = VersaoArte.objects.create(
+            produto=self.produto, versao="v1"
+        )
+
+    def test_fichas_abrem_para_perfil_de_cadastros(self):
+        self.client.force_login(self.pcp)
+        casos = [
+            ("cadastros:setor_detalhe", self.setor.pk, "Envase"),
+            ("cadastros:balanca_detalhe", self.balanca.pk, "BAL-01"),
+            ("cadastros:equipamento_detalhe", self.equipamento.pk, "Misturador"),
+            ("cadastros:versaoarte_detalhe", self.versao_arte.pk, "Arte v1"),
+        ]
+        for rota, pk, texto in casos:
+            with self.subTest(rota=rota):
+                response = self.client.get(reverse(rota, args=[pk]))
+                self.assertEqual(response.status_code, 200)
+                self.assertContains(response, texto)
+                self.assertTrue(response.context["pode_editar"])
+
+    def test_listas_tem_link_para_visualizacao(self):
+        self.client.force_login(self.pcp)
+        casos = [
+            ("cadastros:setor_lista", self.setor.get_absolute_url()),
+            ("cadastros:balanca_lista", self.balanca.get_absolute_url()),
+            ("cadastros:equipamento_lista", self.equipamento.get_absolute_url()),
+            ("cadastros:versaoarte_lista", self.versao_arte.get_absolute_url()),
+        ]
+        for rota, url_detalhe in casos:
+            with self.subTest(rota=rota):
+                response = self.client.get(reverse(rota))
+                self.assertEqual(response.status_code, 200)
+                self.assertContains(response, url_detalhe)
+                self.assertContains(response, "Ver")
 
 
 class DocumentoTests(TestCase):
@@ -378,6 +518,74 @@ class FichaClienteTests(TestCase):
         self.assertFalse(documento.ativo)
 
 
+class FichaFornecedorTests(TestCase):
+    def setUp(self):
+        from apps.recebimento.models import Recebimento
+
+        self.fornecedor = Fornecedor.objects.create(
+            razao_social="Essência Brasil Ingredientes LTDA",
+            nome_fantasia="Essência Brasil",
+            documento="09012654000100",
+        )
+        FornecedorTelefone.objects.create(
+            fornecedor=self.fornecedor,
+            telefone="(11) 4602-7800",
+            principal=True,
+        )
+        FornecedorEndereco.objects.create(
+            fornecedor=self.fornecedor,
+            logradouro="Alameda Madeira",
+            cidade="Barueri",
+            uf="SP",
+            principal=True,
+        )
+        self.materia_prima = MateriaPrima.objects.create(
+            codigo="MP001", nome="Óleo vegetal"
+        )
+        self.materia_prima.fornecedores_aprovados.add(self.fornecedor)
+        Recebimento.objects.create(fornecedor=self.fornecedor, nota_fiscal="NF-100")
+        self.compras = criar_usuario("bia", perfil=COMPRAS)
+        self.producao = criar_usuario("joao", perfil=PRODUCAO)
+        self.expedicao = criar_usuario("ana", perfil=EXPEDICAO)
+
+    def test_ficha_abre_para_perfil_de_cadastros_com_edicao(self):
+        self.client.force_login(self.compras)
+        response = self.client.get(
+            reverse("cadastros:fornecedor_detalhe", args=[self.fornecedor.pk])
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Essência Brasil Ingredientes LTDA")
+        self.assertContains(response, "(11) 4602-7800")
+        self.assertContains(response, "Alameda Madeira")
+        self.assertContains(response, "NF-100")
+        self.assertContains(response, "MP001")
+        self.assertTrue(response.context["pode_editar"])
+
+    def test_ficha_abre_para_perfil_relacionado_sem_edicao(self):
+        self.client.force_login(self.producao)
+        response = self.client.get(
+            reverse("cadastros:fornecedor_detalhe", args=[self.fornecedor.pk])
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.context["pode_editar"])
+
+    def test_ficha_negada_sem_modulo_relacionado(self):
+        self.client.force_login(self.expedicao)
+        response = self.client.get(
+            reverse("cadastros:fornecedor_detalhe", args=[self.fornecedor.pk])
+        )
+        self.assertEqual(response.status_code, 403)
+
+    def test_lista_tem_link_para_visualizacao(self):
+        self.client.force_login(self.compras)
+        response = self.client.get(reverse("cadastros:fornecedor_lista"))
+        url_detalhe = reverse(
+            "cadastros:fornecedor_detalhe", args=[self.fornecedor.pk]
+        )
+        self.assertContains(response, url_detalhe)
+        self.assertContains(response, "Ver")
+
+
 class ClienteBloqueadoTests(TestCase):
     def _dados_pedido(self, cliente):
         return {
@@ -455,13 +663,29 @@ class LinksDeFichaTests(TestCase):
 
     def test_cada_ficha_tem_url_propria(self):
         cliente = Cliente.objects.create(razao_social="Loja")
+        setor = Setor.objects.create(nome="Envase")
+        balanca = Balanca.objects.create(codigo="BAL-1", descricao="Balança")
+        equipamento = Equipamento.objects.create(codigo="EQ-1", nome="Misturador")
         produto = Produto.objects.create(codigo="P-1", nome="Creme")
         mp = MateriaPrima.objects.create(codigo="M-1", nome="Óleo")
         embalagem = Embalagem.objects.create(codigo="E-1", nome="Frasco")
+        arte = VersaoArte.objects.create(produto=produto, versao="v1")
 
         self.assertEqual(
             cliente.get_absolute_url(),
             reverse("cadastros:cliente_detalhe", args=[cliente.pk]),
+        )
+        self.assertEqual(
+            setor.get_absolute_url(),
+            reverse("cadastros:setor_detalhe", args=[setor.pk]),
+        )
+        self.assertEqual(
+            balanca.get_absolute_url(),
+            reverse("cadastros:balanca_detalhe", args=[balanca.pk]),
+        )
+        self.assertEqual(
+            equipamento.get_absolute_url(),
+            reverse("cadastros:equipamento_detalhe", args=[equipamento.pk]),
         )
         self.assertEqual(
             produto.get_absolute_url(),
@@ -474,6 +698,10 @@ class LinksDeFichaTests(TestCase):
         self.assertEqual(
             embalagem.get_absolute_url(),
             reverse("cadastros:embalagem_detalhe", args=[embalagem.pk]),
+        )
+        self.assertEqual(
+            arte.get_absolute_url(),
+            reverse("cadastros:versaoarte_detalhe", args=[arte.pk]),
         )
 
 

@@ -28,129 +28,137 @@
             </div>
         </div>
 
-        <div class="row g-4">
-            <div class="col-12 col-lg-8">
-                <div class="card shadow-sm data-panel mb-4">
-                    <div class="card-body">
-                        <div class="section-heading">
-                            <div>
-                                <h2><i class="bi bi-box-seam me-1 text-primary"></i>Itens recebidos</h2>
-                                <p>Situação de cada item na quarentena.</p>
-                            </div>
-                        </div>
-                        <div class="table-responsive">
-                            <table class="table align-middle mb-0">
-                                <thead>
-                                    <tr>
-                                        <th>Item</th>
-                                        <th>Lote</th>
-                                        <th>Validade</th>
-                                        <th class="text-end">Qtd.</th>
-                                        <th>Situação</th>
-                                        {% if pode_decidir %}<th class="text-end">Decisão</th>{% endif %}
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {% for item in recebimento.itens.all %}
-                                        <tr>
-                                            <td>
-                                                <span class="identifier-cell">{{ item.item.codigo }}</span>
-                                                · {{ item.item.nome }}
-                                            </td>
-                                            <td>
-                                                {{ item.lote.codigo }}
-                                                <a href="{% url 'recebimento:etiqueta' item.pk %}" target="_blank" rel="noopener"
-                                                   class="ms-1 text-decoration-none" data-no-page-loading
-                                                   title="Imprimir etiqueta de identificação">
-                                                    <i class="bi bi-printer"></i>
-                                                </a>
-                                                {% if item.lote.lote_fornecedor %}
-                                                    <div class="small text-body-secondary">forn.: {{ item.lote.lote_fornecedor }}</div>
-                                                {% endif %}
-                                            </td>
-                                            <td>{{ item.lote.validade|date:"d/m/Y"|default:"—" }}</td>
-                                            <td class="text-end">{{ item.quantidade|floatformat:"-3" }}</td>
-                                            <td>
-                                                <span class="badge {{ item.badge_status }}">
-                                                    {{ item.get_status_display }}
-                                                </span>
-                                            </td>
-                                            {% if pode_decidir %}
-                                                <td class="text-end text-nowrap">
-                                                    {% include "recebimento/partials/botoes_decisao.html" with item=item %}
-                                                </td>
-                                            {% endif %}
-                                        </tr>
-                                        {% for decisao in item.decisoes.all %}
-                                            <tr class="table-secondary">
-                                                <td colspan="{% if pode_decidir %}6{% else %}5{% endif %}" class="small py-2">
-                                                    <i class="bi bi-clock-history me-1"></i>
-                                                    <strong>{{ decisao.get_decisao_display }}</strong>
-                                                    em {{ decisao.data|date:"d/m/Y H:i" }}
-                                                    por {{ decisao.responsavel }}
-                                                    {% if decisao.local_destino %} · destino: {{ decisao.local_destino }}{% endif %}
-                                                    {% if decisao.observacoes %} · “{{ decisao.observacoes }}”{% endif %}
-                                                </td>
-                                            </tr>
-                                        {% endfor %}
-                                    {% endfor %}
-                                </tbody>
-                            </table>
-                        </div>
+        <div class="card shadow-sm data-panel mb-4">
+            <div class="card-body">
+                <div class="section-heading">
+                    <div>
+                        <h2><i class="bi bi-card-text me-1 text-primary"></i>Dados</h2>
                     </div>
                 </div>
-
-                <div class="card shadow-sm">
-                    <div class="card-body">
-                        <div class="section-heading">
-                            <div>
-                                <h2><i class="bi bi-paperclip me-1 text-primary"></i>Anexos</h2>
-                                <p>COA, FISPQ e fotos do recebimento.</p>
-                            </div>
+                <div class="row g-3 small">
+                    <div class="col-12 col-md-6 col-xl-3">
+                        <div class="text-body-secondary fw-semibold mb-1">Fornecedor</div>
+                        <div>{{ recebimento.fornecedor }}</div>
+                    </div>
+                    <div class="col-6 col-md-3 col-xl-2">
+                        <div class="text-body-secondary fw-semibold mb-1">Nota fiscal</div>
+                        <div>{{ recebimento.nota_fiscal }}</div>
+                    </div>
+                    <div class="col-6 col-md-3 col-xl-2">
+                        <div class="text-body-secondary fw-semibold mb-1">Data</div>
+                        <div>{{ recebimento.data_recebimento|date:"d/m/Y" }}</div>
+                    </div>
+                    <div class="col-12 col-md-6 col-xl-3">
+                        <div class="text-body-secondary fw-semibold mb-1">Registrado</div>
+                        <div>
+                            {{ recebimento.criado_em|date:"d/m/Y H:i" }}
+                            {% if recebimento.criado_por %}por {{ recebimento.criado_por }}{% endif %}
                         </div>
-                        <ul class="list-group list-group-flush">
-                            {% for anexo in recebimento.anexos.all %}
-                                <li class="list-group-item px-0 d-flex justify-content-between align-items-center gap-3 flex-wrap">
-                                    <span>
-                                        <span class="badge text-bg-light border me-1">{{ anexo.get_tipo_display }}</span>
-                                        {{ anexo.descricao|default:anexo.arquivo.name }}
-                                    </span>
-                                    <a href="{{ anexo.arquivo.url }}" target="_blank" rel="noopener"
-                                       class="btn btn-sm btn-outline-primary" data-no-page-loading>
-                                        <i class="bi bi-download me-1"></i>Abrir
-                                    </a>
-                                </li>
-                            {% empty %}
-                                <li class="list-group-item px-0 text-body-secondary">Nenhum anexo.</li>
-                            {% endfor %}
-                        </ul>
+                    </div>
+                    <div class="col-12">
+                        <div class="text-body-secondary fw-semibold mb-1">Observações</div>
+                        <div>{{ recebimento.observacoes|linebreaksbr|default:"—" }}</div>
                     </div>
                 </div>
             </div>
+        </div>
 
-            <div class="col-12 col-lg-4">
-                <div class="card shadow-sm">
-                    <div class="card-body">
-                        <div class="section-heading">
-                            <div><h2><i class="bi bi-card-text me-1 text-primary"></i>Dados</h2></div>
-                        </div>
-                        <dl class="row mb-0 small">
-                            <dt class="col-5">Fornecedor</dt>
-                            <dd class="col-7">{{ recebimento.fornecedor }}</dd>
-                            <dt class="col-5">Nota fiscal</dt>
-                            <dd class="col-7">{{ recebimento.nota_fiscal }}</dd>
-                            <dt class="col-5">Data</dt>
-                            <dd class="col-7">{{ recebimento.data_recebimento|date:"d/m/Y" }}</dd>
-                            <dt class="col-5">Observações</dt>
-                            <dd class="col-7">{{ recebimento.observacoes|linebreaksbr|default:"—" }}</dd>
-                            <dt class="col-5">Registrado</dt>
-                            <dd class="col-7">
-                                {{ recebimento.criado_em|date:"d/m/Y H:i" }}
-                                {% if recebimento.criado_por %}por {{ recebimento.criado_por }}{% endif %}
-                            </dd>
-                        </dl>
+        <div class="card shadow-sm data-panel mb-4">
+            <div class="card-body">
+                <div class="section-heading">
+                    <div>
+                        <h2><i class="bi bi-box-seam me-1 text-primary"></i>Itens recebidos</h2>
+                        <p>Situação de cada item na quarentena.</p>
                     </div>
                 </div>
+                <div class="table-responsive">
+                    <table class="table align-middle mb-0">
+                        <thead>
+                            <tr>
+                                <th>Item</th>
+                                <th>Lote</th>
+                                <th class="text-nowrap">Validade</th>
+                                <th class="text-end">Qtd.</th>
+                                <th>Situação</th>
+                                {% if pode_decidir %}<th class="text-end">Decisão</th>{% endif %}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for item in recebimento.itens.all %}
+                                <tr>
+                                    <td>
+                                        <div class="identifier-cell">{{ item.item.codigo }}</div>
+                                        <div>{{ item.item.nome }}</div>
+                                    </td>
+                                    <td>
+                                        <span class="text-nowrap">{{ item.lote.codigo }}</span>
+                                        <a href="{% url 'recebimento:etiqueta' item.pk %}" target="_blank" rel="noopener"
+                                           class="ms-1 text-decoration-none" data-no-page-loading
+                                           title="Imprimir etiqueta de identificação">
+                                            <i class="bi bi-printer"></i>
+                                        </a>
+                                        {% if item.lote.lote_fornecedor %}
+                                            <div class="small text-body-secondary">forn.: {{ item.lote.lote_fornecedor }}</div>
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-nowrap">{{ item.lote.validade|date:"d/m/Y"|default:"—" }}</td>
+                                    <td class="text-end">{{ item.quantidade|floatformat:"-3" }}</td>
+                                    <td>
+                                        <span class="badge {{ item.badge_status }}">
+                                            {{ item.get_status_display }}
+                                        </span>
+                                    </td>
+                                    {% if pode_decidir %}
+                                        <td class="text-end">
+                                            <div class="d-flex flex-wrap gap-1 justify-content-end">
+                                                {% include "recebimento/partials/botoes_decisao.html" with item=item %}
+                                            </div>
+                                        </td>
+                                    {% endif %}
+                                </tr>
+                                {% for decisao in item.decisoes.all %}
+                                    <tr class="table-secondary">
+                                        <td colspan="{% if pode_decidir %}6{% else %}5{% endif %}" class="small py-2">
+                                            <i class="bi bi-clock-history me-1"></i>
+                                            <strong>{{ decisao.get_decisao_display }}</strong>
+                                            em {{ decisao.data|date:"d/m/Y H:i" }}
+                                            por {{ decisao.responsavel }}
+                                            {% if decisao.local_destino %} · destino: {{ decisao.local_destino }}{% endif %}
+                                            {% if decisao.observacoes %} · “{{ decisao.observacoes }}”{% endif %}
+                                        </td>
+                                    </tr>
+                                {% endfor %}
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <div class="section-heading">
+                    <div>
+                        <h2><i class="bi bi-paperclip me-1 text-primary"></i>Anexos</h2>
+                        <p>COA, FISPQ e fotos do recebimento.</p>
+                    </div>
+                </div>
+                <ul class="list-group list-group-flush">
+                    {% for anexo in recebimento.anexos.all %}
+                        <li class="list-group-item px-0 d-flex justify-content-between align-items-center gap-3 flex-wrap">
+                            <span>
+                                <span class="badge text-bg-light border me-1">{{ anexo.get_tipo_display }}</span>
+                                {{ anexo.descricao|default:anexo.arquivo.name }}
+                            </span>
+                            <a href="{{ anexo.arquivo.url }}" target="_blank" rel="noopener"
+                               class="btn btn-sm btn-outline-primary" data-no-page-loading>
+                                <i class="bi bi-download me-1"></i>Abrir
+                            </a>
+                        </li>
+                    {% empty %}
+                        <li class="list-group-item px-0 text-body-secondary">Nenhum anexo.</li>
+                    {% endfor %}
+                </ul>
             </div>
         </div>
 

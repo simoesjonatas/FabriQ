@@ -1,0 +1,216 @@
+{% extends "base.html" %}
+
+{% block title %}{{ fornecedor }}{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-12 col-xxl-11">
+
+        <nav class="app-breadcrumb" aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item">
+                    <a href="{% url 'cadastros:fornecedor_lista' %}">
+                        <i class="bi bi-arrow-left-short" aria-hidden="true"></i>Fornecedores
+                    </a>
+                </li>
+                <li class="breadcrumb-item active" aria-current="page">{{ fornecedor }}</li>
+            </ol>
+        </nav>
+
+        <div class="page-header page-header-actions mb-4">
+            <div>
+                <span class="eyebrow"><i class="bi bi-truck me-1"></i>Fornecedor</span>
+                <h1>{{ fornecedor.razao_social }}</h1>
+                <p>
+                    {% if fornecedor.nome_fantasia %}{{ fornecedor.nome_fantasia }} · {% endif %}
+                    {{ fornecedor.documento_formatado|default:"sem CNPJ/CPF" }}
+                </p>
+            </div>
+            <div class="d-flex gap-2 align-items-center flex-wrap">
+                {% if fornecedor.ativo %}
+                    <span class="badge text-bg-success fs-6">Ativo</span>
+                {% else %}
+                    <span class="badge text-bg-secondary fs-6">Inativo</span>
+                {% endif %}
+                {% if pode_editar %}
+                    <a href="{% url 'cadastros:fornecedor_editar' fornecedor.pk %}" class="btn btn-outline-primary">
+                        <i class="bi bi-pencil me-1"></i>Editar
+                    </a>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="row g-4">
+            <div class="col-12 col-lg-7">
+                <div class="card shadow-sm data-panel mb-4">
+                    <div class="card-body">
+                        <div class="section-heading">
+                            <div>
+                                <h2><i class="bi bi-inbox me-1 text-primary"></i>Recebimentos</h2>
+                                <p>Notas fiscais e itens recebidos deste fornecedor.</p>
+                            </div>
+                        </div>
+                        {% if recebimentos %}
+                            <div class="table-responsive">
+                                <table class="table align-middle mb-0">
+                                    <thead>
+                                        <tr>
+                                            <th>Nº</th>
+                                            <th>Nota fiscal</th>
+                                            <th>Data</th>
+                                            <th class="text-end">Itens</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for recebimento in recebimentos %}
+                                            <tr>
+                                                <td>
+                                                    <a href="{% url 'recebimento:detalhe' recebimento.pk %}" class="text-decoration-none">
+                                                        {{ recebimento.numero }}
+                                                    </a>
+                                                </td>
+                                                <td>{{ recebimento.nota_fiscal }}</td>
+                                                <td>{{ recebimento.data_recebimento|date:"d/m/Y" }}</td>
+                                                <td class="text-end">{{ recebimento.total_itens }}</td>
+                                            </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        {% else %}
+                            <p class="text-body-secondary mb-0">Nenhum recebimento registrado.</p>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <div class="card shadow-sm data-panel">
+                    <div class="card-body">
+                        <div class="section-heading">
+                            <div>
+                                <h2><i class="bi bi-upc-scan me-1 text-primary"></i>Últimos itens recebidos</h2>
+                            </div>
+                        </div>
+                        {% if itens_recebidos %}
+                            <div class="table-responsive">
+                                <table class="table align-middle mb-0">
+                                    <thead>
+                                        <tr>
+                                            <th>Item</th>
+                                            <th>Lote</th>
+                                            <th>Situação</th>
+                                            <th class="text-end">Qtd.</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for item in itens_recebidos %}
+                                            <tr>
+                                                <td>{{ item.item }}</td>
+                                                <td>
+                                                    <a href="{% url 'estoque:lote_detalhe' item.lote.pk %}" class="text-decoration-none">
+                                                        {{ item.lote.codigo }}
+                                                    </a>
+                                                    {% if item.lote.lote_fornecedor %}
+                                                        <span class="text-body-secondary small d-block">forn. {{ item.lote.lote_fornecedor }}</span>
+                                                    {% endif %}
+                                                </td>
+                                                <td><span class="badge {{ item.badge_status }}">{{ item.get_status_display }}</span></td>
+                                                <td class="text-end">{{ item.quantidade|floatformat:"-3" }}</td>
+                                            </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        {% else %}
+                            <p class="text-body-secondary mb-0">Nenhum item recebido.</p>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-12 col-lg-5">
+                <div class="card shadow-sm mb-4">
+                    <div class="card-body">
+                        <div class="section-heading">
+                            <div><h2><i class="bi bi-card-text me-1 text-primary"></i>Dados</h2></div>
+                        </div>
+                        <dl class="row mb-0 small">
+                            <dt class="col-5">Razão social</dt>
+                            <dd class="col-7">{{ fornecedor.razao_social }}</dd>
+                            <dt class="col-5">Nome fantasia</dt>
+                            <dd class="col-7">{{ fornecedor.nome_fantasia|default:"—" }}</dd>
+                            <dt class="col-5">CNPJ/CPF</dt>
+                            <dd class="col-7">{{ fornecedor.documento_formatado|default:"—" }}</dd>
+                            <dt class="col-5">E-mail</dt>
+                            <dd class="col-7">{{ fornecedor.email|default:"—" }}</dd>
+                            <dt class="col-5">Observações</dt>
+                            <dd class="col-7">{{ fornecedor.observacoes|linebreaksbr|default:"—" }}</dd>
+                        </dl>
+                    </div>
+                </div>
+
+                <div class="card shadow-sm mb-4">
+                    <div class="card-body">
+                        <div class="section-heading">
+                            <div><h2><i class="bi bi-telephone me-1 text-primary"></i>Contatos</h2></div>
+                        </div>
+                        {% for telefone in fornecedor.telefones.all %}
+                            {% if telefone.ativo %}
+                                <div class="small mb-1">
+                                    <i class="bi bi-telephone-fill text-body-secondary me-1"></i>{{ telefone.telefone }}
+                                    {% if telefone.contato %}· {{ telefone.contato }}{% endif %}
+                                    {% if telefone.principal %}<span class="badge text-bg-light border">principal</span>{% endif %}
+                                </div>
+                            {% endif %}
+                        {% empty %}
+                            <p class="text-body-secondary small mb-2">Sem telefones.</p>
+                        {% endfor %}
+                        <hr class="my-2">
+                        {% for endereco in fornecedor.enderecos.all %}
+                            {% if endereco.ativo %}
+                                <div class="small mb-1">
+                                    <i class="bi bi-geo-alt-fill text-body-secondary me-1"></i>{{ endereco.resumo }}
+                                    {% if endereco.principal %}<span class="badge text-bg-light border">principal</span>{% endif %}
+                                </div>
+                            {% endif %}
+                        {% empty %}
+                            <p class="text-body-secondary small mb-0">Sem endereços.</p>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <div class="card shadow-sm">
+                    <div class="card-body">
+                        <div class="section-heading">
+                            <div><h2><i class="bi bi-patch-check me-1 text-primary"></i>Aprovado para</h2></div>
+                        </div>
+                        {% if materias_primas_aprovadas or embalagens_aprovadas %}
+                            {% if materias_primas_aprovadas %}
+                                <p class="small text-body-secondary mb-1">Matérias-primas</p>
+                                <div class="d-flex flex-wrap gap-2 mb-3">
+                                    {% for materia_prima in materias_primas_aprovadas %}
+                                        <a href="{{ materia_prima.get_absolute_url }}" class="badge text-bg-light border text-decoration-none">
+                                            {{ materia_prima.codigo }} · {{ materia_prima.nome }}
+                                        </a>
+                                    {% endfor %}
+                                </div>
+                            {% endif %}
+                            {% if embalagens_aprovadas %}
+                                <p class="small text-body-secondary mb-1">Embalagens</p>
+                                <div class="d-flex flex-wrap gap-2 mb-0">
+                                    {% for embalagem in embalagens_aprovadas %}
+                                        <a href="{{ embalagem.get_absolute_url }}" class="badge text-bg-light border text-decoration-none">
+                                            {{ embalagem.codigo }} · {{ embalagem.nome }}
+                                        </a>
+                                    {% endfor %}
+                                </div>
+                            {% endif %}
+                        {% else %}
+                            <p class="text-body-secondary small mb-0">Nenhum item aprovado definido para este fornecedor.</p>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

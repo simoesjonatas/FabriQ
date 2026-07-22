@@ -271,6 +271,7 @@ class SetorListView(SetorConfig, ListaBase):
     campos_pesquisa = ["nome", "descricao"]
     colunas = ["Nome", "Descrição"]
     url_criar = "cadastros:setor_criar"
+    url_detalhe = "cadastros:setor_detalhe"
     url_editar = "cadastros:setor_editar"
 
 
@@ -280,6 +281,39 @@ class SetorCriarView(SetorConfig, CriarBase):
 
 class SetorEditarView(SetorConfig, EditarBase):
     pass
+
+
+class SetorDetalheView(AcessoQualquerModuloMixin, DetailView):
+    """Ficha do setor/linha de produção."""
+
+    modulos = ("cadastros", "pcp", "ordens", "producao")
+    model = Setor
+    template_name = "cadastros/setor_detalhe.html"
+    context_object_name = "setor"
+
+    def get_context_data(self, **kwargs):
+        from apps.producao.models import EnvaseOP
+
+        context = super().get_context_data(**kwargs)
+        setor = self.object
+        context["equipamentos"] = setor.equipamentos.order_by("nome")
+        context["ordens"] = (
+            setor.ordens.select_related(
+                "item_pedido__produto",
+                "item_pedido__pedido__cliente",
+                "equipamento",
+            )
+            .order_by("-criado_em")[:8]
+        )
+        context["envases"] = (
+            EnvaseOP.objects.filter(linha=setor)
+            .select_related("ordem", "versao_arte__produto", "operador")
+            .order_by("-registrado_em")[:8]
+        )
+        context["pode_editar"] = usuario_acessa_modulo(
+            self.request.user, "cadastros"
+        )
+        return context
 
 
 # Balanças
@@ -298,6 +332,7 @@ class BalancaListView(BalancaConfig, ListaBase):
     campos_pesquisa = ["codigo", "descricao", "localizacao"]
     colunas = ["Código", "Descrição", "Calibração", "Situação"]
     url_criar = "cadastros:balanca_criar"
+    url_detalhe = "cadastros:balanca_detalhe"
     url_editar = "cadastros:balanca_editar"
 
 
@@ -307,6 +342,34 @@ class BalancaCriarView(BalancaConfig, CriarBase):
 
 class BalancaEditarView(BalancaConfig, EditarBase):
     pass
+
+
+class BalancaDetalheView(AcessoQualquerModuloMixin, DetailView):
+    """Ficha da balança de pesagem."""
+
+    modulos = ("cadastros", "producao")
+    model = Balanca
+    template_name = "cadastros/balanca_detalhe.html"
+    context_object_name = "balanca"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        balanca = self.object
+        context["pesagens"] = (
+            balanca.pesagens.select_related(
+                "material__ordem",
+                "material__materia_prima",
+                "material__embalagem",
+                "lote",
+                "operador",
+                "conferente",
+            )
+            .order_by("-data")[:10]
+        )
+        context["pode_editar"] = usuario_acessa_modulo(
+            self.request.user, "cadastros"
+        )
+        return context
 
 
 # Versões de arte
@@ -325,6 +388,7 @@ class VersaoArteListView(VersaoArteConfig, ListaBase):
     campos_pesquisa = ["produto__codigo", "produto__nome", "versao"]
     colunas = ["Produto", "Versão", "Aprovação", "Situação"]
     url_criar = "cadastros:versaoarte_criar"
+    url_detalhe = "cadastros:versaoarte_detalhe"
     url_editar = "cadastros:versaoarte_editar"
 
     def get_queryset(self):
@@ -339,6 +403,31 @@ class VersaoArteEditarView(VersaoArteConfig, EditarBase):
     pass
 
 
+class VersaoArteDetalheView(AcessoQualquerModuloMixin, DetailView):
+    """Ficha da versão de arte."""
+
+    modulos = ("cadastros", "producao")
+    model = VersaoArte
+    template_name = "cadastros/versaoarte_detalhe.html"
+    context_object_name = "versao_arte"
+
+    def get_queryset(self):
+        return VersaoArte.objects.select_related("produto")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        versao_arte = self.object
+        context["embalagens"] = versao_arte.embalagens.order_by("nome")
+        context["envases"] = (
+            versao_arte.envases.select_related("ordem", "linha", "operador")
+            .order_by("-registrado_em")[:10]
+        )
+        context["pode_editar"] = usuario_acessa_modulo(
+            self.request.user, "cadastros"
+        )
+        return context
+
+
 # Equipamentos
 
 
@@ -348,6 +437,40 @@ class EquipamentoConfig:
     titulo = "Equipamentos"
     url_lista = "cadastros:equipamento_lista"
     success_url = reverse_lazy("cadastros:equipamento_lista")
+    form_tabs = (
+        {
+            "id": "equipamento-dados",
+            "label": "Dados",
+            "icon": "bi-card-text",
+            "description": "Código, nome, setor e situação operacional.",
+            "fields": ("codigo", "nome", "setor", "status", "ativo"),
+        },
+        {
+            "id": "equipamento-operacao",
+            "label": "Operação",
+            "icon": "bi-speedometer2",
+            "description": "Localização e capacidade do equipamento.",
+            "fields": ("localizacao", "capacidade", "unidade_capacidade"),
+        },
+        {
+            "id": "equipamento-manutencao",
+            "label": "Manutenção",
+            "icon": "bi-tools",
+            "description": "Limpeza, sanitização, manutenção e calibração.",
+            "fields": (
+                "ultima_limpeza",
+                "ultima_sanitizacao",
+                "manutencao_validade",
+                "calibracao_validade",
+            ),
+        },
+        {
+            "id": "equipamento-observacoes",
+            "label": "Observações",
+            "icon": "bi-chat-left-text",
+            "fields": ("observacoes",),
+        },
+    )
 
 
 class EquipamentoListView(EquipamentoConfig, ListaBase):
@@ -355,6 +478,7 @@ class EquipamentoListView(EquipamentoConfig, ListaBase):
     campos_pesquisa = ["codigo", "nome", "setor__nome"]
     colunas = ["Código", "Nome", "Setor", "Situação", "Capacidade"]
     url_criar = "cadastros:equipamento_criar"
+    url_detalhe = "cadastros:equipamento_detalhe"
     url_editar = "cadastros:equipamento_editar"
 
     def get_queryset(self):
@@ -367,6 +491,52 @@ class EquipamentoCriarView(EquipamentoConfig, CriarBase):
 
 class EquipamentoEditarView(EquipamentoConfig, EditarBase):
     pass
+
+
+class EquipamentoDetalheView(AcessoQualquerModuloMixin, DetailView):
+    """Ficha do equipamento."""
+
+    modulos = ("cadastros", "pcp", "ordens", "producao", "qualidade")
+    model = Equipamento
+    template_name = "cadastros/equipamento_detalhe.html"
+    context_object_name = "equipamento"
+
+    def get_queryset(self):
+        return Equipamento.objects.select_related("setor")
+
+    def get_context_data(self, **kwargs):
+        from apps.producao.models import ChecklistEquipamentoOP, ControleProcessoOP
+
+        context = super().get_context_data(**kwargs)
+        equipamento = self.object
+        context["programacoes"] = (
+            equipamento.programacoes.filter(ativo=True)
+            .select_related("item__produto", "item__pedido__cliente", "operador")
+            .order_by("data", "id")[:8]
+        )
+        context["ordens"] = (
+            equipamento.ordens.select_related(
+                "item_pedido__produto",
+                "item_pedido__pedido__cliente",
+                "linha",
+                "operador",
+            )
+            .order_by("-criado_em")[:8]
+        )
+        context["checklists"] = (
+            ChecklistEquipamentoOP.objects.filter(equipamento=equipamento)
+            .select_related("ordem", "responsavel")
+            .order_by("-data")[:8]
+        )
+        context["controles"] = (
+            ControleProcessoOP.objects.filter(equipamento=equipamento)
+            .select_related("ordem", "tipo", "analista")
+            .order_by("-data")[:8]
+        )
+        context["pode_editar"] = usuario_acessa_modulo(
+            self.request.user, "cadastros"
+        )
+        return context
 
 
 # Clientes
@@ -398,6 +568,7 @@ class ClienteListView(ClienteConfig, ListaBase):
     ]
     colunas = ["Razão social / Nome", "CNPJ/CPF", "Cidade/UF", "Telefone principal"]
     url_criar = "cadastros:cliente_criar"
+    url_detalhe = "cadastros:cliente_detalhe"
     url_editar = "cadastros:cliente_editar"
 
     def get_queryset(self):
@@ -509,6 +680,7 @@ class FornecedorListView(FornecedorConfig, ListaBase):
     ]
     colunas = ["Razão social / Nome", "CNPJ/CPF", "Cidade/UF", "Telefone principal"]
     url_criar = "cadastros:fornecedor_criar"
+    url_detalhe = "cadastros:fornecedor_detalhe"
     url_editar = "cadastros:fornecedor_editar"
 
     def get_queryset(self):
@@ -523,6 +695,56 @@ class FornecedorEditarView(FornecedorConfig, PessoaComContatosMixin, EditarBase)
     pass
 
 
+class FornecedorDetalheView(AcessoQualquerModuloMixin, DetailView):
+    """Ficha consolidada do fornecedor."""
+
+    modulos = ("cadastros", "estoque", "recebimento", "qualidade", "producao")
+    model = Fornecedor
+    template_name = "cadastros/fornecedor_detalhe.html"
+    context_object_name = "fornecedor"
+
+    def get_queryset(self):
+        return Fornecedor.objects.prefetch_related(
+            "telefones",
+            "enderecos",
+            "materias_primas_aprovadas",
+            "embalagens_aprovadas",
+        )
+
+    def get_context_data(self, **kwargs):
+        from django.db.models import Count
+
+        from apps.recebimento.models import ItemRecebimento
+
+        context = super().get_context_data(**kwargs)
+        fornecedor = self.object
+        context["recebimentos"] = (
+            fornecedor.recebimentos.annotate(total_itens=Count("itens"))
+            .order_by("-data_recebimento", "-id")[:8]
+        )
+        context["itens_recebidos"] = (
+            ItemRecebimento.objects.filter(recebimento__fornecedor=fornecedor)
+            .select_related(
+                "recebimento",
+                "lote",
+                "produto",
+                "materia_prima",
+                "embalagem",
+            )
+            .order_by("-recebimento__data_recebimento", "-id")[:10]
+        )
+        context["materias_primas_aprovadas"] = (
+            fornecedor.materias_primas_aprovadas.order_by("nome")
+        )
+        context["embalagens_aprovadas"] = fornecedor.embalagens_aprovadas.order_by(
+            "nome"
+        )
+        context["pode_editar"] = usuario_acessa_modulo(
+            self.request.user, "cadastros"
+        )
+        return context
+
+
 # Produtos
 
 
@@ -532,6 +754,48 @@ class ProdutoConfig:
     titulo = "Produtos"
     url_lista = "cadastros:produto_lista"
     success_url = reverse_lazy("cadastros:produto_lista")
+    form_tabs = (
+        {
+            "id": "produto-dados",
+            "label": "Dados",
+            "icon": "bi-card-text",
+            "description": "Identificação comercial e unidade de estoque.",
+            "fields": (
+                "codigo",
+                "nome",
+                "descricao",
+                "unidade",
+                "estoque_minimo",
+                "categoria",
+                "apresentacao",
+            ),
+        },
+        {
+            "id": "produto-regulatorio",
+            "label": "Regulatório",
+            "icon": "bi-shield-check",
+            "description": "Grau, registro e situação regulatória.",
+            "fields": ("grau", "registro_anvisa", "situacao_regulatoria"),
+        },
+        {
+            "id": "produto-producao",
+            "label": "Produção",
+            "icon": "bi-gear-wide-connected",
+            "description": "Perdas permitidas, bloqueio e situação do cadastro.",
+            "fields": (
+                "limite_perda_percentual",
+                "bloqueado",
+                "motivo_bloqueio",
+                "ativo",
+            ),
+        },
+        {
+            "id": "produto-observacoes",
+            "label": "Observações",
+            "icon": "bi-chat-left-text",
+            "fields": ("observacoes",),
+        },
+    )
 
 
 class ProdutoListView(ProdutoConfig, ListaBase):
@@ -598,6 +862,54 @@ class MateriaPrimaConfig:
     titulo = "Matérias-primas"
     url_lista = "cadastros:materiaprima_lista"
     success_url = reverse_lazy("cadastros:materiaprima_lista")
+    form_tabs = (
+        {
+            "id": "materiaprima-dados",
+            "label": "Dados",
+            "icon": "bi-card-text",
+            "description": "Código, nome, unidade, estoque mínimo e criticidade.",
+            "fields": (
+                "codigo",
+                "nome",
+                "unidade",
+                "estoque_minimo",
+                "critico",
+                "ativo",
+            ),
+        },
+        {
+            "id": "materiaprima-tecnica",
+            "label": "Técnica",
+            "icon": "bi-droplet",
+            "description": "INCI, CAS, especificação e armazenamento.",
+            "fields": (
+                "inci",
+                "cas",
+                "especificacao",
+                "condicoes_armazenamento",
+            ),
+        },
+        {
+            "id": "materiaprima-documentos",
+            "label": "Documentos",
+            "icon": "bi-paperclip",
+            "description": "Ficha técnica e FISPQ.",
+            "fields": ("ficha_tecnica", "fispq"),
+        },
+        {
+            "id": "materiaprima-fornecedores",
+            "label": "Fornecedores",
+            "icon": "bi-patch-check",
+            "description": "Fornecedores aprovados para consumo.",
+            "fields": ("fornecedores_aprovados",),
+        },
+        {
+            "id": "materiaprima-observacoes",
+            "label": "Observações",
+            "icon": "bi-chat-left-text",
+            "fields": ("observacoes",),
+        },
+    )
 
 
 class MateriaPrimaListView(MateriaPrimaConfig, ListaBase):
@@ -653,6 +965,43 @@ class EmbalagemConfig:
     titulo = "Embalagens"
     url_lista = "cadastros:embalagem_lista"
     success_url = reverse_lazy("cadastros:embalagem_lista")
+    form_tabs = (
+        {
+            "id": "embalagem-dados",
+            "label": "Dados",
+            "icon": "bi-card-text",
+            "description": "Código, nome, tipo, unidade e estoque mínimo.",
+            "fields": (
+                "codigo",
+                "nome",
+                "tipo",
+                "unidade",
+                "estoque_minimo",
+                "ativo",
+            ),
+        },
+        {
+            "id": "embalagem-caracteristicas",
+            "label": "Características",
+            "icon": "bi-bag",
+            "description": "Capacidade, material, cor e fabricante.",
+            "fields": ("capacidade", "material", "cor", "fabricante"),
+        },
+        {
+            "id": "embalagem-arte",
+            "label": "Arte e inspeção",
+            "icon": "bi-palette",
+            "description": "Versão de arte e critérios de recebimento.",
+            "fields": ("versao_arte", "inspecao"),
+        },
+        {
+            "id": "embalagem-fornecedores",
+            "label": "Fornecedores",
+            "icon": "bi-patch-check",
+            "description": "Fornecedores aprovados e observações do cadastro.",
+            "fields": ("fornecedores_aprovados", "observacoes"),
+        },
+    )
 
 
 class EmbalagemListView(EmbalagemConfig, ListaBase):

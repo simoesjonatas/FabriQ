@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% comment %}
 Lista padrão dos cadastros. A view (CadastroListView) fornece:
-titulo, url_criar, url_editar, colunas, termo, status.
+titulo, url_criar, url_editar, url_detalhe opcional, colunas, termo, status.
 O template filho define apenas o bloco "celulas" (células de dados da linha).
 {% endcomment %}
 
@@ -47,10 +47,18 @@ O template filho define apenas o bloco "celulas" (células de dados da linha).
                                         {% endif %}
                                     </td>
                                     <td class="text-end">
-                                        <a href="{% url url_editar objeto.pk %}"
-                                           class="btn btn-sm btn-outline-primary">
-                                            <i class="bi bi-pencil"></i> Editar
-                                        </a>
+                                        <div class="d-inline-flex gap-1 justify-content-end flex-wrap">
+                                            {% if url_detalhe %}
+                                                <a href="{% url url_detalhe objeto.pk %}"
+                                                   class="btn btn-sm btn-outline-secondary">
+                                                    <i class="bi bi-eye"></i> Ver
+                                                </a>
+                                            {% endif %}
+                                            <a href="{% url url_editar objeto.pk %}"
+                                               class="btn btn-sm btn-outline-primary">
+                                                <i class="bi bi-pencil"></i> Editar
+                                            </a>
+                                        </div>
                                     </td>
                                 </tr>
                             {% empty %}

@@ -122,7 +122,28 @@ class RecebimentoCriarView(AcessoModuloMixin, SalvarComUsuarioMixin, CreateView)
         else:
             context["itens_formset"] = kwargs["itens_formset"]
             context["anexos_formset"] = kwargs["anexos_formset"]
+        itens_tem_erros = self._formset_tem_erros(context["itens_formset"])
+        anexos_tem_erros = self._formset_tem_erros(context["anexos_formset"])
+        context["itens_formset_tem_erros"] = itens_tem_erros
+        context["anexos_formset_tem_erros"] = anexos_tem_erros
+        context["aba_recebimento_ativa"] = self._aba_recebimento_ativa(
+            context.get("form"), itens_tem_erros, anexos_tem_erros
+        )
         return context
+
+    def _formset_tem_erros(self, formset):
+        return formset.is_bound and (
+            formset.total_error_count() > 0 or bool(formset.non_form_errors())
+        )
+
+    def _aba_recebimento_ativa(self, form, itens_tem_erros, anexos_tem_erros):
+        if form and form.errors:
+            return "nota"
+        if itens_tem_erros:
+            return "itens"
+        if anexos_tem_erros:
+            return "anexos"
+        return "nota"
 
     def form_valid(self, form):
         form.instance.criado_por = self.request.user

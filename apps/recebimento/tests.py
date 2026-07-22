@@ -74,6 +74,15 @@ class BaseRecebimento(TestCase):
 
 
 class RegistroTests(BaseRecebimento):
+    def test_formulario_de_recebimento_usa_abas(self):
+        self.client.login(username="almoxarife", password="senha-forte-123")
+        response = self.client.get(reverse("recebimento:criar"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'id="tab-nota-tab"')
+        self.assertContains(response, 'id="tab-itens-tab"')
+        self.assertContains(response, 'id="tab-anexos-tab"')
+        self.assertEqual(response.context["aba_recebimento_ativa"], "nota")
+
     def test_registro_cria_lote_item_e_entrada_na_quarentena(self):
         response = self.registrar()
         recebimento = Recebimento.objects.get()
@@ -104,6 +113,8 @@ class RegistroTests(BaseRecebimento):
                                      "itens-0-lote_fornecedor": ""})
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "pelo menos um item")
+        self.assertEqual(response.context["aba_recebimento_ativa"], "itens")
+        self.assertTrue(response.context["itens_formset_tem_erros"])
         self.assertEqual(Recebimento.objects.count(), 0)
 
     def test_lote_do_fornecedor_e_obrigatorio(self):
@@ -147,6 +158,8 @@ class RegistroTests(BaseRecebimento):
             reverse("recebimento:criar"), {**dados, "anexos-0-arquivo": arquivo}
         )
         self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["aba_recebimento_ativa"], "anexos")
+        self.assertTrue(response.context["anexos_formset_tem_erros"])
         self.assertEqual(Recebimento.objects.count(), 0)
 
 

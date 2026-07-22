@@ -5,7 +5,7 @@
 
 {% block celulas %}
     <td>
-        <span class="identifier-cell">{{ objeto.produto.codigo }}</span>
+        <a href="{{ objeto.get_absolute_url }}" class="identifier-cell text-decoration-none">{{ objeto.produto.codigo }}</a>
         · {{ objeto.produto.nome }}
     </td>
     <td>{{ objeto.versao }}</td>

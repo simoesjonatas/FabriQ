@@ -1,0 +1,146 @@
+{% extends "base.html" %}
+
+{% block title %}{{ versao_arte }}{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-12 col-xxl-11">
+
+        <nav class="app-breadcrumb" aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item">
+                    <a href="{% url 'cadastros:versaoarte_lista' %}">
+                        <i class="bi bi-arrow-left-short" aria-hidden="true"></i>Versões de arte
+                    </a>
+                </li>
+                <li class="breadcrumb-item active" aria-current="page">{{ versao_arte.versao }}</li>
+            </ol>
+        </nav>
+
+        <div class="page-header page-header-actions mb-4">
+            <div>
+                <span class="eyebrow"><i class="bi bi-palette me-1"></i>Versão de arte</span>
+                <h1>Arte {{ versao_arte.versao }}</h1>
+                <p>
+                    <a href="{{ versao_arte.produto.get_absolute_url }}" class="text-decoration-none">
+                        {{ versao_arte.produto.codigo }} · {{ versao_arte.produto.nome }}
+                    </a>
+                </p>
+            </div>
+            <div class="d-flex gap-2 align-items-center flex-wrap">
+                {% if versao_arte.aprovada %}
+                    <span class="badge text-bg-success fs-6">Aprovada</span>
+                {% else %}
+                    <span class="badge text-bg-secondary fs-6">Obsoleta</span>
+                {% endif %}
+                {% if not versao_arte.ativo %}<span class="badge text-bg-secondary fs-6">Inativa</span>{% endif %}
+                {% if pode_editar %}
+                    <a href="{% url 'cadastros:versaoarte_editar' versao_arte.pk %}" class="btn btn-outline-primary">
+                        <i class="bi bi-pencil me-1"></i>Editar
+                    </a>
+                {% endif %}
+            </div>
+        </div>
+
+        {% if not versao_arte.aprovada %}
+            <div class="alert alert-warning" role="alert">
+                <i class="bi bi-exclamation-triangle me-1"></i>
+                Esta versão está obsoleta e não deve ser usada no envase.
+            </div>
+        {% endif %}
+
+        <div class="row g-4">
+            <div class="col-12 col-lg-7">
+                <div class="card shadow-sm data-panel mb-4">
+                    <div class="card-body">
+                        <div class="section-heading">
+                            <div>
+                                <h2><i class="bi bi-bag me-1 text-primary"></i>Embalagens vinculadas</h2>
+                            </div>
+                        </div>
+                        {% if embalagens %}
+                            <ul class="list-unstyled small mb-0">
+                                {% for embalagem in embalagens %}
+                                    <li class="d-flex flex-wrap gap-2 align-items-center py-1">
+                                        <a href="{{ embalagem.get_absolute_url }}" class="text-decoration-none">{{ embalagem.codigo }}</a>
+                                        <span>{{ embalagem.nome }}</span>
+                                        <span class="badge text-bg-light border">{{ embalagem.get_tipo_display }}</span>
+                                    </li>
+                                {% endfor %}
+                            </ul>
+                        {% else %}
+                            <p class="text-body-secondary mb-0">Nenhuma embalagem vinculada.</p>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <div class="card shadow-sm data-panel">
+                    <div class="card-body">
+                        <div class="section-heading">
+                            <div>
+                                <h2><i class="bi bi-box-arrow-in-down me-1 text-primary"></i>Envases</h2>
+                            </div>
+                        </div>
+                        {% if envases %}
+                            <div class="table-responsive">
+                                <table class="table align-middle mb-0">
+                                    <thead>
+                                        <tr>
+                                            <th>OP</th>
+                                            <th>Linha</th>
+                                            <th>Data</th>
+                                            <th class="text-end">Quantidade</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for envase in envases %}
+                                            <tr>
+                                                <td><a href="{% url 'ordens:detalhe' envase.ordem.pk %}" class="text-decoration-none">{{ envase.ordem.numero }}</a></td>
+                                                <td>{{ envase.linha|default:"—" }}</td>
+                                                <td>{{ envase.registrado_em|date:"d/m/Y H:i" }}</td>
+                                                <td class="text-end">{{ envase.quantidade_envasada|floatformat:"-3" }}</td>
+                                            </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        {% else %}
+                            <p class="text-body-secondary mb-0">Nenhum envase registrado com esta versão.</p>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-12 col-lg-5">
+                <div class="card shadow-sm">
+                    <div class="card-body">
+                        <div class="section-heading">
+                            <div><h2><i class="bi bi-card-text me-1 text-primary"></i>Dados</h2></div>
+                        </div>
+                        <dl class="row mb-0 small">
+                            <dt class="col-5">Produto</dt>
+                            <dd class="col-7">
+                                <a href="{{ versao_arte.produto.get_absolute_url }}" class="text-decoration-none">{{ versao_arte.produto }}</a>
+                            </dd>
+                            <dt class="col-5">Versão</dt>
+                            <dd class="col-7">{{ versao_arte.versao }}</dd>
+                            <dt class="col-5">Aprovação</dt>
+                            <dd class="col-7">{{ versao_arte.data_aprovacao|date:"d/m/Y"|default:"—" }}</dd>
+                            <dt class="col-5">Situação</dt>
+                            <dd class="col-7">{{ versao_arte.get_status_display }}</dd>
+                            <dt class="col-5">Arquivo</dt>
+                            <dd class="col-7">
+                                {% if versao_arte.arquivo %}
+                                    <a href="{{ versao_arte.arquivo.url }}" target="_blank" rel="noopener">
+                                        <i class="bi bi-paperclip me-1"></i>Abrir
+                                    </a>
+                                {% else %}—{% endif %}
+                            </dd>
+                        </dl>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
