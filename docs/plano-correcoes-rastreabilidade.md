@@ -43,8 +43,9 @@
 | Lote interno automático, alfanumérico e sequencial (MP no recebimento e produto acabado na OP) | `Lote.codigo` é digitado manualmente; não há campo separado para o lote do fornecedor | Etapa 2 ✅ |
 | Etiqueta de identificação da MP (modelo no Anexo A) com status e liberação CQ | Não existe impressão de etiqueta | Etapa 2 ✅ |
 
-**Ordem de execução recomendada:** 1 ✅ → 2 ✅ → 3 ✅ → 4 ✅ → 5 ✅ → 6 ✅ → 7 ✅ → 8 ✅ → 9 ✅ → 10 ✅ → 11 ✅ → 12 ✅ → **13**.
-Etapas 1 a 12 concluídas (22/07/2026), além do Anexo A. Falta só a Etapa 13 — homologação com o roteiro de aceite final.
+**Ordem de execução recomendada:** 1 ✅ → 2 ✅ → 3 ✅ → 4 ✅ → 5 ✅ → 6 ✅ → 7 ✅ → 8 ✅ → 9 ✅ → 10 ✅ → 11 ✅ → 12 ✅ → 13 ✅.
+**Plano concluído em 22/07/2026** — as 13 etapas e o Anexo A entregues. O roteiro de aceite
+para executar com o cliente está em `docs/roteiro-homologacao.md`.
 A trilha de auditoria veio primeiro porque todas as demais etapas gravam nela. A Etapa 2 entra na sequência por decisão do cliente (observações de 18/07/2026). O dossiê vem por último porque apenas consolida o que as etapas anteriores passam a registrar.
 
 ---
