@@ -17,11 +17,18 @@ def healthcheck(request):
 
 class HomeView(LoginRequiredMixin, TemplateView):
     """
-    Hub de módulos: mostra ao usuário apenas o que o perfil dele permite.
-    Na Fase 10 dará lugar ao dashboard com indicadores.
+    Dashboard inicial (Fase 10): indicadores, alertas e produção recente,
+    seguidos do hub de módulos. Mostra só o que o perfil do usuário vê.
     """
 
     template_name = "core/home.html"
+
+    def get_context_data(self, **kwargs):
+        from .dashboard import montar_dashboard
+
+        context = super().get_context_data(**kwargs)
+        context["dashboard"] = montar_dashboard(self.request.user)
+        return context
 
 
 class SalvarComUsuarioMixin:

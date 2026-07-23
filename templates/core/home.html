@@ -18,6 +18,92 @@
             </div>
         </section>
 
+        {% if dashboard.indicadores or dashboard.alertas %}
+            <div class="section-heading">
+                <div>
+                    <h2>Painel operacional</h2>
+                    <p>Situação de hoje — clique para ir direto ao que precisa de ação.</p>
+                </div>
+            </div>
+
+            {% if dashboard.indicadores %}
+                <div class="row row-cols-2 row-cols-lg-3 g-3 mb-4 dashboard-stats">
+                    {% for ind in dashboard.indicadores %}
+                        <div class="col">
+                            <a href="{% url ind.url_name %}" class="stat-card stat-card--{{ ind.cor }}">
+                                <span class="stat-icon"><i class="bi {{ ind.icone }}"></i></span>
+                                <span class="stat-valor">{{ ind.valor }}</span>
+                                <span class="stat-titulo">{{ ind.titulo }}</span>
+                                <span class="stat-detalhe">{{ ind.detalhe }}</span>
+                            </a>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+
+            <div class="row g-4 mb-4">
+                <div class="col-12 {% if dashboard.tem_producao %}col-lg-6{% endif %}">
+                    <div class="card shadow-sm h-100">
+                        <div class="card-body">
+                            <div class="section-heading">
+                                <div>
+                                    <h2 class="h6"><i class="bi bi-bell me-1 text-primary"></i>Alertas operacionais</h2>
+                                </div>
+                            </div>
+                            {% if dashboard.alertas %}
+                                <ul class="list-group list-group-flush">
+                                    {% for alerta in dashboard.alertas %}
+                                        <li class="list-group-item px-0">
+                                            <a href="{% url alerta.url_name %}" class="d-flex align-items-center gap-2 text-decoration-none">
+                                                <span class="alerta-bolinha text-bg-{{ alerta.nivel }}"><i class="bi {{ alerta.icone }}"></i></span>
+                                                <span>{{ alerta.texto }}</span>
+                                                <i class="bi bi-chevron-right ms-auto text-body-secondary small"></i>
+                                            </a>
+                                        </li>
+                                    {% endfor %}
+                                </ul>
+                            {% else %}
+                                <p class="text-body-secondary mb-0">
+                                    <i class="bi bi-check-circle text-success me-1"></i>
+                                    Nenhuma pendência operacional no momento.
+                                </p>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+
+                {% if dashboard.tem_producao %}
+                    <div class="col-12 col-lg-6">
+                        <div class="card shadow-sm h-100">
+                            <div class="card-body">
+                                <div class="section-heading">
+                                    <div>
+                                        <h2 class="h6"><i class="bi bi-bar-chart me-1 text-primary"></i>Produção dos últimos 7 dias</h2>
+                                    </div>
+                                </div>
+                                {% if dashboard.producao_maximo %}
+                                    <div class="grafico-barras" role="img"
+                                         aria-label="Produção diária dos últimos sete dias">
+                                        {% for barra in dashboard.producao_serie %}
+                                            <div class="barra-col">
+                                                <span class="barra-valor">{{ barra.quantidade|floatformat:"0" }}</span>
+                                                <div class="barra-trilho">
+                                                    <div class="barra-preenchimento" style="height: {{ barra.percentual }}%;"></div>
+                                                </div>
+                                                <span class="barra-dia">{{ barra.dia|date:"d/m" }}</span>
+                                            </div>
+                                        {% endfor %}
+                                    </div>
+                                {% else %}
+                                    <p class="text-body-secondary mb-0">Sem produção registrada nos últimos 7 dias.</p>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                {% endif %}
+            </div>
+        {% endif %}
+
         <div class="section-heading">
             <div>
                 <h2>Módulos disponíveis</h2>
@@ -51,4 +137,57 @@
         {% endif %}
     </div>
 </div>
+
+<style>
+    .dashboard-stats .stat-card {
+        display: flex; flex-direction: column; gap: .1rem;
+        height: 100%; padding: 1rem 1.1rem; border-radius: .9rem;
+        text-decoration: none; color: var(--bs-body-color);
+        background: var(--bs-body-bg); border: 1px solid var(--bs-border-color);
+        border-left: 4px solid var(--bs-secondary);
+        transition: transform .12s ease, box-shadow .12s ease;
+    }
+    .dashboard-stats .stat-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 .5rem 1rem rgba(0, 0, 0, .12);
+    }
+    .dashboard-stats .stat-card--primary { border-left-color: var(--bs-primary); }
+    .dashboard-stats .stat-card--success { border-left-color: var(--bs-success); }
+    .dashboard-stats .stat-card--warning { border-left-color: var(--bs-warning); }
+    .dashboard-stats .stat-card--danger  { border-left-color: var(--bs-danger); }
+    .dashboard-stats .stat-icon { font-size: 1.1rem; color: var(--bs-secondary-color); }
+    .dashboard-stats .stat-card--primary .stat-icon { color: var(--bs-primary); }
+    .dashboard-stats .stat-card--success .stat-icon { color: var(--bs-success); }
+    .dashboard-stats .stat-card--warning .stat-icon { color: var(--bs-warning); }
+    .dashboard-stats .stat-card--danger  .stat-icon { color: var(--bs-danger); }
+    .dashboard-stats .stat-valor { font-size: 1.9rem; font-weight: 700; line-height: 1.1; }
+    .dashboard-stats .stat-titulo { font-weight: 600; }
+    .dashboard-stats .stat-detalhe { font-size: .8rem; color: var(--bs-secondary-color); }
+
+    .alerta-bolinha {
+        display: inline-flex; align-items: center; justify-content: center;
+        width: 1.6rem; height: 1.6rem; border-radius: 50%; flex-shrink: 0;
+        font-size: .8rem;
+    }
+
+    .grafico-barras {
+        display: flex; align-items: flex-end; gap: .5rem;
+        height: 160px; padding-top: .5rem;
+    }
+    .grafico-barras .barra-col {
+        flex: 1 1 0; display: flex; flex-direction: column;
+        align-items: center; gap: .25rem; height: 100%;
+    }
+    .grafico-barras .barra-valor { font-size: .75rem; color: var(--bs-secondary-color); }
+    .grafico-barras .barra-trilho {
+        flex: 1; width: 100%; display: flex; align-items: flex-end;
+        background: var(--bs-tertiary-bg); border-radius: .35rem; overflow: hidden;
+        min-height: 4px;
+    }
+    .grafico-barras .barra-preenchimento {
+        width: 100%; background: var(--bs-primary); border-radius: .35rem .35rem 0 0;
+        min-height: 2px; transition: height .3s ease;
+    }
+    .grafico-barras .barra-dia { font-size: .72rem; color: var(--bs-secondary-color); }
+</style>
 {% endblock %}
